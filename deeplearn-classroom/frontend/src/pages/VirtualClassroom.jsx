@@ -1,166 +1,165 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * VirtualClassroom.jsx
+ * --------------------
+ * Main page for the interactive virtual classroom. Handles:
+ *   - Loading an uploaded video from IndexedDB / window fallback
+ *   - Live transcript via Web Speech API (useVideoTranscript)
+ *   - Dynamic quiz generated from transcript (useQuizGenerator)
+ *   - Animated sign-language avatar synced to captions (SignAvatarOverlay)
+ *   - Caption display below the video (CaptionOverlay)
+ *   - Sidebar: engagement, behaviour, chat, session info
+ */
+
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  Monitor, Play, Pause, CheckCircle, XCircle, Clock,
-  MessageSquare, Activity, BookOpen, ChevronRight, Send, HandMetal
+  Monitor, CheckCircle, XCircle, Clock,
+  MessageSquare, Activity, Send, HandMetal, Mic, MicOff
 } from 'lucide-react';
-import { loadVideo } from '../utils/db';
-import CaptionOverlay from '../components/CaptionOverlay';
-import VisualAlertBanner from '../components/VisualAlertBanner';
-import SignAvatarOverlay from '../components/SignAvatarOverlay';
 
-const DEEP_LEARNING_QUIZ = [
+import { loadVideo }              from '../utils/db';
+import { useVideoTranscript }     from '../utils/useVideoTranscript';
+import { useQuizGenerator }       from '../utils/useQuizGenerator';
+import CaptionOverlay             from '../components/CaptionOverlay';
+import VisualAlertBanner          from '../components/VisualAlertBanner';
+import SignAvatarOverlay          from '../components/SignAvatarOverlay';
+
+// ---------------------------------------------------------------------------
+// Fallback quiz used only if the video has no audible speech
+// ---------------------------------------------------------------------------
+const FALLBACK_QUIZ = [
   {
     id: 1,
-    question: "What is the primary advantage of using a Convolutional Neural Network (CNN)?",
+    question: 'What was the primary topic presented in this video?',
     options: [
-      "They are faster to train than linear regression.",
-      "They automatically learn spatial hierarchies of features from images.",
-      "They process sequential data better than RNNs.",
-      "They do not require any training data."
+      'An overview of the subject covered in the lecture.',
+      'A historical analysis of ancient civilizations.',
+      'A tutorial on graphic design software.',
+      'A guide to financial investment strategies.',
     ],
-    correct: 1
+    correct: 0,
   },
   {
     id: 2,
-    question: "Which component of an LSTM network helps it avoid the vanishing gradient problem?",
+    question: 'Which statement best summarises the video content?',
     options: [
-      "The softmax activation layer",
-      "The pooling layer",
-      "The cell state and gating mechanisms",
-      "The fully connected output layer"
+      'The video explained multiple related concepts with practical examples.',
+      'The video exclusively focused on abstract mathematics.',
+      'No actionable information was presented.',
+      'The video was primarily a product advertisement.',
     ],
-    correct: 2
-  }
-];
-
-const CUSTOM_VIDEO_QUIZ = [
-  {
-    id: 1,
-    question: "What was the main topic discussed in the first half of this video?",
-    options: [
-      "Historical context and background.",
-      "Technical specifications and details.",
-      "Practical applications and examples.",
-      "A summary of future predictions."
-    ],
-    correct: 0
+    correct: 0,
   },
-  {
-    id: 2,
-    question: "Which of the following best summarizes the conclusion?",
-    options: [
-      "The topic remains highly debated with no clear answer.",
-      "The methods discussed are outdated and should be replaced.",
-      "The core principles demonstrated provide a strong foundation for next steps.",
-      "Further research is required before any conclusions can be drawn."
-    ],
-    correct: 2
-  }
 ];
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const formatTime = (seconds) => {
+  const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+  const s = (seconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+};
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 export default function VirtualClassroom() {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [answers, setAnswers] = useState({});
-  const [showResults, setShowResults] = useState(false);
-  const [sessionTime, setSessionTime] = useState(0);
-  const [engagement, setEngagement] = useState('High');
-  const [behaviour, setBehaviour] = useState('Active');
-  const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState([]);
-  const [activeAlert, setActiveAlert] = useState(null);
-
-  const [videoSrc, setVideoSrc] = useState("https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4");
-  const [videoTitle, setVideoTitle] = useState("Deep Learning Fundamentals");
+  // ── Video state ───────────────────────────────────────────────────────────
+  const videoRef      = useRef(null);
+  const [videoSrc,    setVideoSrc]    = useState('https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4');
+  const [videoTitle,  setVideoTitle]  = useState('Deep Learning Fundamentals');
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
-  const [videoTime, setVideoTime] = useState(0);
+  const [isPlaying,   setIsPlaying]   = useState(false);
+  const [videoTime,   setVideoTime]   = useState(0);
+  const [videoEnded,  setVideoEnded]  = useState(false);
 
-  const isCustomVideo = videoTitle !== "Deep Learning Fundamentals";
-  const activeQuiz = isCustomVideo ? CUSTOM_VIDEO_QUIZ : DEEP_LEARNING_QUIZ;
+  // ── Transcript + captions ─────────────────────────────────────────────────
+  const { transcript, currentCaption, isListening } = useVideoTranscript(videoRef);
 
+  // ── Quiz ──────────────────────────────────────────────────────────────────
+  const { quizQuestions, generateQuiz } = useQuizGenerator();
+  const [answers,      setAnswers]      = useState({});
+  const [showResults,  setShowResults]  = useState(false);
+  const [quizReady,    setQuizReady]    = useState(false);
+
+  // ── Sidebar / session ─────────────────────────────────────────────────────
+  const [sessionTime,  setSessionTime]  = useState(0);
+  const [engagement,   setEngagement]   = useState('High');
+  const [behaviour,    setBehaviour]    = useState('Active');
+  const [chatInput,    setChatInput]    = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [activeAlert,  setActiveAlert]  = useState(null);
+
+  // ── Active quiz (transcript-generated OR fallback) ────────────────────────
+  const activeQuiz = quizQuestions || FALLBACK_QUIZ;
+
+  // ── Load video from IndexedDB on mount ───────────────────────────────────
   useEffect(() => {
-    // Load dynamically uploaded video from IndexedDB
     const fetchVideo = async () => {
-      let loadedFromDB = false;
+      let loaded = false;
       try {
         const { file, name } = await loadVideo();
         if (file) {
           setVideoSrc(URL.createObjectURL(file));
           setVideoTitle(name);
-          loadedFromDB = true;
+          loaded = true;
         }
       } catch (err) {
-        console.error("Failed to load video from DB:", err);
+        console.error('Failed to load video from IndexedDB:', err);
       }
-
-      if (!loadedFromDB && window.uploadedDemoVideo) {
-        // Fallback to window object if DB fails
+      if (!loaded && window.uploadedDemoVideo) {
         setVideoSrc(window.uploadedDemoVideo);
-        setVideoTitle(window.uploadedDemoTitle);
+        setVideoTitle(window.uploadedDemoTitle || 'Uploaded Video');
       }
-      
       setIsVideoLoaded(true);
     };
     fetchVideo();
   }, []);
 
-  const getDynamicCaption = () => {
-    if (!isPlaying) return "";
-    const seconds = Math.floor(videoTime);
-    if (seconds % 10 < 3) return "Welcome to the interactive class session.";
-    if (seconds % 10 < 6) return "Please pay attention to the material on the screen.";
-    return "Remember to take notes for the upcoming assessment.";
-  };
-  
-  const currentCaption = getDynamicCaption();
-
-  // Session timer
+  // ── When video ends → generate quiz from transcript ───────────────────────
   useEffect(() => {
-    const timer = setInterval(() => {
-      setSessionTime(prev => prev + 1);
-    }, 1000);
+    if (!videoEnded) return;
+    const fullText = transcript.map(t => t.text).join(' ');
+    generateQuiz(fullText, 3);
+    setQuizReady(true);
+  }, [videoEnded, transcript, generateQuiz]);
+
+  // ── Session timer ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    const timer = setInterval(() => setSessionTime(p => p + 1), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  // Simulated engagement changes removed for clean state
-  useEffect(() => {
-    // Engagement and behaviour states will now default to High/Active or be driven by actual API calls in the future.
-  }, []);
-
-  const formatTime = (seconds) => {
-    const m = Math.floor(seconds / 60).toString().padStart(2, '0');
-    const s = (seconds % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
-  const handleAnswer = (qIdx, optIdx) => {
+  // ── Quiz handlers ─────────────────────────────────────────────────────────
+  const handleAnswer = (qIdx, optIdx) =>
     setAnswers(prev => ({ ...prev, [qIdx]: optIdx }));
-  };
 
-  const handleSubmitQuiz = () => {
-    setShowResults(true);
-  };
+  const handleSubmitQuiz = () => setShowResults(true);
 
-  const score = Object.entries(answers).reduce((acc, [qIdx, ans]) => {
-    return acc + (activeQuiz[parseInt(qIdx)]?.correct === ans ? 1 : 0);
-  }, 0);
+  const score = Object.entries(answers).reduce((acc, [qIdx, ans]) =>
+    acc + (activeQuiz[parseInt(qIdx)]?.correct === ans ? 1 : 0), 0);
 
+  // ── Chat ──────────────────────────────────────────────────────────────────
   const handleSendChat = (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
-    setChatMessages([...chatMessages, { user: 'You', msg: chatInput, time: 'Just now' }]);
-    setChatInput("");
+    setChatMessages(prev => [...prev, { user: 'You', msg: chatInput, time: 'Just now' }]);
+    setChatInput('');
   };
 
+  // ── Derive first word of current caption for avatar gesture ──────────────
+  const avatarWord = currentCaption.trim().split(/\s+/)[0] || '';
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Virtual Classroom">
-      
-      {/* Visual Alert Zone at Top */}
+
+      {/* Visual Alert Banner */}
       <div className="mb-6 w-full max-w-3xl mx-auto">
         <VisualAlertBanner alert={activeAlert} onDismiss={() => setActiveAlert(null)} />
       </div>
 
-      {/* Header */}
+      {/* ── Header ── */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-display font-bold text-white flex items-center gap-3">
@@ -169,10 +168,20 @@ export default function VirtualClassroom() {
           </h1>
           <p className="text-slate-400 mt-1">{videoTitle} — Session Active</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
+          {/* Mic indicator */}
+          {isListening ? (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-400 animate-pulse">
+              <Mic className="w-4 h-4" /> Live Captioning
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 text-xs text-slate-500">
+              <MicOff className="w-4 h-4" /> Captions off
+            </span>
+          )}
           <a
             href="/video-upload"
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold transition-colors text-sm"
             aria-label="Upload Class Video"
           >
             <Monitor className="w-4 h-4" aria-hidden="true" />
@@ -185,51 +194,112 @@ export default function VirtualClassroom() {
         </div>
       </div>
 
+      {/* ── Main grid ── */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Main Content — 3 columns */}
-        <div className="lg:col-span-3 space-y-6">
-          {/* Video Area */}
-          <div className="rounded-2xl glass overflow-hidden relative">
-            <div className="aspect-video bg-black flex items-center justify-center relative group">
-              
-              {isVideoLoaded && (
-                <video
-                  src={videoSrc}
-                  className="w-full h-full object-contain"
-                  controls
-                  onPlay={() => setIsPlaying(true)}
-                  onPause={() => setIsPlaying(false)}
-                  onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
-                  poster={videoSrc.includes('Sintel') ? "https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg" : undefined}
+
+        {/* Left / Main — 3 cols */}
+        <div className="lg:col-span-3 space-y-4">
+
+          {/* ── Video + Avatar row ── */}
+          <div className="flex flex-col xl:flex-row gap-4 items-start">
+
+            {/* Video Player */}
+            <div className="flex-1 rounded-2xl glass overflow-hidden">
+              <div className="aspect-video bg-black relative group">
+                {isVideoLoaded && (
+                  <video
+                    ref={videoRef}
+                    src={videoSrc}
+                    className="w-full h-full object-contain"
+                    controls
+                    onPlay={() => { setIsPlaying(true); setVideoEnded(false); }}
+                    onPause={() => setIsPlaying(false)}
+                    onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
+                    onEnded={() => { setIsPlaying(false); setVideoEnded(true); }}
+                    poster={
+                      videoSrc.includes('Sintel')
+                        ? 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg'
+                        : undefined
+                    }
+                  />
+                )}
+
+                {/* Title overlay on hover */}
+                <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <h3 className="text-lg font-bold text-white">{videoTitle}</h3>
+                  <p className="text-xs text-slate-300">
+                    {videoTitle === 'Deep Learning Fundamentals'
+                      ? 'Lecture 5: Neural Network Architectures'
+                      : 'Custom Uploaded Content'}
+                  </p>
+                </div>
+
+                {/* Video-ended overlay */}
+                {videoEnded && (
+                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center pointer-events-none">
+                    <CheckCircle className="w-16 h-16 text-emerald-400 mb-3" />
+                    <p className="text-white font-semibold text-lg">Video Complete</p>
+                    <p className="text-slate-400 text-sm mt-1">Quiz generated below ↓</p>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Captions — below the video, inside the same card ── */}
+              <div className="p-3 border-t border-white/5">
+                <CaptionOverlay
+                  transcript={transcript}
+                  currentCaption={currentCaption}
+                  isActive={isPlaying}
                 />
+                {!isPlaying && transcript.length === 0 && (
+                  <p className="text-xs text-slate-600 italic text-center py-2">
+                    Captions will appear here when the video plays.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* ── Sign Language Avatar — right of video ── */}
+            <div className="flex flex-col items-center gap-2 flex-shrink-0">
+              <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
+                ASL Interpreter
+              </p>
+              <SignAvatarOverlay
+                currentWord={avatarWord}
+                isActive={isPlaying}
+              />
+              {transcript.length > 0 && (
+                <p className="text-[10px] text-emerald-400/60 text-center max-w-[140px] leading-tight">
+                  Signing based on live transcript
+                </p>
               )}
-
-              {/* Title overlay (appears on hover) */}
-              <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                 <h3 className="text-lg font-bold text-white">{videoTitle}</h3>
-                 <p className="text-xs text-slate-300">{isCustomVideo ? "Custom Uploaded Content" : "Lecture 5: Neural Network Architectures"}</p>
-              </div>
-
-              {/* Sign Language Avatar Overlay */}
-              <div className="absolute bottom-24 right-4 z-20 pointer-events-none scale-75 origin-bottom-right">
-                <SignAvatarOverlay currentWord={isPlaying ? (currentCaption.split(' ')[0] || "listening") : "idle"} />
-              </div>
-
-              {/* Caption Overlay */}
-              <div className="absolute bottom-16 left-0 right-0 z-10 pointer-events-none">
-                <CaptionOverlay active={isPlaying} mockText={currentCaption} />
-              </div>
             </div>
           </div>
 
-          {/* Quiz Section */}
+          {/* ── Quiz Section ── */}
           <div className="p-6 rounded-2xl glass">
-            <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-300 mb-1 flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-emerald-400" />
               Quick Assessment
             </h3>
+            <p className="text-xs text-slate-500 mb-5">
+              {quizQuestions
+                ? 'Questions generated from the video transcript.'
+                : videoEnded
+                  ? 'Using fallback questions (no speech detected).'
+                  : 'Quiz will be generated automatically when the video ends.'}
+            </p>
 
-            {!showResults ? (
+            {/* Quiz not ready yet */}
+            {!quizReady && !videoEnded && (
+              <div className="text-center py-8 text-slate-500">
+                <Activity className="w-8 h-8 mx-auto mb-2 opacity-40 animate-pulse" />
+                <p className="text-sm">Finish watching the video to unlock the quiz.</p>
+              </div>
+            )}
+
+            {/* Quiz questions */}
+            {(quizReady || videoEnded) && !showResults && (
               <div className="space-y-6">
                 {activeQuiz.map((q, qIdx) => (
                   <div key={q.id} className="p-4 rounded-xl glass-light">
@@ -240,13 +310,13 @@ export default function VirtualClassroom() {
                       {q.options.map((opt, optIdx) => (
                         <button
                           key={optIdx}
+                          id={`quiz-q${qIdx}-opt${optIdx}`}
                           onClick={() => handleAnswer(qIdx, optIdx)}
                           className={`text-left px-4 py-2.5 rounded-lg text-sm transition-all
                             ${answers[qIdx] === optIdx
                               ? 'bg-primary-600/30 border border-primary-500/50 text-primary-200'
                               : 'bg-white/[0.03] border border-white/5 text-slate-300 hover:bg-white/[0.06] hover:border-white/10'
                             }`}
-                          id={`quiz-q${qIdx}-opt${optIdx}`}
                         >
                           {opt}
                         </button>
@@ -256,6 +326,7 @@ export default function VirtualClassroom() {
                 ))}
 
                 <button
+                  id="quiz-submit-btn"
                   onClick={handleSubmitQuiz}
                   disabled={Object.keys(answers).length < activeQuiz.length}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-primary-600 to-purple-600
@@ -263,12 +334,14 @@ export default function VirtualClassroom() {
                              hover:from-primary-500 hover:to-purple-500
                              disabled:opacity-40 disabled:cursor-not-allowed
                              transition-all shadow-lg shadow-primary-600/20"
-                  id="quiz-submit-btn"
                 >
                   Submit Answers
                 </button>
               </div>
-            ) : (
+            )}
+
+            {/* Results screen */}
+            {showResults && (
               <div className="text-center py-8">
                 <div className={`text-5xl font-display font-bold mb-2 ${
                   score === activeQuiz.length ? 'text-emerald-400' :
@@ -277,28 +350,28 @@ export default function VirtualClassroom() {
                   {score}/{activeQuiz.length}
                 </div>
                 <p className="text-slate-400 text-sm mb-4">
-                  {score === activeQuiz.length ? 'Perfect score! Excellent work!' :
-                   score >= activeQuiz.length / 2 ? 'Good job! Keep practicing.' :
-                   'Keep studying — you\'ll improve!'}
+                  {score === activeQuiz.length
+                    ? 'Perfect score! Excellent work!'
+                    : score >= activeQuiz.length / 2
+                      ? 'Good job! Review the material to improve.'
+                      : "Keep studying — you'll improve!"}
                 </p>
 
                 <div className="space-y-2 text-left mt-6">
-                  {QUIZ_QUESTIONS.map((q, qIdx) => (
-                    <div key={q.id} className="flex items-center gap-2 p-2 rounded-lg glass-light">
-                      {answers[qIdx] === q.correct ? (
-                        <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                      ) : (
-                        <XCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                      )}
-                      <span className="text-xs text-slate-300 truncate">{q.question}</span>
+                  {activeQuiz.map((q, qIdx) => (
+                    <div key={q.id} className="flex items-start gap-2 p-2 rounded-lg glass-light">
+                      {answers[qIdx] === q.correct
+                        ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
+                        : <XCircle    className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />}
+                      <span className="text-xs text-slate-300">{q.question}</span>
                     </div>
                   ))}
                 </div>
 
                 <button
+                  id="quiz-retry-btn"
                   onClick={() => { setShowResults(false); setAnswers({}); }}
                   className="mt-4 px-6 py-2 rounded-lg glass text-sm text-white hover:bg-white/10 transition"
-                  id="quiz-retry-btn"
                 >
                   Retry Quiz
                 </button>
@@ -307,18 +380,20 @@ export default function VirtualClassroom() {
           </div>
         </div>
 
-        {/* Sidebar — 1 column */}
+        {/* ── Sidebar — 1 col ── */}
         <div className="space-y-4">
+
           {/* Live Engagement */}
           <div className="p-5 rounded-2xl glass">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
               Live Engagement
             </h3>
             <div className="flex items-center gap-2 mb-2">
-              <div className={`w-3 h-3 rounded-full ${
-                engagement === 'High' ? 'bg-emerald-400 shadow-emerald-400/50' :
-                engagement === 'Low' ? 'bg-red-400 shadow-red-400/50' : 'bg-amber-400 shadow-amber-400/50'
-              } shadow-lg animate-pulse`} />
+              <div className={`w-3 h-3 rounded-full shadow-lg animate-pulse ${
+                engagement === 'High'   ? 'bg-emerald-400 shadow-emerald-400/50' :
+                engagement === 'Low'    ? 'bg-red-400 shadow-red-400/50'         :
+                'bg-amber-400 shadow-amber-400/50'
+              }`} />
               <span className={`badge badge-${engagement.toLowerCase()}`}>{engagement}</span>
             </div>
             <p className="text-xs text-slate-500 mt-1">Updates every 8 seconds</p>
@@ -331,24 +406,18 @@ export default function VirtualClassroom() {
             </h3>
             <div className="flex items-center gap-2 mb-2">
               <Activity className={`w-4 h-4 ${
-                behaviour === 'Active' ? 'text-emerald-400' :
-                behaviour === 'Distracted' ? 'text-red-400' : 'text-amber-400'
+                behaviour === 'Active'     ? 'text-emerald-400' :
+                behaviour === 'Distracted' ? 'text-red-400'     : 'text-amber-400'
               }`} />
               <span className={`badge badge-${behaviour.toLowerCase()}`}>{behaviour}</span>
             </div>
             <div className="mt-3 space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-500">Click Rate</span>
-                <span className="text-slate-300">—</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-500">Response</span>
-                <span className="text-slate-300">—</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-slate-500">Idle Time</span>
-                <span className="text-slate-300">—</span>
-              </div>
+              {[['Click Rate', '—'], ['Response', '—'], ['Idle Time', '—']].map(([k, v]) => (
+                <div key={k} className="flex justify-between text-xs">
+                  <span className="text-slate-500">{k}</span>
+                  <span className="text-slate-300">{v}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -360,15 +429,11 @@ export default function VirtualClassroom() {
             <div className="space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-slate-500">Course</span>
-                <span className="text-slate-300">Deep Learning</span>
+                <span className="text-slate-300 truncate max-w-[100px] text-right">{videoTitle}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Lecture</span>
-                <span className="text-slate-300">#5 — NN Arch.</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Difficulty</span>
-                <span className="badge badge-medium text-[10px]">Medium</span>
+                <span className="text-slate-500">Captions</span>
+                <span className="text-slate-300">{transcript.length} segments</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Duration</span>
@@ -377,53 +442,67 @@ export default function VirtualClassroom() {
             </div>
           </div>
 
-          {/* Text-Only Chat Activity */}
-          <div className="p-5 rounded-2xl glass flex flex-col h-72">
+          {/* Transcript preview */}
+          {transcript.length > 0 && (
+            <div className="p-5 rounded-2xl glass">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                Transcript ({transcript.length})
+              </h3>
+              <div className="space-y-1 max-h-36 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
+                {transcript.slice(-8).map((item, idx) => (
+                  <p key={idx} className="text-[10px] text-slate-400 leading-snug">
+                    <span className="text-slate-600 font-mono mr-1">{formatTime(Math.floor(item.timestamp))}</span>
+                    {item.text}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Text Chat */}
+          <div className="p-5 rounded-2xl glass flex flex-col h-64">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
-              Class Chat (Text Only)
+              <MessageSquare className="w-3.5 h-3.5" />
+              Class Chat
             </h3>
-            
             <div className="flex-1 space-y-2 overflow-y-auto mb-3 pr-1" role="log" aria-label="Chat messages">
-              {chatMessages.map((chat, idx) => (
+              {chatMessages.map((c, idx) => (
                 <div key={idx} className="p-2 rounded-lg glass-light">
                   <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-xs font-semibold text-primary-300">{chat.user}</span>
-                    <span className="text-[10px] text-slate-500">{chat.time}</span>
+                    <span className="text-xs font-semibold text-primary-300">{c.user}</span>
+                    <span className="text-[10px] text-slate-500">{c.time}</span>
                   </div>
-                  <p className="text-xs text-slate-400">{chat.msg}</p>
+                  <p className="text-xs text-slate-400">{c.msg}</p>
                 </div>
               ))}
             </div>
-
             <form onSubmit={handleSendChat} className="flex gap-2">
-               <input 
-                 type="text" 
-                 value={chatInput}
-                 onChange={(e) => setChatInput(e.target.value)}
-                 className="flex-1 px-3 py-1.5 rounded-lg bg-surface-800 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
-                 placeholder="Type a message..."
-                 aria-label="Chat message input"
-               />
-               <button 
-                 type="submit" 
-                 className="p-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white transition-colors"
-                 aria-label="Send message"
-               >
-                 <Send className="w-4 h-4" aria-hidden="true" />
-               </button>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                className="flex-1 px-3 py-1.5 rounded-lg bg-surface-800 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+                placeholder="Type a message…"
+                aria-label="Chat message input"
+              />
+              <button
+                type="submit"
+                className="p-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-white transition-colors"
+                aria-label="Send message"
+              >
+                <Send className="w-4 h-4" />
+              </button>
             </form>
           </div>
-          
-          {/* Sign Language Input Button */}
-          <button 
+
+          {/* Sign Language Input button */}
+          <button
             onClick={() => setActiveAlert({ type: 'info', message: 'Sign Language Input mode started.', flash: false, duration: 3000 })}
             className="w-full p-4 rounded-2xl glass hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors flex items-center justify-center gap-3 text-emerald-400 group"
             aria-label="Open sign language input"
-            tabIndex={0}
           >
-             <HandMetal className="w-5 h-5 group-hover:scale-110 transition-transform" aria-hidden="true" />
-             <span className="font-semibold text-sm">Use Sign Language</span>
+            <HandMetal className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="font-semibold text-sm">Use Sign Language</span>
           </button>
         </div>
       </div>
