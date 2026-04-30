@@ -16,11 +16,62 @@ export default function LiveClassroom() {
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
   const [activeAlert, setActiveAlert] = useState(null);
+  const [liveCaption, setLiveCaption] = useState("Microphone active. Start speaking...");
 
   const localVideoRef = useRef(null);
   const streamRef = useRef(null);
+  const recognitionRef = useRef(null);
 
-  const MOCK_CAPTION = "Welcome to the live session everyone, let's begin...";
+  // Initialize Speech Recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      
+      recognition.onresult = (event) => {
+        let interimTranscript = '';
+        let finalTranscript = '';
+        
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalTranscript += event.results[i][0].transcript;
+          } else {
+            interimTranscript += event.results[i][0].transcript;
+          }
+        }
+        // Show the latest speech (interim or final)
+        const displayCaption = finalTranscript || interimTranscript;
+        if (displayCaption.trim()) {
+          setLiveCaption(displayCaption);
+        }
+      };
+
+      recognition.onerror = (event) => {
+        console.warn("Speech recognition error:", event.error);
+      };
+      
+      recognition.onend = () => {
+        // Auto-restart if not muted (handles continuous listening disconnects)
+        if (!isMuted && recognitionRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch (e) {}
+        }
+      };
+      
+      recognitionRef.current = recognition;
+    } else {
+      setLiveCaption("Live captions not supported in this browser.");
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+    };
+  }, []);
 
   // Start Webcam
   useEffect(() => {
@@ -46,11 +97,23 @@ export default function LiveClassroom() {
     };
   }, []);
 
-  // Toggle video/audio tracks
+  // Toggle video/audio tracks and speech recognition
   useEffect(() => {
     if (streamRef.current) {
       streamRef.current.getAudioTracks().forEach(track => track.enabled = !isMuted);
       streamRef.current.getVideoTracks().forEach(track => track.enabled = !isVideoOff);
+    }
+    
+    if (recognitionRef.current) {
+      if (!isMuted) {
+        try {
+          recognitionRef.current.start();
+          setLiveCaption("Microphone active. Start speaking...");
+        } catch (e) {}
+      } else {
+        recognitionRef.current.stop();
+        setLiveCaption("Microphone muted.");
+      }
     }
   }, [isMuted, isVideoOff]);
 
@@ -144,8 +207,8 @@ export default function LiveClassroom() {
               {user?.role === 'teacher' ? `${user.name} (Host)` : 'Dr. Smith (Teacher)'}
             </div>
 
-            {/* Simulated Live Caption */}
-            <CaptionOverlay active={true} mockText={MOCK_CAPTION} />
+            {/* Live Caption Overlay */}
+            <CaptionOverlay active={!isVideoOff || user?.role === 'student'} mockText={liveCaption} />
           </div>
 
           {/* Student Grid (Small view) */}
