@@ -6,8 +6,9 @@ import {
 import { loadVideo } from '../utils/db';
 import CaptionOverlay from '../components/CaptionOverlay';
 import VisualAlertBanner from '../components/VisualAlertBanner';
+import SignAvatarOverlay from '../components/SignAvatarOverlay';
 
-const QUIZ_QUESTIONS = [
+const DEEP_LEARNING_QUIZ = [
   {
     id: 1,
     question: "What is the primary advantage of using a Convolutional Neural Network (CNN)?",
@@ -32,6 +33,31 @@ const QUIZ_QUESTIONS = [
   }
 ];
 
+const CUSTOM_VIDEO_QUIZ = [
+  {
+    id: 1,
+    question: "What was the main topic discussed in the first half of this video?",
+    options: [
+      "Historical context and background.",
+      "Technical specifications and details.",
+      "Practical applications and examples.",
+      "A summary of future predictions."
+    ],
+    correct: 0
+  },
+  {
+    id: 2,
+    question: "Which of the following best summarizes the conclusion?",
+    options: [
+      "The topic remains highly debated with no clear answer.",
+      "The methods discussed are outdated and should be replaced.",
+      "The core principles demonstrated provide a strong foundation for next steps.",
+      "Further research is required before any conclusions can be drawn."
+    ],
+    correct: 2
+  }
+];
+
 export default function VirtualClassroom() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -47,6 +73,10 @@ export default function VirtualClassroom() {
   const [videoSrc, setVideoSrc] = useState("https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4");
   const [videoTitle, setVideoTitle] = useState("Deep Learning Fundamentals");
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+  const [videoTime, setVideoTime] = useState(0);
+
+  const isCustomVideo = videoTitle !== "Deep Learning Fundamentals";
+  const activeQuiz = isCustomVideo ? CUSTOM_VIDEO_QUIZ : DEEP_LEARNING_QUIZ;
 
   useEffect(() => {
     // Load dynamically uploaded video from IndexedDB
@@ -74,7 +104,15 @@ export default function VirtualClassroom() {
     fetchVideo();
   }, []);
 
-  const MOCK_CAPTION = isPlaying ? "So as you can see, the LSTM network processes sequences..." : "";
+  const getDynamicCaption = () => {
+    if (!isPlaying) return "";
+    const seconds = Math.floor(videoTime);
+    if (seconds % 10 < 3) return "Welcome to the interactive class session.";
+    if (seconds % 10 < 6) return "Please pay attention to the material on the screen.";
+    return "Remember to take notes for the upcoming assessment.";
+  };
+  
+  const currentCaption = getDynamicCaption();
 
   // Session timer
   useEffect(() => {
@@ -104,7 +142,7 @@ export default function VirtualClassroom() {
   };
 
   const score = Object.entries(answers).reduce((acc, [qIdx, ans]) => {
-    return acc + (QUIZ_QUESTIONS[parseInt(qIdx)]?.correct === ans ? 1 : 0);
+    return acc + (activeQuiz[parseInt(qIdx)]?.correct === ans ? 1 : 0);
   }, 0);
 
   const handleSendChat = (e) => {
@@ -161,6 +199,7 @@ export default function VirtualClassroom() {
                   controls
                   onPlay={() => setIsPlaying(true)}
                   onPause={() => setIsPlaying(false)}
+                  onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
                   poster={videoSrc.includes('Sintel') ? "https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg" : undefined}
                 />
               )}
@@ -168,12 +207,17 @@ export default function VirtualClassroom() {
               {/* Title overlay (appears on hover) */}
               <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                  <h3 className="text-lg font-bold text-white">{videoTitle}</h3>
-                 <p className="text-xs text-slate-300">Lecture 5: Neural Network Architectures</p>
+                 <p className="text-xs text-slate-300">{isCustomVideo ? "Custom Uploaded Content" : "Lecture 5: Neural Network Architectures"}</p>
+              </div>
+
+              {/* Sign Language Avatar Overlay */}
+              <div className="absolute bottom-24 right-4 z-20 pointer-events-none scale-75 origin-bottom-right">
+                <SignAvatarOverlay currentWord={isPlaying ? (currentCaption.split(' ')[0] || "listening") : "idle"} />
               </div>
 
               {/* Caption Overlay */}
               <div className="absolute bottom-16 left-0 right-0 z-10 pointer-events-none">
-                <CaptionOverlay active={isPlaying} mockText={MOCK_CAPTION} />
+                <CaptionOverlay active={isPlaying} mockText={currentCaption} />
               </div>
             </div>
           </div>
@@ -187,7 +231,7 @@ export default function VirtualClassroom() {
 
             {!showResults ? (
               <div className="space-y-6">
-                {QUIZ_QUESTIONS.map((q, qIdx) => (
+                {activeQuiz.map((q, qIdx) => (
                   <div key={q.id} className="p-4 rounded-xl glass-light">
                     <p className="text-sm font-medium text-white mb-3">
                       {qIdx + 1}. {q.question}
@@ -213,7 +257,7 @@ export default function VirtualClassroom() {
 
                 <button
                   onClick={handleSubmitQuiz}
-                  disabled={Object.keys(answers).length < QUIZ_QUESTIONS.length}
+                  disabled={Object.keys(answers).length < activeQuiz.length}
                   className="w-full py-3 rounded-xl bg-gradient-to-r from-primary-600 to-purple-600
                              text-white font-semibold text-sm
                              hover:from-primary-500 hover:to-purple-500
@@ -227,14 +271,14 @@ export default function VirtualClassroom() {
             ) : (
               <div className="text-center py-8">
                 <div className={`text-5xl font-display font-bold mb-2 ${
-                  score === QUIZ_QUESTIONS.length ? 'text-emerald-400' :
-                  score >= QUIZ_QUESTIONS.length / 2 ? 'text-amber-400' : 'text-red-400'
+                  score === activeQuiz.length ? 'text-emerald-400' :
+                  score >= activeQuiz.length / 2 ? 'text-amber-400' : 'text-red-400'
                 }`}>
-                  {score}/{QUIZ_QUESTIONS.length}
+                  {score}/{activeQuiz.length}
                 </div>
                 <p className="text-slate-400 text-sm mb-4">
-                  {score === QUIZ_QUESTIONS.length ? 'Perfect score! Excellent work!' :
-                   score >= QUIZ_QUESTIONS.length / 2 ? 'Good job! Keep practicing.' :
+                  {score === activeQuiz.length ? 'Perfect score! Excellent work!' :
+                   score >= activeQuiz.length / 2 ? 'Good job! Keep practicing.' :
                    'Keep studying — you\'ll improve!'}
                 </p>
 
