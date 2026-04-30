@@ -63,88 +63,93 @@ export default function VideoUpload() {
     setUploading(true);
     setStatus('processing');
     setProgress(5);
-    setStep('Uploading video to server...');
+    setStep('Uploading video...');
     setError('');
+
+    // Always call the local backend for real Whisper transcription.
+    // The backend /extract-captions endpoint uses moviepy + Whisper.
+    await extractCaptionsLocally();
+  };
+
+  /**
+   * extractCaptionsLocally
+   * ─────────────────────
+   * Sends the video file to the local Flask backend (/extract-captions).
+   * The backend extracts audio with moviepy, transcribes with Whisper,
+   * and returns real caption segments with timestamps.
+   *
+   * If the backend is not running, shows a clear error instead of fake captions.
+   */
+  const extractCaptionsLocally = async () => {
+    const LOCAL_BACKEND = 'http://localhost:5000';
+
+    // Step 1: Upload
+    setProgress(15);
+    setStep('Step 1/4: Sending video to backend...');
 
     try {
       const formData = new FormData();
       formData.append('video_file', file);
 
-      const res = await fetch(`${API_BASE}/upload-video`, {
+      setProgress(30);
+      setStep('Step 2/4: Extracting audio track from video...');
+
+      const res = await fetch(`${LOCAL_BACKEND}/extract-captions`, {
         method: 'POST',
         body: formData,
       });
 
+      setProgress(60);
+      setStep('Step 3/4: Whisper transcribing audio...');
+
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || `Upload failed (${res.status})`);
+        throw new Error(errData.error || `Backend returned ${res.status}`);
       }
 
       const data = await res.json();
-      setJobId(data.job_id);
-      setFilename(data.filename);
-      setProgress(10);
-      setStep('Video uploaded. Processing started...');
+      const realCaptions = data.captions || [];
 
-      // Start polling for status
-      startPolling(data.job_id);
+      setProgress(90);
+      setStep('Step 4/4: Processing transcript...');
+
+      if (realCaptions.length === 0) {
+        throw new Error('Whisper returned no transcript. The video may have no audio, or audio is too quiet.');
+      }
+
+      console.log(`[Upload] ✓ Real captions received: ${realCaptions.length} segments`);
+      realCaptions.forEach((c, i) =>
+        console.log(`  [${i + 1}] ${c.start}s–${c.end}s: "${c.text}"`)
+      );
+
+      // Save real captions + video to IndexedDB
+      import('../utils/db').then(({ saveVideo, saveCaptions }) => {
+        saveVideo(file).catch(console.error);
+        saveCaptions(realCaptions).catch(console.error);
+      });
+      window.uploadedDemoVideo    = URL.createObjectURL(file);
+      window.uploadedDemoTitle    = file.name;
+      window.uploadedDemoCaptions = realCaptions;
+
+      setProgress(100);
+      setStep('Processing complete!');
+      setCaptions(realCaptions);
+      setStatus('done');
+      setUploading(false);
 
     } catch (err) {
-      console.warn("Backend unavailable, using local simulation mode for demo:", err);
-      simulateProcessing();
+      console.error('[Upload] Caption extraction failed:', err.message);
+
+      // Show a clear, actionable error — never silently show fake captions
+      const isNetworkError = err.message.includes('fetch') || err.message.includes('Failed to fetch') || err.message.includes('NetworkError');
+      const userMessage = isNetworkError
+        ? `Could not reach the backend. Make sure the Flask server is running:\n  cd backend && python app.py\n\nThen try again.`
+        : `Caption extraction failed: ${err.message}`;
+
+      setStatus('error');
+      setError(userMessage);
+      setUploading(false);
     }
-  };
-
-  const simulateProcessing = () => {
-    setJobId("mock_job_123");
-    setFilename(file.name);
-    
-    const steps = [
-      { p: 20, text: "Extracting audio track..." },
-      { p: 40, text: "Transcribing audio to text (Whisper API)..." },
-      { p: 60, text: "Mapping text to sign language gestures..." },
-      { p: 80, text: "Rendering 3D avatar overlay..." },
-      { p: 100, text: "Processing complete!" }
-    ];
-    
-    let stepIdx = 0;
-    
-    if (pollRef.current) clearInterval(pollRef.current);
-    
-    pollRef.current = setInterval(() => {
-      if (stepIdx < steps.length) {
-        setProgress(steps[stepIdx].p);
-        setStep(steps[stepIdx].text);
-        
-        if (steps[stepIdx].p === 100) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-            setStatus('done');
-            setUploading(false);
-
-            const extractedCaptions = [
-              { start: 0,  end: 3,  text: "Hello class welcome to deep learning" },
-              { start: 3,  end: 6,  text: "Today we will learn neural networks" },
-              { start: 6,  end: 9,  text: "Let's look at the key concepts covered in this video" },
-              { start: 9,  end: 12, text: "Pay attention to the examples shown on screen" },
-            ];
-
-            setCaptions(extractedCaptions);
-
-            // Save video and captions to IndexedDB so Virtual Classroom can load them
-            if (file) {
-              import('../utils/db').then(({ saveVideo, saveCaptions }) => {
-                saveVideo(file).catch(console.error);
-                saveCaptions(extractedCaptions).catch(console.error);
-              });
-              window.uploadedDemoVideo  = URL.createObjectURL(file);
-              window.uploadedDemoTitle  = file.name;
-              window.uploadedDemoCaptions = extractedCaptions;
-            }
-          }
-        stepIdx++;
-      }
-    }, 1500);
   };
 
   const startPolling = (id) => {
