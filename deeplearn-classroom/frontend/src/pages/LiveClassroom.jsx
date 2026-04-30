@@ -21,43 +21,48 @@ export default function LiveClassroom() {
   const localVideoRef = useRef(null);
   const streamRef = useRef(null);
   const recognitionRef = useRef(null);
+  const isMutedRef = useRef(isMuted);
+
+  // Keep isMutedRef up to date for the recognition onend handler
+  useEffect(() => {
+    isMutedRef.current = isMuted;
+  }, [isMuted]);
 
   // Initialize Speech Recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      recognition.continuous = true;
+      // Set continuous to true to prevent it from stopping after every sentence
+      recognition.continuous = true; 
       recognition.interimResults = true;
+      recognition.lang = 'en-US';
       
       recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+        // For live TV-style captions, we only want to display the current sentence being spoken.
+        // The API appends new sentences to the end of the results array.
+        const lastResultIndex = event.results.length - 1;
+        const currentSentence = event.results[lastResultIndex][0].transcript;
         
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
-        }
-        // Show the latest speech (interim or final)
-        const displayCaption = finalTranscript || interimTranscript;
-        if (displayCaption.trim()) {
-          setLiveCaption(displayCaption);
+        if (currentSentence.trim()) {
+          setLiveCaption(currentSentence);
         }
       };
 
       recognition.onerror = (event) => {
-        console.warn("Speech recognition error:", event.error);
+        if (event.error !== 'no-speech') {
+          console.warn("Speech recognition error:", event.error);
+        }
       };
       
       recognition.onend = () => {
-        // Auto-restart if not muted (handles continuous listening disconnects)
-        if (!isMuted && recognitionRef.current) {
+        // Aggressive auto-restart unless explicitly muted
+        if (!isMutedRef.current && recognitionRef.current) {
           try {
             recognitionRef.current.start();
-          } catch (e) {}
+          } catch (e) {
+            // Ignore already started errors
+          }
         }
       };
       
@@ -68,6 +73,8 @@ export default function LiveClassroom() {
     
     return () => {
       if (recognitionRef.current) {
+        // Prevent auto-restart on unmount
+        recognition.onend = null; 
         recognitionRef.current.stop();
       }
     };
