@@ -1,16 +1,27 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Brain, Mail, Lock, GraduationCap, Users, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
-  const [role, setRole] = useState('student');
+  
+  const queryParams = new URLSearchParams(location.search);
+  const requestedRole = queryParams.get('role');
+  
+  const [role, setRole] = useState(requestedRole === 'teacher' ? 'teacher' : 'student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (requestedRole === 'teacher' || requestedRole === 'student') {
+      setRole(requestedRole);
+    }
+  }, [requestedRole]);
 
   const validateEmail = (email) => {
     const pattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -97,26 +108,28 @@ export default function Login() {
         </div>
 
         {/* Role Toggle */}
-        <div className="flex gap-2 mb-6 p-1 rounded-xl glass" id="login-role-toggle">
-          {[
-            { key: 'student', label: 'Student', icon: GraduationCap },
-            { key: 'teacher', label: 'Teacher', icon: Users },
-          ].map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              onClick={() => setRole(key)}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold
-                          transition-all duration-200
-                          ${role === key
-                            ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
-                            : 'text-slate-400 hover:text-white'
-                          }`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          ))}
-        </div>
+        {!requestedRole && (
+          <div className="flex gap-2 mb-6 p-1 rounded-xl glass" id="login-role-toggle">
+            {[
+              { key: 'student', label: 'Student', icon: GraduationCap },
+              { key: 'teacher', label: 'Teacher', icon: Users },
+            ].map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                onClick={() => setRole(key)}
+                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold
+                            transition-all duration-200
+                            ${role === key
+                              ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
+                              : 'text-slate-400 hover:text-white'
+                            }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4">
