@@ -8,30 +8,19 @@ import ProgressBar from '../components/ProgressBar';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-// Demo data for when backend is not running
-const DEMO_DATA = {
-  student_id: 1001,
-  average_score: 72.45,
-  current_difficulty: 'Medium',
-  current_engagement: 'High',
-  current_behaviour: 'Active',
+// Empty data for when backend is not running
+const EMPTY_DATA = {
+  student_id: null,
+  average_score: 0,
+  current_difficulty: '',
+  current_engagement: '',
+  current_behaviour: '',
   recommendation: {
-    suggested_difficulty: 'Hard',
-    reason: 'Consistently high performance — ready for a challenge.',
+    suggested_difficulty: '',
+    reason: 'No data available yet. Complete activities to get recommendations.',
   },
-  performance_history: Array.from({ length: 12 }, (_, i) => ({
-    activity_id: i + 1,
-    quiz_score: 50 + Math.random() * 45,
-    time_taken: 60 + Math.random() * 300,
-    attempt_count: Math.floor(1 + Math.random() * 3),
-    completion_rate: 0.5 + Math.random() * 0.5,
-  })),
-  engagement_history: Array.from({ length: 12 }, (_, i) => ({
-    activity_id: i + 1,
-    engagement_label: ['High', 'Medium', 'High', 'Low', 'Medium', 'High', 'High', 'Medium', 'High', 'High', 'Medium', 'High'][i],
-    session_time: 20 + Math.random() * 60,
-    participation_count: Math.floor(5 + Math.random() * 20),
-  })),
+  performance_history: [],
+  engagement_history: [],
 };
 
 export default function StudentDashboard() {
@@ -50,7 +39,7 @@ export default function StudentDashboard() {
       setData(json);
     } catch {
       // Use demo data
-      setData(DEMO_DATA);
+      setData(EMPTY_DATA);
     } finally {
       setLoading(false);
     }
@@ -231,21 +220,9 @@ export default function StudentDashboard() {
           <BookOpen className="w-5 h-5 text-emerald-400" aria-hidden="true" />
           Signed Class Videos
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="group relative rounded-xl overflow-hidden border border-white/10 cursor-pointer">
-              <div className="aspect-video bg-surface-800 flex items-center justify-center">
-                <BookOpen className="w-12 h-12 text-white/50 group-hover:text-emerald-400 transition-colors" aria-hidden="true" />
-              </div>
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-              <div className="absolute bottom-3 left-3 right-3">
-                <p className="text-sm font-semibold text-white">Lecture {i}: Neural Networks</p>
-                <p className="text-xs text-emerald-300 mt-0.5 flex items-center gap-1">
-                  <Target className="w-3 h-3" /> ASL Overlay Available
-                </p>
-              </div>
-            </div>
-          ))}
+        <div className="flex flex-col items-center justify-center py-8 text-center bg-surface-800/30 rounded-xl border border-white/5">
+          <BookOpen className="w-10 h-10 text-slate-500 mb-3" aria-hidden="true" />
+          <p className="text-slate-400 text-sm">No signed class videos are currently available.</p>
         </div>
       </div>
     </div>

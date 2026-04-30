@@ -8,8 +8,10 @@ export const AuthProvider = ({ children }) => {
     return savedUser ? JSON.parse(savedUser) : null;
   });
 
-  const login = (role) => {
-    const newUser = { role };
+  const login = (userData) => {
+    const newUser = typeof userData === 'string' 
+      ? { role: userData } 
+      : userData;
     setUser(newUser);
     localStorage.setItem('user', JSON.stringify(newUser));
   };

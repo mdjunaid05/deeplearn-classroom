@@ -10,20 +10,73 @@ export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  const handleLogin = (e) => {
+  const validateEmail = (email) => {
+    const pattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return pattern.test(email);
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!validateEmail(email)) {
+      newErrors.email = 'Invalid email format';
+    }
+    
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleLogin = async (e) => {
     e.preventDefault();
+    
+    if (!validateForm()) {
+      return;
+    }
+    
     setLoading(true);
-    // Simulated login — redirect after brief delay
-    setTimeout(() => {
-      setLoading(false);
-      login(role);
-      if (role === 'student') {
-        navigate('/student');
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          role,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Store user data
+        login({role, email, name: data.name, user_id: data.user_id});
+        
+        // Redirect based on role
+        if (role === 'student') {
+          navigate('/student');
+        } else {
+          navigate('/teacher');
+        }
       } else {
-        navigate('/teacher');
+        setErrors({ submit: data.error || 'Login failed' });
       }
-    }, 800);
+    } catch (err) {
+      setErrors({ submit: 'Connection error. Please try again.' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -79,14 +132,12 @@ export default function Login() {
                   id="login-email"
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({...errors, email: ''}) }}
                   placeholder={role === 'student' ? 'student@deeplearn.edu' : 'teacher@deeplearn.edu'}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border border-white/10
-                             text-white placeholder-slate-500 text-sm
-                             focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50
-                             transition-all"
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
                 />
               </div>
+              {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email}</p>}
             </div>
 
             {/* Password */}
@@ -100,21 +151,27 @@ export default function Login() {
                   id="login-password"
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: ''}) }}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border border-white/10
-                             text-white placeholder-slate-500 text-sm
-                             focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500/50
-                             transition-all"
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.password ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
                 />
               </div>
+              {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
             </div>
+
+            {/* Error Message */}
+            {errors.submit && (
+              <div className="p-3 rounded-lg bg-red-600/10 border border-red-500/20">
+                <p className="text-xs text-red-300">{errors.submit}</p>
+              </div>
+            )}
 
             {/* Demo hint */}
             <div className="p-3 rounded-lg bg-primary-600/10 border border-primary-500/20">
               <p className="text-xs text-primary-300">
-                <strong>Demo:</strong> Enter any email and password to continue.
-                This is a demonstration — no real authentication is performed.
+                <strong>Demo Accounts:</strong><br />
+                Student: student@deeplearn.edu / Student123<br />
+                Teacher: teacher@deeplearn.edu / Teacher123
               </p>
             </div>
           </div>

@@ -4,15 +4,8 @@ import { BehaviourTimeline } from '../components/BehaviourChart';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-// Mock timeline data since backend timeline endpoint isn't fully implemented
-const MOCK_EVENTS = Array.from({ length: 20 }, (_, i) => ({
-  activity_id: 100 - i,
-  behaviour_label: ['Active', 'Active', 'Passive', 'Distracted'][Math.floor(Math.random() * 4)],
-  idle_time: +(Math.random() * 15).toFixed(1),
-  chat_count: Math.floor(Math.random() * 10),
-  click_freq: +(Math.random() * 5).toFixed(1),
-  response_speed: +(Math.random() * 8).toFixed(1),
-}));
+// Empty events — will be populated from backend
+const EMPTY_EVENTS = [];
 
 export default function BehaviourMonitor() {
   const [studentId, setStudentId] = useState(1001);
@@ -80,15 +73,15 @@ export default function BehaviourMonitor() {
               <div className="flex items-start gap-3 p-3 rounded-lg glass-light">
                 <Clock className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-white">Prolonged Idle Time</p>
-                  <p className="text-xs text-slate-400 mt-1">Student #1001 was idle for &gt; 15 mins during Session #45.</p>
+                  <p className="text-sm font-medium text-white">No alerts yet</p>
+                  <p className="text-xs text-slate-400 mt-1">Alerts will appear here when data is available.</p>
                 </div>
               </div>
               <div className="flex items-start gap-3 p-3 rounded-lg glass-light">
                 <MousePointer2 className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-white">Low Interaction</p>
-                  <p className="text-xs text-slate-400 mt-1">Click frequency dropped below threshold in Quiz #12.</p>
+                  <p className="text-sm font-medium text-white">—</p>
+                  <p className="text-xs text-slate-400 mt-1">—</p>
                 </div>
               </div>
             </div>
@@ -106,29 +99,29 @@ export default function BehaviourMonitor() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               <div>
                 <p className="text-xs text-slate-500 mb-1">Avg Click Freq</p>
-                <p className="text-lg font-bold text-white">1.8 <span className="text-xs font-normal text-slate-400">/min</span></p>
+                <p className="text-lg font-bold text-white">— <span className="text-xs font-normal text-slate-400">/min</span></p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">Avg Response</p>
-                <p className="text-lg font-bold text-white">4.2 <span className="text-xs font-normal text-slate-400">sec</span></p>
+                <p className="text-lg font-bold text-white">— <span className="text-xs font-normal text-slate-400">sec</span></p>
               </div>
                <div>
                 <p className="text-xs text-slate-500 mb-1">Total Chats</p>
                 <p className="text-lg font-bold text-white flex items-center justify-center gap-1">
                   <MessageSquare className="w-3 h-3 text-primary-400" />
-                  34
+                  0
                 </p>
               </div>
                <div>
                 <p className="text-xs text-slate-500 mb-1">Total Idle</p>
-                <p className="text-lg font-bold text-red-400">12 <span className="text-xs font-normal">min</span></p>
+                <p className="text-lg font-bold text-red-400">0 <span className="text-xs font-normal">min</span></p>
               </div>
             </div>
           </div>
 
           <div className="relative">
             <div className="absolute top-0 bottom-0 left-[21px] w-0.5 bg-white/5" />
-            <BehaviourTimeline events={MOCK_EVENTS} />
+            <BehaviourTimeline events={EMPTY_EVENTS} />
           </div>
         </div>
       </div>

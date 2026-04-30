@@ -8,27 +8,14 @@ import { EngagementAreaChart } from '../components/EngagementChart';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-const DEMO_DATA = {
-  total_students: 50,
-  total_records: 250,
-  engagement_distribution: { High: 95, Medium: 105, Low: 50 },
-  behaviour_distribution: { Active: 80, Passive: 110, Distracted: 60 },
-  difficulty_distribution: { Easy: 70, Medium: 120, Hard: 60 },
-  student_summaries: Array.from({ length: 20 }, (_, i) => ({
-    student_id: 1001 + i,
-    total_activities: 4 + Math.floor(Math.random() * 8),
-    average_score: +(40 + Math.random() * 55).toFixed(2),
-    latest_engagement: ['High', 'Medium', 'Low'][Math.floor(Math.random() * 3)],
-    latest_behaviour: ['Active', 'Passive', 'Distracted'][Math.floor(Math.random() * 3)],
-    latest_difficulty: ['Easy', 'Medium', 'Hard'][Math.floor(Math.random() * 3)],
-    completion_rate: +(0.3 + Math.random() * 0.7).toFixed(2),
-  })),
-  engagement_timeline: Array.from({ length: 15 }, (_, i) => ({
-    period: i + 1,
-    avg_score: +(50 + Math.random() * 40).toFixed(2),
-    high_engagement_pct: +(20 + Math.random() * 60).toFixed(1),
-    active_behaviour_pct: +(15 + Math.random() * 55).toFixed(1),
-  })),
+const EMPTY_DATA = {
+  total_students: 0,
+  total_records: 0,
+  engagement_distribution: { High: 0, Medium: 0, Low: 0 },
+  behaviour_distribution: { Active: 0, Passive: 0, Distracted: 0 },
+  difficulty_distribution: { Easy: 0, Medium: 0, Hard: 0 },
+  student_summaries: [],
+  engagement_timeline: [],
 };
 
 export default function TeacherDashboard() {
@@ -45,7 +32,7 @@ export default function TeacherDashboard() {
         const json = await res.json();
         setData(json);
       } catch {
-        setData(DEMO_DATA);
+        setData(EMPTY_DATA);
       } finally {
         setLoading(false);
       }
@@ -237,26 +224,8 @@ export default function TeacherDashboard() {
           </a>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="p-4 rounded-xl bg-surface-800/50 border border-white/5">
-            <div className="flex justify-between items-start mb-2">
-              <span className="font-semibold text-white">Lecture_04_CNNs.mp4</span>
-              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-emerald-500/20 text-emerald-300">Done</span>
-            </div>
-            <p className="text-xs text-slate-400 mb-2">Processed 2 hrs ago</p>
-            <p className="text-xs text-primary-300">Watched by 45 students</p>
-          </div>
-          
-          <div className="p-4 rounded-xl bg-surface-800/50 border border-white/5">
-            <div className="flex justify-between items-start mb-2">
-              <span className="font-semibold text-white">Lecture_05_LSTMs.mp4</span>
-              <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-500/20 text-blue-300 animate-pulse">Processing (60%)</span>
-            </div>
-            <p className="text-xs text-slate-400 mb-2">Extracting ASL sequences...</p>
-            <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-blue-500 w-[60%]" />
-            </div>
-          </div>
+        <div className="flex flex-col items-center justify-center py-8 text-center bg-surface-800/30 rounded-xl border border-white/5">
+          <p className="text-slate-400 text-sm">No videos currently in processing queue.</p>
         </div>
       </div>
     </div>

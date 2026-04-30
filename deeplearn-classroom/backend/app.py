@@ -16,12 +16,14 @@ def create_app():
     CORS(app, resources={r"/*": {"origins": "*"}})
 
     # ── Register blueprints ──
+    from routes.auth import auth_bp
     from routes.predict import predict_bp
     from routes.behaviour import behaviour_bp
     from routes.dashboard import dashboard_bp
     from routes.accessibility import accessibility_bp
     from routes.video_processing import video_bp
 
+    app.register_blueprint(auth_bp)
     app.register_blueprint(predict_bp)
     app.register_blueprint(behaviour_bp)
     app.register_blueprint(dashboard_bp)

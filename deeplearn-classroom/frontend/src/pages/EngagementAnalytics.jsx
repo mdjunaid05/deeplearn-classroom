@@ -3,17 +3,13 @@ import { BarChart3, TrendingUp, Sun, Moon, Sunrise, Sunset, Activity } from 'luc
 import { EngagementAreaChart } from '../components/EngagementChart';
 
 const HEATMAP_DATA = [
-  { time: 'Morning (8am-12pm)', High: 45, Medium: 30, Low: 10, icon: Sunrise },
-  { time: 'Afternoon (12pm-4pm)', High: 25, Medium: 45, Low: 20, icon: Sun },
-  { time: 'Evening (4pm-8pm)', High: 35, Medium: 25, Low: 15, icon: Sunset },
-  { time: 'Night (8pm-12am)', High: 15, Medium: 20, Low: 35, icon: Moon },
+  { time: 'Morning (8am-12pm)', High: 0, Medium: 0, Low: 0, icon: Sunrise },
+  { time: 'Afternoon (12pm-4pm)', High: 0, Medium: 0, Low: 0, icon: Sun },
+  { time: 'Evening (4pm-8pm)', High: 0, Medium: 0, Low: 0, icon: Sunset },
+  { time: 'Night (8pm-12am)', High: 0, Medium: 0, Low: 0, icon: Moon },
 ];
 
-const TIMELINE_DATA = Array.from({ length: 24 }, (_, i) => ({
-  period: i + 1,
-  high_engagement_pct: +(30 + Math.sin(i / 3) * 20 + Math.random() * 10).toFixed(1),
-  active_behaviour_pct: +(25 + Math.cos(i / 4) * 15 + Math.random() * 10).toFixed(1),
-}));
+const TIMELINE_DATA = [];
 
 export default function EngagementAnalytics() {
   return (
@@ -35,39 +31,39 @@ export default function EngagementAnalytics() {
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-primary-300">Peak Engagement</p>
-              <h3 className="text-3xl font-bold text-white mt-1">68%</h3>
+              <h3 className="text-3xl font-bold text-white mt-1">—</h3>
             </div>
              <div className="p-2 bg-primary-500/20 rounded-lg">
                 <TrendingUp className="w-5 h-5 text-primary-400" />
              </div>
           </div>
-          <p className="text-xs text-slate-400">Usually observed during Morning sessions (10:00 AM).</p>
+          <p className="text-xs text-slate-400">No data available yet.</p>
         </div>
 
          <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-emerald-900/40 to-transparent border-emerald-500/20">
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-emerald-300">Avg Session Time</p>
-              <h3 className="text-3xl font-bold text-white mt-1">42m</h3>
+              <h3 className="text-3xl font-bold text-white mt-1">—</h3>
             </div>
              <div className="p-2 bg-emerald-500/20 rounded-lg">
                 <Activity className="w-5 h-5 text-emerald-400" />
              </div>
           </div>
-           <p className="text-xs text-slate-400">+12% increase since adaptive difficulty was enabled.</p>
+           <p className="text-xs text-slate-400">No data available yet.</p>
         </div>
 
         <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-amber-900/40 to-transparent border-amber-500/20">
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-amber-300">Risk Factor</p>
-              <h3 className="text-3xl font-bold text-white mt-1">14%</h3>
+              <h3 className="text-3xl font-bold text-white mt-1">—</h3>
             </div>
              <div className="p-2 bg-amber-500/20 rounded-lg">
                 <BarChart3 className="w-5 h-5 text-amber-400" />
              </div>
           </div>
-           <p className="text-xs text-slate-400">Students consistently classified as 'Low' engagement.</p>
+           <p className="text-xs text-slate-400">No data available yet.</p>
         </div>
       </div>
 

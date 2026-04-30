@@ -9,22 +9,26 @@ import VisualAlertBanner from '../components/VisualAlertBanner';
 const QUIZ_QUESTIONS = [
   {
     id: 1,
-    question: 'Which activation function is commonly used in hidden layers of deep neural networks?',
-    options: ['Sigmoid', 'ReLU', 'Softmax', 'Linear'],
-    correct: 1,
+    question: "What is the primary advantage of using a Convolutional Neural Network (CNN)?",
+    options: [
+      "They are faster to train than linear regression.",
+      "They automatically learn spatial hierarchies of features from images.",
+      "They process sequential data better than RNNs.",
+      "They do not require any training data."
+    ],
+    correct: 1
   },
   {
     id: 2,
-    question: 'What is the purpose of dropout in neural networks?',
-    options: ['Speed up training', 'Prevent overfitting', 'Increase accuracy', 'Reduce parameters'],
-    correct: 1,
-  },
-  {
-    id: 3,
-    question: 'Which loss function is used for multi-class classification?',
-    options: ['MSE', 'Binary Crossentropy', 'Categorical Crossentropy', 'Hinge Loss'],
-    correct: 2,
-  },
+    question: "Which component of an LSTM network helps it avoid the vanishing gradient problem?",
+    options: [
+      "The softmax activation layer",
+      "The pooling layer",
+      "The cell state and gating mechanisms",
+      "The fully connected output layer"
+    ],
+    correct: 2
+  }
 ];
 
 export default function VirtualClassroom() {
@@ -36,11 +40,7 @@ export default function VirtualClassroom() {
   const [engagement, setEngagement] = useState('High');
   const [behaviour, setBehaviour] = useState('Active');
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState([
-    { user: 'Alice', msg: 'Great explanation!', time: '2m ago' },
-    { user: 'Bob', msg: 'Can you repeat the LSTM part?', time: '5m ago' },
-    { user: 'Carol', msg: 'Shared notes in drive', time: '8m ago' },
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [activeAlert, setActiveAlert] = useState(null);
 
   const MOCK_CAPTION = isPlaying ? "So as you can see, the LSTM network processes sequences..." : "";
@@ -53,15 +53,9 @@ export default function VirtualClassroom() {
     return () => clearInterval(timer);
   }, []);
 
-  // Simulate engagement changes
+  // Simulated engagement changes removed for clean state
   useEffect(() => {
-    const interval = setInterval(() => {
-      const levels = ['High', 'Medium', 'High', 'High', 'Medium'];
-      const behaviours = ['Active', 'Active', 'Passive', 'Active', 'Active'];
-      setEngagement(levels[Math.floor(Math.random() * levels.length)]);
-      setBehaviour(behaviours[Math.floor(Math.random() * behaviours.length)]);
-    }, 8000);
-    return () => clearInterval(interval);
+    // Engagement and behaviour states will now default to High/Active or be driven by actual API calls in the future.
   }, []);
 
   const formatTime = (seconds) => {
@@ -283,15 +277,15 @@ export default function VirtualClassroom() {
             <div className="mt-3 space-y-2">
               <div className="flex justify-between text-xs">
                 <span className="text-slate-500">Click Rate</span>
-                <span className="text-slate-300">1.8/min</span>
+                <span className="text-slate-300">—</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-slate-500">Response</span>
-                <span className="text-slate-300">2.3s avg</span>
+                <span className="text-slate-300">—</span>
               </div>
               <div className="flex justify-between text-xs">
                 <span className="text-slate-500">Idle Time</span>
-                <span className="text-slate-300">4.5min</span>
+                <span className="text-slate-300">—</span>
               </div>
             </div>
           </div>

@@ -14,10 +14,7 @@ export default function LiveClassroom() {
   const [handRaised, setHandRaised] = useState(false);
   const [sessionTime, setSessionTime] = useState(0);
   const [chatInput, setChatInput] = useState("");
-  const [chatMessages, setChatMessages] = useState([
-    { user: 'Alice', msg: 'Hello everyone!', time: '1m ago' },
-    { user: 'Bob', msg: 'Can we go over the last slide?', time: 'Just now' },
-  ]);
+  const [chatMessages, setChatMessages] = useState([]);
   const [activeAlert, setActiveAlert] = useState(null);
 
   const MOCK_CAPTION = "Welcome to the live session everyone, let's begin...";
