@@ -210,23 +210,28 @@ export default function VirtualClassroom() {
             {/* Video Player */}
             <div className="flex-1 rounded-2xl glass overflow-hidden">
               <div className="aspect-video bg-black relative group">
-                {isVideoLoaded && (
-                  <video
-                    ref={videoRef}
-                    src={videoSrc}
-                    className="w-full h-full object-contain"
-                    controls
-                    onPlay={() => { setIsPlaying(true); setVideoEnded(false); }}
-                    onPause={() => setIsPlaying(false)}
-                    onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
-                    onEnded={() => { setIsPlaying(false); setVideoEnded(true); }}
-                    poster={
-                      videoSrc.includes('Sintel')
-                        ? 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg'
-                        : undefined
-                    }
-                  />
-                )}
+              {/* 
+                BUGFIX: Always render <video> so videoRef.current is populated
+                immediately on mount. Previously wrapped in {isVideoLoaded && ...}
+                which caused videoRef.current to be null when useVideoTranscript's
+                useEffect ran, so NO listeners were ever attached.
+                Now: always render the element, just conditionally set src/poster.
+              */}
+              <video
+                ref={videoRef}
+                src={isVideoLoaded ? videoSrc : ''}
+                className="w-full h-full object-contain"
+                controls
+                onPlay={() => { setIsPlaying(true); setVideoEnded(false); }}
+                onPause={() => setIsPlaying(false)}
+                onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
+                onEnded={() => { setIsPlaying(false); setVideoEnded(true); }}
+                poster={
+                  isVideoLoaded && videoSrc.includes('Sintel')
+                    ? 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg'
+                    : undefined
+                }
+              />
 
                 {/* Title overlay on hover */}
                 <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
