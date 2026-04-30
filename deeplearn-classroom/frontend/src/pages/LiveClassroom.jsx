@@ -220,17 +220,27 @@ export default function LiveClassroom() {
                 muted
                 className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'} transform scale-x-[-1]`}
               />
-            ) : null}
+            ) : (
+              /* Simulated Teacher Video for Students (Since there's no WebRTC backend) */
+              <video
+                src="https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+                autoPlay
+                loop
+                playsInline
+                muted
+                className="w-full h-full object-cover"
+              />
+            )}
 
-            {/* Placeholder if teacher's video is off or user is student */}
-            {(user?.role === 'student' || (user?.role === 'teacher' && isVideoOff)) && (
-              <div className="absolute inset-0 flex items-center justify-center">
+            {/* Placeholder if teacher's video is off */}
+            {(user?.role === 'teacher' && isVideoOff) && (
+              <div className="absolute inset-0 flex items-center justify-center bg-surface-900 z-10">
                  <div className="text-center">
                     <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center mx-auto mb-4 glow-primary">
                       <Users className="w-10 h-10 text-white" />
                     </div>
                     <h3 className="text-xl font-display font-bold text-white mb-1">
-                      {user?.role === 'teacher' ? user.name : 'Dr. Smith'}
+                      {user.name}
                     </h3>
                     <p className="text-sm text-slate-400">Main Presenter</p>
                  </div>
@@ -238,12 +248,14 @@ export default function LiveClassroom() {
             )}
             
             {/* Presenter Name Badge */}
-            <div className="absolute top-4 left-4 px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-md text-xs font-semibold text-white">
+            <div className="absolute top-4 left-4 px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-md text-xs font-semibold text-white z-20">
               {user?.role === 'teacher' ? `${user.name} (Host)` : 'Dr. Smith (Teacher)'}
             </div>
 
             {/* Live Caption Overlay */}
-            <CaptionOverlay active={!isVideoOff || user?.role === 'student'} mockText={liveCaption} />
+            <div className="z-20">
+              <CaptionOverlay active={!isVideoOff || user?.role === 'student'} mockText={liveCaption} />
+            </div>
           </div>
 
           {/* Student Grid (Small view) */}
