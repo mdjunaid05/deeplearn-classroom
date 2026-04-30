@@ -222,6 +222,15 @@ export default function Login() {
               </>
             )}
           </button>
+          
+          <div className="text-center mt-6">
+            <p className="text-sm text-slate-400">
+              Don't have an account?{' '}
+              <a href="/register" className="text-primary-400 hover:text-primary-300 font-semibold transition-colors">
+                Sign Up
+              </a>
+            </p>
+          </div>
         </form>
       </div>
     </div>
