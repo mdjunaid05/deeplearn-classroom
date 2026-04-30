@@ -122,8 +122,12 @@ export default function VideoUpload() {
           setStatus('done');
           setUploading(false);
           
-          // Save the local file to a global window variable so Virtual Classroom can play it!
+          // Save to IndexedDB so it survives page reloads
           if (file) {
+            import('../utils/db').then(({ saveVideo }) => {
+              saveVideo(file).catch(console.error);
+            });
+            // Also set window variable as an immediate fallback
             window.uploadedDemoVideo = URL.createObjectURL(file);
             window.uploadedDemoTitle = file.name;
           }

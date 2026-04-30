@@ -3,6 +3,7 @@ import {
   Monitor, Play, Pause, CheckCircle, XCircle, Clock,
   MessageSquare, Activity, BookOpen, ChevronRight, Send, HandMetal
 } from 'lucide-react';
+import { loadVideo } from '../utils/db';
 import CaptionOverlay from '../components/CaptionOverlay';
 import VisualAlertBanner from '../components/VisualAlertBanner';
 
@@ -42,6 +43,32 @@ export default function VirtualClassroom() {
   const [chatInput, setChatInput] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
   const [activeAlert, setActiveAlert] = useState(null);
+
+  const [videoSrc, setVideoSrc] = useState("https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4");
+  const [videoTitle, setVideoTitle] = useState("Deep Learning Fundamentals");
+  const [isVideoLoaded, setIsVideoLoaded] = useState(false);
+
+  useEffect(() => {
+    // Load dynamically uploaded video from IndexedDB
+    const fetchVideo = async () => {
+      try {
+        const { file, name } = await loadVideo();
+        if (file) {
+          setVideoSrc(URL.createObjectURL(file));
+          setVideoTitle(name);
+        } else if (window.uploadedDemoVideo) {
+          // Fallback to window object if DB fails
+          setVideoSrc(window.uploadedDemoVideo);
+          setVideoTitle(window.uploadedDemoTitle);
+        }
+      } catch (err) {
+        console.error("Failed to load video from DB:", err);
+      } finally {
+        setIsVideoLoaded(true);
+      }
+    };
+    fetchVideo();
+  }, []);
 
   const MOCK_CAPTION = isPlaying ? "So as you can see, the LSTM network processes sequences..." : "";
 
@@ -123,18 +150,20 @@ export default function VirtualClassroom() {
           <div className="rounded-2xl glass overflow-hidden relative">
             <div className="aspect-video bg-black flex items-center justify-center relative group">
               
-              <video
-                src={window.uploadedDemoVideo || "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"}
-                className="w-full h-full object-contain"
-                controls
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                poster={window.uploadedDemoVideo ? undefined : "https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg"}
-              />
+              {isVideoLoaded && (
+                <video
+                  src={videoSrc}
+                  className="w-full h-full object-contain"
+                  controls
+                  onPlay={() => setIsPlaying(true)}
+                  onPause={() => setIsPlaying(false)}
+                  poster={videoSrc.includes('Sintel') ? "https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg" : undefined}
+                />
+              )}
 
               {/* Title overlay (appears on hover) */}
               <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                 <h3 className="text-lg font-bold text-white">{window.uploadedDemoTitle || "Deep Learning Fundamentals"}</h3>
+                 <h3 className="text-lg font-bold text-white">{videoTitle}</h3>
                  <p className="text-xs text-slate-300">Lecture 5: Neural Network Architectures</p>
               </div>
 
