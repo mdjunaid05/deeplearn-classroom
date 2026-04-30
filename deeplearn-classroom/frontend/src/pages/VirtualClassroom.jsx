@@ -51,21 +51,25 @@ export default function VirtualClassroom() {
   useEffect(() => {
     // Load dynamically uploaded video from IndexedDB
     const fetchVideo = async () => {
+      let loadedFromDB = false;
       try {
         const { file, name } = await loadVideo();
         if (file) {
           setVideoSrc(URL.createObjectURL(file));
           setVideoTitle(name);
-        } else if (window.uploadedDemoVideo) {
-          // Fallback to window object if DB fails
-          setVideoSrc(window.uploadedDemoVideo);
-          setVideoTitle(window.uploadedDemoTitle);
+          loadedFromDB = true;
         }
       } catch (err) {
         console.error("Failed to load video from DB:", err);
-      } finally {
-        setIsVideoLoaded(true);
       }
+
+      if (!loadedFromDB && window.uploadedDemoVideo) {
+        // Fallback to window object if DB fails
+        setVideoSrc(window.uploadedDemoVideo);
+        setVideoTitle(window.uploadedDemoTitle);
+      }
+      
+      setIsVideoLoaded(true);
     };
     fetchVideo();
   }, []);
@@ -125,7 +129,7 @@ export default function VirtualClassroom() {
             <Monitor className="w-8 h-8 text-primary-400" />
             Virtual Classroom
           </h1>
-          <p className="text-slate-400 mt-1">Deep Learning Fundamentals — Session Active</p>
+          <p className="text-slate-400 mt-1">{videoTitle} — Session Active</p>
         </div>
         <div className="flex gap-3">
           <a

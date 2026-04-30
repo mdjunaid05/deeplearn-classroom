@@ -1,11 +1,15 @@
 export const initDB = () => {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open('VideoDB', 1);
-    request.onupgradeneeded = (e) => {
-      e.target.result.createObjectStore('videos');
-    };
-    request.onsuccess = (e) => resolve(e.target.result);
-    request.onerror = (e) => reject(e.target.error);
+    try {
+      const request = indexedDB.open('VideoDB', 1);
+      request.onupgradeneeded = (e) => {
+        e.target.result.createObjectStore('videos');
+      };
+      request.onsuccess = (e) => resolve(e.target.result);
+      request.onerror = (e) => reject(e.target.error);
+    } catch (err) {
+      reject(err);
+    }
   });
 };
 
