@@ -124,17 +124,17 @@ export default function VirtualClassroom() {
             <div className="aspect-video bg-black flex items-center justify-center relative group">
               
               <video
-                src="https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+                src={window.uploadedDemoVideo || "https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"}
                 className="w-full h-full object-contain"
                 controls
                 onPlay={() => setIsPlaying(true)}
                 onPause={() => setIsPlaying(false)}
-                poster="https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg"
+                poster={window.uploadedDemoVideo ? undefined : "https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg"}
               />
 
               {/* Title overlay (appears on hover) */}
               <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                 <h3 className="text-lg font-bold text-white">Deep Learning Fundamentals</h3>
+                 <h3 className="text-lg font-bold text-white">{window.uploadedDemoTitle || "Deep Learning Fundamentals"}</h3>
                  <p className="text-xs text-slate-300">Lecture 5: Neural Network Architectures</p>
               </div>
 

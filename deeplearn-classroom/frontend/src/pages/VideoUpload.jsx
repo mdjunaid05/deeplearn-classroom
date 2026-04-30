@@ -119,6 +119,13 @@ export default function VideoUpload() {
           pollRef.current = null;
           setStatus('done');
           setUploading(false);
+          
+          // Save the local file to a global window variable so Virtual Classroom can play it!
+          if (file) {
+            window.uploadedDemoVideo = URL.createObjectURL(file);
+            window.uploadedDemoTitle = file.name;
+          }
+          
           setCaptions([
             { start: 0, end: 3, text: "Hello class welcome to deep learning" },
             { start: 3, end: 6, text: "Today we will learn neural networks" }
