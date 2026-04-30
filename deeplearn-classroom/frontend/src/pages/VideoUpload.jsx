@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UploadCloud, CheckCircle, Video, Download, AlertCircle, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { UploadCloud, CheckCircle, Video, Download, AlertCircle, Loader2, MonitorPlay } from 'lucide-react';
 import SignAvatarOverlay from '../components/SignAvatarOverlay';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function VideoUpload() {
+  const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -285,13 +287,23 @@ export default function VideoUpload() {
                 Video has captions and sign language overlay. Ready for download.
               </p>
               
-              <button 
-                className="mt-4 w-full py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-semibold flex items-center justify-center gap-2 transition-colors"
-                onClick={handleDownload}
-              >
-                <Download className="w-5 h-5" aria-hidden="true" />
-                Download Processed Video
-              </button>
+              <div className="flex flex-col gap-2 mt-4">
+                <button 
+                  className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-semibold flex items-center justify-center gap-2 transition-colors shadow-lg shadow-emerald-500/20"
+                  onClick={handleDownload}
+                >
+                  <Download className="w-5 h-5" aria-hidden="true" />
+                  Download Processed Video
+                </button>
+                
+                <button 
+                  className="w-full py-2.5 rounded-lg bg-gradient-to-r from-primary-600 to-purple-600 hover:from-primary-500 hover:to-purple-500 text-white font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary-600/20"
+                  onClick={() => navigate('/classroom')}
+                >
+                  <MonitorPlay className="w-5 h-5" aria-hidden="true" />
+                  Watch in Virtual Classroom
+                </button>
+              </div>
             </div>
           )}
         </div>
