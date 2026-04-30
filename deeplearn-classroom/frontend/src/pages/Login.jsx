@@ -85,7 +85,18 @@ export default function Login() {
         setErrors({ submit: data.error || 'Login failed' });
       }
     } catch (err) {
-      setErrors({ submit: 'Connection error. Please try again.' });
+      // Fallback for Vercel deployment where backend might not be reachable
+      console.warn("Backend connection failed. Attempting local fallback for demo accounts...");
+      
+      if (role === 'student' && email === 'student@deeplearn.edu' && password === 'Student123') {
+        login({role: 'student', email, name: 'Demo Student', user_id: 1001});
+        navigate('/student');
+      } else if (role === 'teacher' && email === 'teacher@deeplearn.edu' && password === 'Teacher123') {
+        login({role: 'teacher', email, name: 'Demo Teacher', user_id: 2001});
+        navigate('/teacher');
+      } else {
+        setErrors({ submit: 'Connection error to backend. (Demo accounts: student@deeplearn.edu / Student123)' });
+      }
     } finally {
       setLoading(false);
     }
