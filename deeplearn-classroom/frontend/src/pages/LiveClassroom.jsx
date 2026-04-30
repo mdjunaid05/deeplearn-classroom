@@ -17,6 +17,7 @@ export default function LiveClassroom() {
   const [chatMessages, setChatMessages] = useState([]);
   const [activeAlert, setActiveAlert] = useState(null);
   const [liveCaption, setLiveCaption] = useState("Microphone active. Start speaking...");
+  const [isClassStarted, setIsClassStarted] = useState(false);
 
   const localVideoRef = useRef(null);
   const streamRef = useRef(null);
@@ -30,17 +31,16 @@ export default function LiveClassroom() {
 
   // Initialize Speech Recognition
   useEffect(() => {
+    if (!isClassStarted) return;
+    
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
-      // Set continuous to true to prevent it from stopping after every sentence
       recognition.continuous = true; 
       recognition.interimResults = true;
       recognition.lang = 'en-US';
       
       recognition.onresult = (event) => {
-        // For live TV-style captions, we only want to display the current sentence being spoken.
-        // The API appends new sentences to the end of the results array.
         const lastResultIndex = event.results.length - 1;
         const currentSentence = event.results[lastResultIndex][0].transcript;
         
@@ -56,13 +56,10 @@ export default function LiveClassroom() {
       };
       
       recognition.onend = () => {
-        // Aggressive auto-restart unless explicitly muted
         if (!isMutedRef.current && recognitionRef.current) {
           try {
             recognitionRef.current.start();
-          } catch (e) {
-            // Ignore already started errors
-          }
+          } catch (e) {}
         }
       };
       
@@ -73,15 +70,16 @@ export default function LiveClassroom() {
     
     return () => {
       if (recognitionRef.current) {
-        // Prevent auto-restart on unmount
         recognition.onend = null; 
         recognitionRef.current.stop();
       }
     };
-  }, []);
+  }, [isClassStarted]);
 
   // Start Webcam
   useEffect(() => {
+    if (!isClassStarted) return;
+    
     async function startCamera() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -102,10 +100,12 @@ export default function LiveClassroom() {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [isClassStarted]);
 
   // Toggle video/audio tracks and speech recognition
   useEffect(() => {
+    if (!isClassStarted) return;
+    
     if (streamRef.current) {
       streamRef.current.getAudioTracks().forEach(track => track.enabled = !isMuted);
       streamRef.current.getVideoTracks().forEach(track => track.enabled = !isVideoOff);
@@ -122,15 +122,16 @@ export default function LiveClassroom() {
         setLiveCaption("Microphone muted.");
       }
     }
-  }, [isMuted, isVideoOff]);
+  }, [isMuted, isVideoOff, isClassStarted]);
 
   // Session timer
   useEffect(() => {
+    if (!isClassStarted) return;
     const timer = setInterval(() => {
       setSessionTime(prev => prev + 1);
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [isClassStarted]);
 
   const formatTime = (seconds) => {
     const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -151,6 +152,33 @@ export default function LiveClassroom() {
       setActiveAlert({ type: 'info', message: 'You raised your hand.', duration: 3000 });
     }
   };
+
+  if (!isClassStarted) {
+    return (
+      <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 flex items-center justify-center min-h-[80vh]">
+        <div className="text-center glass p-10 rounded-3xl max-w-md w-full relative overflow-hidden">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary-500 to-purple-500" />
+          <div className="w-24 h-24 rounded-full bg-primary-500/20 flex items-center justify-center mx-auto mb-6 glow-primary">
+            <Video className="w-12 h-12 text-primary-400" />
+          </div>
+          <h2 className="text-3xl font-display font-bold text-white mb-3">Live Session</h2>
+          <p className="text-slate-400 mb-8">
+            {user?.role === 'teacher' 
+              ? 'Start the live class to begin streaming your video to the students.' 
+              : 'The teacher has invited you. Join the live class to participate.'}
+          </p>
+          <button
+            onClick={() => setIsClassStarted(true)}
+            className="w-full py-4 rounded-xl font-bold text-white text-lg
+                       bg-gradient-to-r from-primary-600 to-purple-600 hover:from-primary-500 hover:to-purple-500 
+                       transition-all duration-300 shadow-lg shadow-primary-600/30 hover:scale-[1.02]"
+          >
+            {user?.role === 'teacher' ? 'Start Live Class' : 'Join Live Class'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Live Classroom">
