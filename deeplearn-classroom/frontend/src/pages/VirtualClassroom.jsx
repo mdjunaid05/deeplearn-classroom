@@ -120,43 +120,28 @@ export default function VirtualClassroom() {
         {/* Main Content — 3 columns */}
         <div className="lg:col-span-3 space-y-6">
           {/* Video Area */}
-          <div className="rounded-2xl glass overflow-hidden">
-            <div className="aspect-video bg-gradient-to-br from-surface-800 to-surface-900
-                            flex items-center justify-center relative">
-              {/* Simulated video placeholder with actual content */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-primary-500 to-purple-500
-                                  flex items-center justify-center mx-auto mb-4 glow-primary">
-                    <BookOpen className="w-9 h-9 text-white" />
-                  </div>
-                  <h3 className="text-xl font-display font-bold text-white mb-1">
-                    Deep Learning Fundamentals
-                  </h3>
-                  <p className="text-sm text-slate-400">Lecture 5: Neural Network Architectures</p>
-                </div>
-              </div>
+          <div className="rounded-2xl glass overflow-hidden relative">
+            <div className="aspect-video bg-black flex items-center justify-center relative group">
+              
+              <video
+                src="https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4"
+                className="w-full h-full object-contain"
+                controls
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                poster="https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg"
+              />
 
-              {/* Play/Pause overlay */}
-              <button
-                onClick={() => setIsPlaying(!isPlaying)}
-                className="absolute bottom-4 left-4 flex items-center gap-2 px-4 py-2 rounded-lg
-                           bg-black/40 backdrop-blur-sm text-white text-sm hover:bg-black/60 transition"
-                id="classroom-play-btn"
-              >
-                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                {isPlaying ? 'Pause' : 'Play'}
-              </button>
-
-              {/* Live indicator */}
-              <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full
-                              bg-red-500/20 border border-red-500/30" aria-label="Live session active">
-                <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" aria-hidden="true" />
-                <span className="text-xs font-medium text-red-300 uppercase tracking-wider">LIVE</span>
+              {/* Title overlay (appears on hover) */}
+              <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                 <h3 className="text-lg font-bold text-white">Deep Learning Fundamentals</h3>
+                 <p className="text-xs text-slate-300">Lecture 5: Neural Network Architectures</p>
               </div>
 
               {/* Caption Overlay */}
-              <CaptionOverlay active={isPlaying} mockText={MOCK_CAPTION} />
+              <div className="absolute bottom-16 left-0 right-0 z-10 pointer-events-none">
+                <CaptionOverlay active={isPlaying} mockText={MOCK_CAPTION} />
+              </div>
             </div>
           </div>
 
