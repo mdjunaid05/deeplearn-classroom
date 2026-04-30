@@ -62,10 +62,10 @@ export default function StudentDashboard() {
     );
   }
 
-  const engagementScore = data.average_score || 72;
-  const difficultyBadge = `badge-${(data.current_difficulty || 'medium').toLowerCase()}`;
-  const engagementBadge = `badge-${(data.current_engagement || 'medium').toLowerCase()}`;
-  const behaviourBadge = `badge-${(data.current_behaviour || 'passive').toLowerCase()}`;
+  const engagementScore = data.average_score ?? 0;
+  const difficultyBadge = `badge-${(data.current_difficulty || 'none').toLowerCase()}`;
+  const engagementBadge = `badge-${(data.current_engagement || 'none').toLowerCase()}`;
+  const behaviourBadge = `badge-${(data.current_behaviour || 'none').toLowerCase()}`;
 
   return (
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
