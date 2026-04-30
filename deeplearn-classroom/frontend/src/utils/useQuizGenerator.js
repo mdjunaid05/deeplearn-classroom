@@ -1,174 +1,199 @@
 /**
- * useQuizGenerator.js
+ * useQuizGenerator.js  [FIXED v2]
  * -------------------
- * Custom React hook that converts a plain-text transcript into a set of
- * multiple-choice quiz questions using pure NLP heuristics — no external API.
+ * Converts a plain-text transcript into MCQ quiz questions.
+ * No external APIs — pure NLP heuristics.
  *
- * Algorithm:
- *  1. Split transcript into sentences.
- *  2. Score each sentence by information density (proper nouns, numbers, etc.).
- *  3. Turn top-N sentences into fill-in-the-blank or what/who/which questions.
- *  4. Generate plausible distractors by swapping keywords from other sentences.
+ * FIXES:
+ *  - Added a "generated once" cache ref so generateQuiz() is a no-op if called
+ *    again with the same text (prevents token/CPU wastage on re-renders).
+ *  - Fixed chunking: sentences are now split on [.!?] followed by a space
+ *    AND filtered for minimum meaningful length (>= 30 chars).
+ *  - Added console logging at each pipeline step for easy debugging.
+ *  - Added graceful fallback at every stage so the quiz always renders.
  *
  * Returns:
- *  - quizQuestions: Array<{ id, question, options, correct }> | null
- *  - generateQuiz(transcriptText): void — call with joined transcript
+ *   quizQuestions  – Array<{ id, question, options, correct }> | null
+ *   generateQuiz(text, count) – call once when video ends
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
-// ---------------------------------------------------------------------------
-// Utility helpers
-// ---------------------------------------------------------------------------
+// ─── constants ─────────────────────────────────────────────────────────────
+const MIN_SENTENCE_LEN = 30;  // ignore fragments shorter than this
+const MAX_CHUNK_WORDS  = 50;  // max words per sentence chunk (token safety)
 
-/** Split text into sentences. */
-const toSentences = (text) =>
-  text
-    .replace(/([.!?])\s+/g, '$1\n')
-    .split('\n')
-    .map(s => s.trim())
-    .filter(s => s.length > 20); // ignore very short fragments
-
-/** Simple noun-phrase extractor — capitalised words and numbers. */
-const extractKeyTerms = (sentence) => {
-  const words = sentence.split(/\s+/);
-  return words.filter(w =>
-    /[A-Z][a-z]/.test(w) ||          // capitalised word
-    /\d/.test(w) ||                   // contains a number
-    w.length > 7                      // long common-noun
-  ).map(w => w.replace(/[^a-zA-Z0-9\-]/g, ''));
-};
-
-/** Information-density score for a sentence. */
-const scoreS = (sentence) => {
-  const terms = extractKeyTerms(sentence);
-  return terms.length + (sentence.length > 60 ? 2 : 0);
-};
-
-/** Pick a random element from an array. */
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-
-/** Swap one key term in a sentence to create a distractor. */
-const makeDistractor = (correct, termPool) => {
-  const shuffled = [...termPool].sort(() => Math.random() - 0.5);
-  for (const term of shuffled) {
-    if (!correct.includes(term)) {
-      // Replace the first key term in `correct` with this alternative term
-      const replaced = correct.replace(
-        /\b[A-Z][a-z]+\b|\b\d+\b|\b\w{8,}\b/,
-        term
-      );
-      if (replaced !== correct) return replaced;
-    }
-  }
-  // Fallback: add "not" or negate
-  return `${correct} is not the primary factor`;
-};
-
-// ---------------------------------------------------------------------------
-// Question builders
-// ---------------------------------------------------------------------------
+// ─── pure helpers ──────────────────────────────────────────────────────────
 
 /**
- * Convert a sentence into a question.
- * Strategy: pick the highest-score key term → replace it with "___" and ask
- * "Which of the following correctly fills in the blank?"
+ * splitSentences — FIXED chunking logic
+ * Splits on terminal punctuation followed by whitespace.
+ * Filters out duplicates and very short fragments.
  */
-const buildQuestion = (sentence, id, allTerms) => {
+const splitSentences = (text) => {
+  // Normalise whitespace
+  const normalised = text.replace(/\s+/g, ' ').trim();
+
+  // Split on . ! ? followed by a space or end-of-string
+  const raw = normalised.split(/(?<=[.!?])\s+/);
+
+  // Deduplicate and filter
+  const seen = new Set();
+  return raw
+    .map(s => s.trim())
+    .filter(s => {
+      if (s.length < MIN_SENTENCE_LEN) return false;   // too short
+      if (seen.has(s)) return false;                    // duplicate
+      seen.add(s);
+      return true;
+    })
+    .map(s => {
+      // Truncate if over MAX_CHUNK_WORDS to stay within token limits
+      const words = s.split(/\s+/);
+      return words.length > MAX_CHUNK_WORDS
+        ? words.slice(0, MAX_CHUNK_WORDS).join(' ') + '…'
+        : s;
+    });
+};
+
+/**
+ * extractKeyTerms — pull out meaningful words from a sentence.
+ * Prioritises: capitalised words, numbers, and long content words.
+ */
+const extractKeyTerms = (sentence) =>
+  sentence
+    .split(/\s+/)
+    .filter(w =>
+      /[A-Z][a-z]/.test(w) ||   // Proper noun
+      /\d/.test(w)           ||  // Number
+      w.length > 7               // Long common noun
+    )
+    .map(w => w.replace(/[^a-zA-Z0-9\-]/g, ''))
+    .filter(w => w.length > 1);  // strip punctuation-only tokens
+
+/** Score a sentence by information density. */
+const scoreS = (sentence) => {
   const terms = extractKeyTerms(sentence);
-  if (terms.length === 0) return null;
+  const lengthBonus = sentence.length > 60 ? 2 : 0;
+  return terms.length + lengthBonus;
+};
 
-  const targetTerm = terms[0]; // the term we'll blank out
-  const questionText = sentence.replace(targetTerm, '___');
+/**
+ * buildMCQ — convert one sentence into a fill-in-the-blank MCQ.
+ * Returns null if no useful key term can be extracted.
+ */
+const buildMCQ = (sentence, id, distractorPool) => {
+  const terms = extractKeyTerms(sentence);
+  if (terms.length === 0) {
+    console.log(`[Quiz] Skipping sentence (no key terms): "${sentence.slice(0, 40)}…"`);
+    return null;
+  }
 
-  // Build 3 distractors from other sentences' terms
-  const distractorPool = allTerms
-    .filter(t => t !== targetTerm && t.length > 2)
+  const answer = terms[0];
+  const blanked = sentence.replace(answer, '___');
+
+  // Build distractors from other sentences' key terms, excluding the answer
+  const candidates = distractorPool
+    .filter(t => t !== answer && t.length > 2)
     .sort(() => Math.random() - 0.5)
     .slice(0, 6);
 
   const distractors = new Set();
-  while (distractors.size < 3 && distractorPool.length > 0) {
-    distractors.add(distractorPool.pop());
-  }
-  // Pad with generic fallbacks if not enough terms were extracted
+  candidates.forEach(t => { if (distractors.size < 3) distractors.add(t); });
+
+  // Generic fallbacks if not enough terms in transcript
   const fallbacks = [
-    'the standard protocol',
-    'a common misconception',
-    'an unrelated concept'
+    'the standard protocol', 'a common misconception', 'an unrelated concept',
+    'background noise',      'a different subject',    'the wrong approach',
   ];
   let fi = 0;
   while (distractors.size < 3) distractors.add(fallbacks[fi++]);
 
-  // Shuffle all options
-  const opts = [targetTerm, ...distractors].sort(() => Math.random() - 0.5);
-  const correctIndex = opts.indexOf(targetTerm);
+  const opts = [answer, ...distractors].sort(() => Math.random() - 0.5);
+  const correct = opts.indexOf(answer);
 
-  return {
-    id,
-    question: `In the video, "${questionText}" — which term best fills the blank?`,
-    options: opts,
-    correct: correctIndex,
-  };
+  return { id, question: `"${blanked}" — which term best fills the blank?`, options: opts, correct };
 };
 
-// ---------------------------------------------------------------------------
-// Hook
-// ---------------------------------------------------------------------------
+/** Comprehension fallback question when NLP extraction fails. */
+const fallbackQuestion = (sentences, id) => ({
+  id,
+  question: 'Based on the video, which statement best reflects the content?',
+  options: [
+    sentences[0] || 'The topic was comprehensively explained.',
+    'The content was purely theoretical with no examples.',
+    'No conclusions were drawn during the session.',
+    'The video focused on a completely unrelated subject.',
+  ],
+  correct: 0,
+});
+
+// ─── hook ──────────────────────────────────────────────────────────────────
 
 export function useQuizGenerator() {
   const [quizQuestions, setQuizQuestions] = useState(null);
 
-  /**
-   * generateQuiz
-   * @param {string} transcriptText — the full joined transcript from the hook
-   * @param {number} count          — how many questions to generate (default 3)
-   */
+  // FIXED: cache last input text so generateQuiz is a no-op on repeated calls
+  const lastTextRef = useRef('');
+
   const generateQuiz = useCallback((transcriptText, count = 3) => {
+    // ── Guard: skip if empty ────────────────────────────────────────────────
     if (!transcriptText || transcriptText.trim().length < 40) {
+      console.warn('[Quiz] Transcript too short to generate quiz. Length:', transcriptText?.length ?? 0);
       setQuizQuestions(null);
       return;
     }
 
-    const sentences = toSentences(transcriptText);
-    if (sentences.length < 2) {
-      setQuizQuestions(null);
+    // ── Guard: skip if same text (no-op to avoid re-processing) ────────────
+    if (transcriptText === lastTextRef.current) {
+      console.log('[Quiz] Same transcript as last call — skipping regeneration (cached).');
+      return;
+    }
+    lastTextRef.current = transcriptText;
+
+    console.log('[Quiz] Starting quiz generation. Transcript length:', transcriptText.length, 'chars.');
+
+    // ── Step 1: Chunk transcript into sentences ─────────────────────────────
+    const sentences = splitSentences(transcriptText);
+    console.log('[Quiz] STEP 1 — Chunking:', sentences.length, 'valid sentences extracted.');
+
+    if (sentences.length < 1) {
+      console.warn('[Quiz] Not enough sentences. Using fallback quiz.');
+      setQuizQuestions([fallbackQuestion([transcriptText], 1), fallbackQuestion([transcriptText], 2)]);
       return;
     }
 
-    // Sort sentences by information density and pick top-N
+    // ── Step 2: Rank by information density ────────────────────────────────
     const ranked = [...sentences]
       .map(s => ({ s, score: scoreS(s) }))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, Math.max(count, 5));
+      .sort((a, b) => b.score - a.score);
+    console.log('[Quiz] STEP 2 — Top ranked sentences:', ranked.slice(0, 3).map(r => `"${r.s.slice(0,40)}…" (score=${r.score})`));
 
-    // Collect all key terms across top sentences for distractor pool
+    // ── Step 3: Build distractor pool from all key terms ───────────────────
     const allTerms = ranked.flatMap(({ s }) => extractKeyTerms(s));
+    console.log('[Quiz] STEP 3 — Distractor pool:', allTerms.length, 'key terms collected.');
 
-    // Build questions
+    // ── Step 4: Generate questions ─────────────────────────────────────────
     const questions = [];
     for (const { s } of ranked) {
       if (questions.length >= count) break;
-      const q = buildQuestion(s, questions.length + 1, allTerms);
-      if (q) questions.push(q);
+      const q = buildMCQ(s, questions.length + 1, allTerms);
+      if (q) {
+        console.log(`[Quiz] STEP 4 — Q${q.id} generated from: "${s.slice(0, 50)}…"`);
+        questions.push(q);
+      }
     }
 
-    // If we couldn't extract enough, fall back to comprehension questions
-    while (questions.length < 2) {
-      questions.push({
-        id: questions.length + 1,
-        question: `Based on the video, which statement best reflects the content?`,
-        options: [
-          sentences[0] || 'The topic was comprehensively explained.',
-          'The content was purely theoretical with no examples.',
-          'No conclusions were drawn during the session.',
-          'The video focused on a completely unrelated subject.',
-        ],
-        correct: 0,
-      });
+    // ── Step 5: Pad with fallback questions if needed ──────────────────────
+    while (questions.length < Math.min(count, 2)) {
+      const q = fallbackQuestion(sentences, questions.length + 1);
+      console.log('[Quiz] STEP 5 — Adding fallback question', q.id);
+      questions.push(q);
     }
 
-    setQuizQuestions(questions.slice(0, count));
+    const final = questions.slice(0, count);
+    console.log('[Quiz] ✅ Quiz generation complete:', final.length, 'questions ready.');
+    setQuizQuestions(final);
   }, []);
 
   return { quizQuestions, generateQuiz };

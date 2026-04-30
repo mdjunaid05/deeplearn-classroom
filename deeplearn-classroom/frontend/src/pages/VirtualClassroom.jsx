@@ -254,6 +254,7 @@ export default function VirtualClassroom() {
                   transcript={transcript}
                   currentCaption={currentCaption}
                   isActive={isPlaying}
+                  usingSimulation={usingSimulation}
                 />
                 {!isPlaying && transcript.length === 0 && (
                   <p className="text-xs text-slate-600 italic text-center py-2">
