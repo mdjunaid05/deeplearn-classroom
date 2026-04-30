@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Video, Mic, MicOff, VideoOff, Hand, PhoneOff, MessageSquare, 
   Users, Activity, HandMetal, AlertCircle, Send
@@ -17,7 +17,42 @@ export default function LiveClassroom() {
   const [chatMessages, setChatMessages] = useState([]);
   const [activeAlert, setActiveAlert] = useState(null);
 
+  const localVideoRef = useRef(null);
+  const streamRef = useRef(null);
+
   const MOCK_CAPTION = "Welcome to the live session everyone, let's begin...";
+
+  // Start Webcam
+  useEffect(() => {
+    async function startCamera() {
+      try {
+        const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        streamRef.current = mediaStream;
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = mediaStream;
+        }
+      } catch (err) {
+        console.error("Camera access denied or unavailable", err);
+        setActiveAlert({ type: 'error', message: 'Could not access camera/microphone. Please check permissions.', duration: 5000 });
+      }
+    }
+    
+    startCamera();
+    
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  // Toggle video/audio tracks
+  useEffect(() => {
+    if (streamRef.current) {
+      streamRef.current.getAudioTracks().forEach(track => track.enabled = !isMuted);
+      streamRef.current.getVideoTracks().forEach(track => track.enabled = !isVideoOff);
+    }
+  }, [isMuted, isVideoOff]);
 
   // Session timer
   useEffect(() => {
@@ -79,21 +114,34 @@ export default function LiveClassroom() {
           
           {/* Main Speaker/Teacher Video */}
           <div className="relative rounded-2xl glass overflow-hidden flex-1 min-h-[400px] bg-gradient-to-b from-surface-800 to-surface-900 border border-white/10">
-            <div className="absolute inset-0 flex items-center justify-center">
-               <div className="text-center">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center mx-auto mb-4 glow-primary">
-                    <Users className="w-10 h-10 text-white" />
-                  </div>
-                  <h3 className="text-xl font-display font-bold text-white mb-1">
-                    Dr. Smith
-                  </h3>
-                  <p className="text-sm text-slate-400">Main Presenter</p>
-               </div>
-            </div>
+            {user?.role === 'teacher' ? (
+              <video
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'} transform scale-x-[-1]`}
+              />
+            ) : null}
+
+            {/* Placeholder if teacher's video is off or user is student */}
+            {(user?.role === 'student' || (user?.role === 'teacher' && isVideoOff)) && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                 <div className="text-center">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center mx-auto mb-4 glow-primary">
+                      <Users className="w-10 h-10 text-white" />
+                    </div>
+                    <h3 className="text-xl font-display font-bold text-white mb-1">
+                      {user?.role === 'teacher' ? user.name : 'Dr. Smith'}
+                    </h3>
+                    <p className="text-sm text-slate-400">Main Presenter</p>
+                 </div>
+              </div>
+            )}
             
             {/* Presenter Name Badge */}
             <div className="absolute top-4 left-4 px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-md text-xs font-semibold text-white">
-              Dr. Smith (Teacher)
+              {user?.role === 'teacher' ? `${user.name} (Host)` : 'Dr. Smith (Teacher)'}
             </div>
 
             {/* Simulated Live Caption */}
@@ -102,14 +150,31 @@ export default function LiveClassroom() {
 
           {/* Student Grid (Small view) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 h-32">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="rounded-xl glass bg-surface-800 relative overflow-hidden flex items-center justify-center border border-white/5">
-                <Users className="w-6 h-6 text-slate-600" />
-                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/50 text-[10px] text-white">
-                  Student {i}
+            {[1, 2, 3, 4].map((i) => {
+              const isLocalStudent = user?.role === 'student' && i === 1;
+
+              return (
+                <div key={i} className="rounded-xl glass bg-surface-800 relative overflow-hidden flex items-center justify-center border border-white/5">
+                  {isLocalStudent ? (
+                    <video
+                      ref={localVideoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'} transform scale-x-[-1]`}
+                    />
+                  ) : null}
+                  
+                  {(!isLocalStudent || isVideoOff) && (
+                    <Users className="w-6 h-6 text-slate-600" />
+                  )}
+
+                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/50 text-[10px] text-white">
+                    {isLocalStudent ? `${user.name} (You)` : `Student ${i}`}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Controls */}
