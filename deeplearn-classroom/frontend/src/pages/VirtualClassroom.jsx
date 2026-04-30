@@ -74,7 +74,7 @@ export default function VirtualClassroom() {
   const [videoEnded,  setVideoEnded]  = useState(false);
 
   // ── Transcript + captions ─────────────────────────────────────────────────
-  const { transcript, currentCaption, isListening } = useVideoTranscript(videoRef);
+  const { transcript, currentCaption, isListening, usingSimulation } = useVideoTranscript(videoRef);
 
   // ── Quiz ──────────────────────────────────────────────────────────────────
   const { quizQuestions, generateQuiz } = useQuizGenerator();
@@ -169,10 +169,14 @@ export default function VirtualClassroom() {
           <p className="text-slate-400 mt-1">{videoTitle} — Session Active</p>
         </div>
         <div className="flex gap-3 items-center">
-          {/* Mic indicator */}
-          {isListening ? (
+          {/* Caption/mic status indicator */}
+          {isListening && !usingSimulation ? (
             <span className="flex items-center gap-1.5 text-xs text-emerald-400 animate-pulse">
-              <Mic className="w-4 h-4" /> Live Captioning
+              <Mic className="w-4 h-4" /> Live Mic
+            </span>
+          ) : usingSimulation ? (
+            <span className="flex items-center gap-1.5 text-xs text-purple-400 animate-pulse">
+              <Mic className="w-4 h-4" /> Auto Captions
             </span>
           ) : (
             <span className="flex items-center gap-1.5 text-xs text-slate-500">
