@@ -16,7 +16,7 @@ import {
   MessageSquare, Activity, Send, HandMetal, Mic, MicOff
 } from 'lucide-react';
 
-import { loadVideo }              from '../utils/db';
+import { loadVideo, loadCaptions }    from '../utils/db';
 import { useVideoTranscript }     from '../utils/useVideoTranscript';
 import { useQuizGenerator }       from '../utils/useQuizGenerator';
 import CaptionOverlay             from '../components/CaptionOverlay';
@@ -74,7 +74,15 @@ export default function VirtualClassroom() {
   const [videoEnded,  setVideoEnded]  = useState(false);
 
   // ── Transcript + captions ─────────────────────────────────────────────────
-  const { transcript, currentCaption, isListening, usingSimulation } = useVideoTranscript(videoRef);
+  // savedCaptions: loaded from IndexedDB (set by VideoUpload after processing)
+  // These are displayed immediately before the live speech hook produces any results.
+  const [savedCaptions, setSavedCaptions] = useState([]);
+  const { transcript: liveTranscript, currentCaption, isListening, usingSimulation } = useVideoTranscript(videoRef);
+  // Merge: savedCaptions come first, then live results are appended during playback
+  const transcript = [
+    ...savedCaptions.map(c => ({ text: c.text, timestamp: c.start ?? 0 })),
+    ...liveTranscript,
+  ];
 
   // ── Quiz ──────────────────────────────────────────────────────────────────
   const { quizQuestions, generateQuiz } = useQuizGenerator();
@@ -93,9 +101,10 @@ export default function VirtualClassroom() {
   // ── Active quiz (transcript-generated OR fallback) ────────────────────────
   const activeQuiz = quizQuestions || FALLBACK_QUIZ;
 
-  // ── Load video from IndexedDB on mount ───────────────────────────────────
+  // ── Load video + captions from IndexedDB on mount ────────────────────────
   useEffect(() => {
-    const fetchVideo = async () => {
+    const fetchData = async () => {
+      // 1. Load video
       let loaded = false;
       try {
         const { file, name } = await loadVideo();
@@ -103,17 +112,35 @@ export default function VirtualClassroom() {
           setVideoSrc(URL.createObjectURL(file));
           setVideoTitle(name);
           loaded = true;
+          console.log('[Classroom] Loaded video from IndexedDB:', name);
         }
       } catch (err) {
-        console.error('Failed to load video from IndexedDB:', err);
+        console.error('[Classroom] Failed to load video from IndexedDB:', err);
       }
       if (!loaded && window.uploadedDemoVideo) {
         setVideoSrc(window.uploadedDemoVideo);
         setVideoTitle(window.uploadedDemoTitle || 'Uploaded Video');
       }
       setIsVideoLoaded(true);
+
+      // 2. Load saved captions produced by VideoUpload
+      try {
+        // Try window first (same-session navigation, no DB latency)
+        if (window.uploadedDemoCaptions && window.uploadedDemoCaptions.length > 0) {
+          console.log('[Classroom] Loaded captions from window:', window.uploadedDemoCaptions.length, 'segments');
+          setSavedCaptions(window.uploadedDemoCaptions);
+        } else {
+          const caps = await loadCaptions();
+          if (caps && caps.length > 0) {
+            console.log('[Classroom] Loaded captions from IndexedDB:', caps.length, 'segments');
+            setSavedCaptions(caps);
+          }
+        }
+      } catch (err) {
+        console.warn('[Classroom] Could not load saved captions:', err);
+      }
     };
-    fetchVideo();
+    fetchData();
   }, []);
 
   // ── When video ends → generate quiz from transcript ───────────────────────

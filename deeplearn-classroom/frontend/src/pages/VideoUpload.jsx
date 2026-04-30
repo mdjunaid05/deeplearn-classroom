@@ -117,26 +117,31 @@ export default function VideoUpload() {
         setStep(steps[stepIdx].text);
         
         if (steps[stepIdx].p === 100) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-          setStatus('done');
-          setUploading(false);
-          
-          // Save to IndexedDB so it survives page reloads
-          if (file) {
-            import('../utils/db').then(({ saveVideo }) => {
-              saveVideo(file).catch(console.error);
-            });
-            // Also set window variable as an immediate fallback
-            window.uploadedDemoVideo = URL.createObjectURL(file);
-            window.uploadedDemoTitle = file.name;
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+            setStatus('done');
+            setUploading(false);
+
+            const extractedCaptions = [
+              { start: 0,  end: 3,  text: "Hello class welcome to deep learning" },
+              { start: 3,  end: 6,  text: "Today we will learn neural networks" },
+              { start: 6,  end: 9,  text: "Let's look at the key concepts covered in this video" },
+              { start: 9,  end: 12, text: "Pay attention to the examples shown on screen" },
+            ];
+
+            setCaptions(extractedCaptions);
+
+            // Save video and captions to IndexedDB so Virtual Classroom can load them
+            if (file) {
+              import('../utils/db').then(({ saveVideo, saveCaptions }) => {
+                saveVideo(file).catch(console.error);
+                saveCaptions(extractedCaptions).catch(console.error);
+              });
+              window.uploadedDemoVideo  = URL.createObjectURL(file);
+              window.uploadedDemoTitle  = file.name;
+              window.uploadedDemoCaptions = extractedCaptions;
+            }
           }
-          
-          setCaptions([
-            { start: 0, end: 3, text: "Hello class welcome to deep learning" },
-            { start: 3, end: 6, text: "Today we will learn neural networks" }
-          ]);
-        }
         stepIdx++;
       }
     }, 1500);
@@ -165,6 +170,10 @@ export default function VideoUpload() {
 
           if (data.captions) {
             setCaptions(data.captions);
+            // Save real API captions to IndexedDB
+            import('../utils/db').then(({ saveCaptions }) => {
+              saveCaptions(data.captions).catch(console.error);
+            });
           }
         } else if (data.status === 'error') {
           clearInterval(pollRef.current);
