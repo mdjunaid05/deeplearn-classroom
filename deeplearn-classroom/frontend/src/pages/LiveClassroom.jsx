@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Peer from 'peerjs';
 import {
   Video, Mic, MicOff, VideoOff, Hand, PhoneOff, MessageSquare, 
   Users, Activity, HandMetal, AlertCircle, Send
@@ -20,9 +21,13 @@ export default function LiveClassroom() {
   const [isClassStarted, setIsClassStarted] = useState(false);
 
   const localVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
   const streamRef = useRef(null);
+  const peerRef = useRef(null);
   const recognitionRef = useRef(null);
   const isMutedRef = useRef(isMuted);
+  const callsRef = useRef([]);
+  const [connectedStudents, setConnectedStudents] = useState(0);
 
   // Keep isMutedRef up to date for the recognition onend handler
   useEffect(() => {
@@ -76,16 +81,61 @@ export default function LiveClassroom() {
     };
   }, [isClassStarted]);
 
-  // Start Webcam
+  // Start Webcam and WebRTC Peer Connection
   useEffect(() => {
     if (!isClassStarted) return;
     
-    async function startCamera() {
+    async function startCameraAndPeer() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         streamRef.current = mediaStream;
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = mediaStream;
+        }
+
+        // Initialize PeerJS for Real-Time Live Streaming
+        if (user?.role === 'teacher') {
+          const peer = new Peer('deeplearn-teacher-room', {
+            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+          });
+          peerRef.current = peer;
+
+          peer.on('open', (id) => {
+            console.log('Teacher Room Live:', id);
+          });
+
+          peer.on('call', (call) => {
+            call.answer(mediaStream); // Send teacher stream to student
+            callsRef.current.push(call);
+            setConnectedStudents(callsRef.current.length);
+
+            call.on('close', () => {
+              callsRef.current = callsRef.current.filter(c => c !== call);
+              setConnectedStudents(callsRef.current.length);
+            });
+          });
+        } else {
+          // Student logic
+          const peer = new Peer({
+            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+          });
+          peerRef.current = peer;
+
+          peer.on('open', () => {
+            // Join the teacher's fixed room
+            const call = peer.call('deeplearn-teacher-room', mediaStream);
+            
+            call.on('stream', (teacherStream) => {
+              if (remoteVideoRef.current) {
+                remoteVideoRef.current.srcObject = teacherStream;
+              }
+            });
+
+            call.on('close', () => {
+              setActiveAlert({ type: 'error', message: 'Teacher ended the live class.', duration: 5000 });
+              setIsClassStarted(false);
+            });
+          });
         }
       } catch (err) {
         console.error("Camera access denied or unavailable", err);
@@ -93,14 +143,17 @@ export default function LiveClassroom() {
       }
     }
     
-    startCamera();
+    startCameraAndPeer();
     
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
       }
+      if (peerRef.current) {
+        peerRef.current.destroy();
+      }
     };
-  }, [isClassStarted]);
+  }, [isClassStarted, user?.role]);
 
   // Toggle video/audio tracks and speech recognition
   useEffect(() => {
@@ -221,14 +274,12 @@ export default function LiveClassroom() {
                 className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'} transform scale-x-[-1]`}
               />
             ) : (
-              /* Simulated Teacher Video for Students (Since there's no WebRTC backend) */
+              /* Live Teacher Video Stream from WebRTC */
               <video
-                src="https://storage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4"
+                ref={remoteVideoRef}
                 autoPlay
-                loop
                 playsInline
-                muted
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover bg-black"
               />
             )}
 
@@ -313,7 +364,12 @@ export default function LiveClassroom() {
             <button 
               className="p-4 rounded-full bg-red-600 hover:bg-red-700 text-white transition-colors ml-4"
               title="Leave Call"
-              onClick={() => window.location.href = '/student'}
+              onClick={() => {
+                if (user?.role === 'teacher' && peerRef.current) {
+                  peerRef.current.destroy();
+                }
+                window.location.href = user?.role === 'teacher' ? '/dashboard' : '/student';
+              }}
             >
               <PhoneOff className="w-6 h-6" />
             </button>
@@ -328,7 +384,7 @@ export default function LiveClassroom() {
           <div className="p-5 rounded-2xl glass">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Users className="w-4 h-4" />
-              Participants (24)
+              Participants ({user?.role === 'teacher' ? connectedStudents + 1 : '...'})
             </h3>
             <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
                <div className="flex items-center justify-between">
