@@ -311,31 +311,32 @@ export default function LiveClassroom() {
 
           {/* Student Grid (Small view) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 h-32">
-            {[1, 2, 3, 4].map((i) => {
-              const isLocalStudent = user?.role === 'student' && i === 1;
-
-              return (
-                <div key={i} className="rounded-xl glass bg-surface-800 relative overflow-hidden flex items-center justify-center border border-white/5">
-                  {isLocalStudent ? (
-                    <video
-                      ref={localVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'} transform scale-x-[-1]`}
-                    />
-                  ) : null}
-                  
-                  {(!isLocalStudent || isVideoOff) && (
-                    <Users className="w-6 h-6 text-slate-600" />
-                  )}
-
-                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/50 text-[10px] text-white">
-                    {isLocalStudent ? `${user.name} (You)` : `Student ${i}`}
-                  </div>
+            {/* Always show local student if they are a student */}
+            {user?.role === 'student' && (
+              <div className="rounded-xl glass bg-surface-800 relative overflow-hidden flex items-center justify-center border border-white/5">
+                <video
+                  ref={localVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : 'block'} transform scale-x-[-1]`}
+                />
+                {isVideoOff && <Users className="w-6 h-6 text-slate-600" />}
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/50 text-[10px] text-white">
+                  {user.name} (You)
                 </div>
-              );
-            })}
+              </div>
+            )}
+
+            {/* Render connected students for the Teacher */}
+            {user?.role === 'teacher' && Array.from({ length: connectedStudents }).map((_, i) => (
+              <div key={i} className="rounded-xl glass bg-surface-800 relative overflow-hidden flex items-center justify-center border border-white/5">
+                <Users className="w-6 h-6 text-slate-600" />
+                <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/50 text-[10px] text-white">
+                  Student {i + 1}
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Controls */}
@@ -384,25 +385,30 @@ export default function LiveClassroom() {
           <div className="p-5 rounded-2xl glass">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <Users className="w-4 h-4" />
-              Participants ({user?.role === 'teacher' ? connectedStudents + 1 : '...'})
+              Participants ({user?.role === 'teacher' ? connectedStudents + 1 : 2})
             </h3>
             <div className="space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+               {/* Teacher (Host) */}
                <div className="flex items-center justify-between">
-                 <span className="text-sm text-slate-300">Dr. Smith (Host)</span>
-                 <Mic className="w-3 h-3 text-emerald-400" />
+                 <span className="text-sm text-slate-300">{user?.role === 'teacher' ? `${user.name} (Host, You)` : 'Teacher (Host)'}</span>
+                 {user?.role === 'teacher' && isMuted ? <MicOff className="w-3 h-3 text-red-400" /> : <Mic className="w-3 h-3 text-emerald-400" />}
                </div>
-               <div className="flex items-center justify-between">
-                 <span className="text-sm text-slate-300">Alice (You)</span>
-                 {isMuted ? <MicOff className="w-3 h-3 text-red-400" /> : <Mic className="w-3 h-3 text-emerald-400" />}
-               </div>
-               <div className="flex items-center justify-between">
-                 <span className="text-sm text-slate-300">Bob</span>
-                 <Hand className="w-3 h-3 text-amber-400" />
-               </div>
-               <div className="flex items-center justify-between">
-                 <span className="text-sm text-slate-300">Carol</span>
-                 <MicOff className="w-3 h-3 text-red-400" />
-               </div>
+               
+               {/* Local Student */}
+               {user?.role === 'student' && (
+                 <div className="flex items-center justify-between">
+                   <span className="text-sm text-slate-300">{user.name} (You)</span>
+                   {isMuted ? <MicOff className="w-3 h-3 text-red-400" /> : <Mic className="w-3 h-3 text-emerald-400" />}
+                 </div>
+               )}
+
+               {/* Connected Students (Visible to Teacher) */}
+               {user?.role === 'teacher' && Array.from({ length: connectedStudents }).map((_, i) => (
+                 <div key={i} className="flex items-center justify-between">
+                   <span className="text-sm text-slate-300">Student {i + 1}</span>
+                   <Mic className="w-3 h-3 text-emerald-400" />
+                 </div>
+               ))}
             </div>
           </div>
 
