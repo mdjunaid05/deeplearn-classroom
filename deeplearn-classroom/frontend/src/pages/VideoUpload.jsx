@@ -66,9 +66,43 @@ export default function VideoUpload() {
     setStep('Uploading video...');
     setError('');
 
-    // Always call the local backend for real Whisper transcription.
-    // The backend /extract-captions endpoint uses moviepy + Whisper.
+    // Fast processing: Only extract captions
     await extractCaptionsLocally();
+  };
+
+  const handleFullPipeline = async () => {
+    if (!file) return;
+    setUploading(true);
+    setStatus('processing');
+    setProgress(5);
+    setStep('Uploading video for Deaf Signing Pipeline...');
+    setError('');
+
+    const BACKEND_URL = API_BASE || 'http://localhost:5000';
+    try {
+      const formData = new FormData();
+      formData.append('video_file', file);
+
+      const res = await fetch(`${BACKEND_URL}/upload-video`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed with status ${res.status}`);
+      }
+      
+      const data = await res.json();
+      setJobId(data.job_id);
+      setFilename(data.filename);
+      startPolling(data.job_id);
+    } catch (err) {
+      console.error(err);
+      setStatus('error');
+      setError(`Full pipeline failed: ${err.message}`);
+      setUploading(false);
+    }
   };
 
   /**
@@ -248,19 +282,29 @@ export default function VideoUpload() {
             )}
           </div>
           
-          <button 
-            onClick={handleUpload}
-            disabled={!file || uploading}
-            className={`w-full py-3 rounded-xl font-semibold transition-all ${!file || uploading ? 'bg-surface-800 text-slate-500 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-500 text-white shadow-lg hover:shadow-primary-500/25'}`}
-            aria-label="Start video processing pipeline"
-          >
-            {uploading ? (
-              <span className="flex items-center justify-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                Processing...
-              </span>
-            ) : 'Upload & Process Video'}
-          </button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button 
+              onClick={handleUpload}
+              disabled={!file || uploading}
+              className={`flex-1 py-3 rounded-xl font-semibold transition-all ${!file || uploading ? 'bg-surface-800 text-slate-500 cursor-not-allowed' : 'bg-surface-700 hover:bg-surface-600 text-white shadow-lg border border-white/10'}`}
+              aria-label="Extract Captions Only"
+            >
+              {uploading ? 'Processing...' : 'Extract Captions Only (Fast)'}
+            </button>
+            <button 
+              onClick={handleFullPipeline}
+              disabled={!file || uploading}
+              className={`flex-1 py-3 rounded-xl font-semibold transition-all ${!file || uploading ? 'bg-surface-800 text-slate-500 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-500 text-white shadow-lg hover:shadow-primary-500/25'}`}
+              aria-label="Start full deaf signing pipeline"
+            >
+              {uploading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Generating...
+                </span>
+              ) : 'Generate Deaf Signing Video'}
+            </button>
+          </div>
 
           {/* Progress Bar */}
           {status === 'processing' && (
