@@ -169,8 +169,26 @@ export default function VirtualClassroom() {
     setChatInput('');
   };
 
-  // ── Derive first word of current caption for avatar gesture ──────────────
-  const avatarWord = currentCaption.trim().split(/\s+/)[0] || '';
+  // ── Derive current word for avatar gesture by estimating based on video time ────────
+  let avatarWord = '';
+  if (isPlaying && currentCaption) {
+    const activeCap = savedCaptions.find(c => {
+      const start = c.start ?? c.start_time ?? 0;
+      const end = c.end ?? c.end_time ?? 0;
+      return videoTime >= start && videoTime <= end;
+    });
+    if (activeCap) {
+      const words = activeCap.text.trim().split(/\s+/);
+      const start = activeCap.start ?? activeCap.start_time ?? 0;
+      const end = activeCap.end ?? activeCap.end_time ?? 0;
+      const duration = (end - start) || 1;
+      const timePerWord = duration / words.length;
+      let wordIdx = Math.floor((videoTime - start) / timePerWord);
+      if (wordIdx < 0) wordIdx = 0;
+      if (wordIdx >= words.length) wordIdx = words.length - 1;
+      avatarWord = words[wordIdx].replace(/[^a-zA-Z]/g, '');
+    }
+  }
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
