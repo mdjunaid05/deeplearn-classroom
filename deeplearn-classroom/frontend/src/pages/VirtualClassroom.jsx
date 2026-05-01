@@ -77,12 +77,7 @@ export default function VirtualClassroom() {
   // savedCaptions: loaded from IndexedDB (set by VideoUpload after processing)
   // These are displayed immediately before the live speech hook produces any results.
   const [savedCaptions, setSavedCaptions] = useState([]);
-  const { transcript: liveTranscript, currentCaption, isListening, usingSimulation } = useVideoTranscript(videoRef);
-  // Merge: savedCaptions come first, then live results are appended during playback
-  const transcript = [
-    ...savedCaptions.map(c => ({ text: c.text, timestamp: c.start ?? 0 })),
-    ...liveTranscript,
-  ];
+  const { transcript, currentCaption, isListening, usingSimulation } = useVideoTranscript(videoRef, savedCaptions);
 
   // ── Quiz ──────────────────────────────────────────────────────────────────
   const { quizQuestions, generateQuiz } = useQuizGenerator();

@@ -9,25 +9,45 @@ import tempfile
 
 def extract_audio_from_video(video_path):
     """
-    Extract audio track from a video file using moviepy.
-    Returns the path to a temporary WAV file.
+    Extract audio track from a video file using FFmpeg.
+    Returns the path to a temporary WAV file (mono, 16000Hz).
     """
-    try:
-        from moviepy.editor import VideoFileClip
-    except ImportError:
-        from moviepy import VideoFileClip
-
+    import subprocess
+    
     temp_audio = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    audio_path = temp_audio.name
     temp_audio.close()
-
-    clip = VideoFileClip(video_path)
-    if clip.audio is None:
-        clip.close()
-        raise ValueError("Video has no audio track")
-    clip.audio.write_audiofile(temp_audio.name, logger=None)
-    clip.close()
-
-    return temp_audio.name
+    
+    command = [
+        "ffmpeg", "-y",
+        "-i", video_path,
+        "-vn",
+        "-acodec", "pcm_s16le",
+        "-ar", "16000",
+        "-ac", "1",
+        audio_path
+    ]
+    
+    try:
+        subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+        raise RuntimeError(f"FFmpeg failed: {e.stderr.decode()}")
+    except FileNotFoundError:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+        raise RuntimeError("FFmpeg is not installed or not in PATH")
+        
+    file_size = os.path.getsize(audio_path)
+    print(f"[STT] Audio file size: {file_size} bytes")
+    
+    if file_size == 0:
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+        raise RuntimeError("Extracted audio file size is 0")
+        
+    return audio_path
 
 
 def transcribe_audio(video_path):
