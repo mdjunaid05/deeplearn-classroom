@@ -24,12 +24,12 @@ export default function CaptionOverlay({
   isActive        = false,
   usingSimulation = false,
 }) {
-  const bottomRef = useRef(null);
+  const containerRef = useRef(null);
 
-  // Auto-scroll to the latest caption whenever transcript or current caption changes
+  // Auto-scroll the caption container to the bottom
   useEffect(() => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
   }, [transcript.length, currentCaption]);
 
@@ -47,6 +47,7 @@ export default function CaptionOverlay({
       role="region"
     >
       <div
+        ref={containerRef}
         className="rounded-xl border border-white/10 overflow-hidden"
         style={{
           background: 'rgba(0, 0, 0, 0.80)',
@@ -106,8 +107,7 @@ export default function CaptionOverlay({
             </p>
           )}
 
-          {/* Scroll anchor */}
-          <div ref={bottomRef} />
+          {/* Scroll anchor removed */}
         </div>
       </div>
     </div>
