@@ -81,7 +81,7 @@ export default function VideoUpload() {
    * If the backend is not running, shows a clear error instead of fake captions.
    */
   const extractCaptionsLocally = async () => {
-    const LOCAL_BACKEND = 'http://localhost:5000';
+    const BACKEND_URL = API_BASE || 'http://localhost:5000';
 
     // Step 1: Upload
     setProgress(15);
@@ -94,7 +94,7 @@ export default function VideoUpload() {
       setProgress(30);
       setStep('Step 2/4: Extracting audio track from video...');
 
-      const res = await fetch(`${LOCAL_BACKEND}/extract-captions`, {
+      const res = await fetch(`${BACKEND_URL}/extract-captions`, {
         method: 'POST',
         body: formData,
       });
