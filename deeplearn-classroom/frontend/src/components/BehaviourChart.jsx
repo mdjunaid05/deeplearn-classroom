@@ -88,6 +88,9 @@ export function BehaviourTimeline({ events }) {
     <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
       {events.map((event, idx) => {
         const color = BEHAVIOR_COLORS[event.behaviour_label] || '#6366f1';
+        const clickFreq = event.session_time
+          ? ((event.clicks || 0) / Math.max(event.session_time, 1)).toFixed(1)
+          : '—';
         return (
           <div
             key={idx}
@@ -98,15 +101,29 @@ export function BehaviourTimeline({ events }) {
               style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}40` }}
             />
             <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-2">
                 <span className={`badge badge-${event.behaviour_label.toLowerCase()}`}>
                   {event.behaviour_label}
                 </span>
                 <span className="text-xs text-slate-500">Activity #{event.activity_id}</span>
               </div>
-              <div className="flex gap-4 text-xs text-slate-600">
-                <span>Idle: {event.idle_time}min</span>
-                <span>Chat: {event.chat_count}</span>
+              <div className="grid grid-cols-4 gap-2 text-xs">
+                <div className="text-center">
+                  <p className="text-slate-400 mb-0.5">Idle</p>
+                  <p className="font-semibold text-slate-700">{event.idle_time}m</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-slate-400 mb-0.5">Chat</p>
+                  <p className="font-semibold text-slate-700">{event.chat_count}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-slate-400 mb-0.5">Clicks/m</p>
+                  <p className="font-semibold text-slate-700">{clickFreq}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-slate-400 mb-0.5">Resp.</p>
+                  <p className="font-semibold text-slate-700">{event.response_speed?.toFixed(1) || '—'}s</p>
+                </div>
               </div>
             </div>
           </div>

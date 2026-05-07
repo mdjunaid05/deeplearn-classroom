@@ -1,47 +1,59 @@
-import React, { useState, useEffect } from 'react';
-import { Activity, Clock, MousePointer2, MessageSquare, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Activity, Clock, MousePointer2, MessageSquare, AlertTriangle, Search, RefreshCw } from 'lucide-react';
 import { BehaviourTimeline } from '../components/BehaviourChart';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-// Empty events — will be populated from backend
-const EMPTY_EVENTS = [];
-
 export default function BehaviourMonitor() {
+  const [studentIdInput, setStudentIdInput] = useState('1001');
   const [studentId, setStudentId] = useState(1001);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
 
-  useEffect(() => {
-    const fetchBehaviour = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await fetch(`${API_BASE}/student-dashboard?student_id=${studentId}`);
-        if (!res.ok) throw new Error('Data not found for this student');
-        const json = await res.json();
-        setData(json);
-      } catch (err) {
-        setError(err.message);
-        setData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchBehaviour = useCallback(async (id) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/student-dashboard?student_id=${id}`);
+      if (!res.ok) throw new Error(`No data found for Student ID: ${id}`);
+      const json = await res.json();
+      setData(json);
+    } catch (err) {
+      setError(err.message);
+      setData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    fetchBehaviour();
-  }, [studentId]);
+  useEffect(() => {
+    fetchBehaviour(studentId);
+  }, [studentId, fetchBehaviour]);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    const id = parseInt(studentIdInput);
+    if (!isNaN(id)) setStudentId(id);
+  };
 
   const events = data?.behaviour_history || [];
-  
+
   // Calculate aggregate metrics
-  const avgClickFreq = events.length ? 
-    (events.reduce((sum, e) => sum + ((e.clicks || 0) / Math.max(e.session_time || 1, 1)), 0) / events.length).toFixed(1) : '—';
-  const avgResponse = events.length ? 
-    (events.reduce((sum, e) => sum + (e.response_speed || 0), 0) / events.length).toFixed(1) : '—';
+  const avgClickFreq = events.length
+    ? (events.reduce((sum, e) => sum + ((e.clicks || 0) / Math.max(e.session_time || 1, 1)), 0) / events.length).toFixed(1)
+    : '—';
+  const avgResponse = events.length
+    ? (events.reduce((sum, e) => sum + (e.response_speed || 0), 0) / events.length).toFixed(1)
+    : '—';
   const totalChats = events.reduce((sum, e) => sum + (e.chat_count || 0), 0);
   const totalIdle = events.reduce((sum, e) => sum + (e.idle_time || 0), 0).toFixed(1);
+
+  // Behaviour distribution counts
+  const activeCount = events.filter(e => e.behaviour_label === 'Active').length;
+  const passiveCount = events.filter(e => e.behaviour_label === 'Passive').length;
+  const distractedCount = events.filter(e => e.behaviour_label === 'Distracted').length;
+  const total = events.length || 1;
 
   return (
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -54,46 +66,68 @@ export default function BehaviourMonitor() {
           </h1>
           <p className="text-slate-600 mt-1">Detailed breakdown of student interaction patterns</p>
         </div>
-        <div className="flex gap-2">
-           <input
+        <form onSubmit={handleSearch} className="flex gap-2 items-center">
+          <input
             type="number"
-            value={studentId}
-            onChange={(e) => setStudentId(Number(e.target.value))}
-            className="w-32 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm
-                       focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+            value={studentIdInput}
+            onChange={(e) => setStudentIdInput(e.target.value)}
+            className="w-36 px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 text-sm
+                       focus:outline-none focus:ring-2 focus:ring-primary-500/50 shadow-sm"
             placeholder="Student ID"
             id="behaviour-student-id"
+            min="1000" max="9999"
           />
-        </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-400 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm disabled:opacity-60"
+          >
+            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+            {loading ? 'Loading...' : 'Search'}
+          </button>
+        </form>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column — Summary & Alerts */}
         <div className="space-y-6">
           <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <h3 className="text-sm font-semibold text-slate-500 mb-4">Behaviour Categories</h3>
+            <h3 className="text-sm font-semibold text-slate-500 mb-4">Behaviour Summary</h3>
             <div className="space-y-3">
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="font-semibold text-emerald-400">Active</span>
-                  <span className="text-xs text-emerald-300">Target State</span>
+                  <span className="font-semibold text-emerald-600">Active</span>
+                  <span className="text-sm font-bold text-emerald-600">
+                    {activeCount} <span className="text-xs font-normal text-emerald-500">({((activeCount/total)*100).toFixed(0)}%)</span>
+                  </span>
                 </div>
-                <p className="text-xs text-slate-600">High click frequency, fast response speed, active in chat.</p>
+                <div className="w-full bg-emerald-100 rounded-full h-1.5 mt-2">
+                  <div className="bg-emerald-400 h-1.5 rounded-full transition-all duration-700" style={{ width: `${(activeCount/total)*100}%` }} />
+                </div>
               </div>
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="font-semibold text-amber-400">Passive</span>
-                  <span className="text-xs text-amber-300">Needs Motivation</span>
+                  <span className="font-semibold text-amber-600">Passive</span>
+                  <span className="text-sm font-bold text-amber-600">
+                    {passiveCount} <span className="text-xs font-normal text-amber-500">({((passiveCount/total)*100).toFixed(0)}%)</span>
+                  </span>
                 </div>
-                <p className="text-xs text-slate-600">Low interaction, moderate idle time, infrequent chatting.</p>
+                <div className="w-full bg-amber-100 rounded-full h-1.5 mt-2">
+                  <div className="bg-amber-400 h-1.5 rounded-full transition-all duration-700" style={{ width: `${(passiveCount/total)*100}%` }} />
+                </div>
               </div>
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="font-semibold text-red-400">Distracted</span>
-                  <span className="text-xs text-red-300">Intervention Req.</span>
+                  <span className="font-semibold text-red-600">Distracted</span>
+                  <span className="text-sm font-bold text-red-600">
+                    {distractedCount} <span className="text-xs font-normal text-red-500">({((distractedCount/total)*100).toFixed(0)}%)</span>
+                  </span>
                 </div>
-                <p className="text-xs text-slate-600">High idle time, very low click frequency, zero chat activity.</p>
+                <div className="w-full bg-red-100 rounded-full h-1.5 mt-2">
+                  <div className="bg-red-400 h-1.5 rounded-full transition-all duration-700" style={{ width: `${(distractedCount/total)*100}%` }} />
+                </div>
               </div>
+              <p className="text-xs text-slate-500 text-center pt-1">Based on {events.length} recorded activities</p>
             </div>
           </div>
 
