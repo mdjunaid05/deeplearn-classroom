@@ -3,11 +3,11 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 /**
- * TeacherRoute — requires teacher role.
- * Redirects unauthenticated users to login, students to their dashboard.
+ * StudentRoute — requires student role.
+ * Redirects unauthenticated users to login, teachers to their dashboard.
  */
-export default function TeacherRoute({ children }) {
-  const { user, loading, isTeacher } = useAuth();
+export default function StudentRoute({ children }) {
+  const { user, loading, isStudent } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -22,11 +22,11 @@ export default function TeacherRoute({ children }) {
   }
 
   if (!user) {
-    return <Navigate to="/login?role=teacher" state={{ from: location }} replace />;
+    return <Navigate to="/login?role=student" state={{ from: location }} replace />;
   }
 
-  if (!isTeacher) {
-    return <Navigate to="/student" replace />;
+  if (!isStudent) {
+    return <Navigate to="/teacher" replace />;
   }
 
   return children;

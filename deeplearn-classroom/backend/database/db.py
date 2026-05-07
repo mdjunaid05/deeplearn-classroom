@@ -40,6 +40,17 @@ def _init_sqlite(conn):
     cursor = conn.cursor()
 
     cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            name            TEXT NOT NULL,
+            email           TEXT NOT NULL UNIQUE,
+            password_hash   TEXT NOT NULL,
+            role            TEXT NOT NULL CHECK(role IN ('student', 'teacher')),
+            avatar_url      TEXT,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_login      DATETIME
+        );
+
         CREATE TABLE IF NOT EXISTS students (
             student_id          INTEGER PRIMARY KEY AUTOINCREMENT,
             name                TEXT NOT NULL,
