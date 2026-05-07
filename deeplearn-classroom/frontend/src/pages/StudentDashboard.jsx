@@ -27,21 +27,29 @@ export default function StudentDashboard() {
   const [data, setData] = useState(null);
   const [studentId, setStudentId] = useState(1001);
   const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState('Loading student data...');
   const [error, setError] = useState(null);
   const [recordings, setRecordings] = useState([]);
 
   const fetchData = async (id) => {
     setLoading(true);
     setError(null);
+    const loadingTimer = setTimeout(() => {
+      setLoadingText('Server is waking up (this may take up to 50s on free tiers)...');
+    }, 5000);
+
     try {
       const res = await fetch(`${API_BASE}/student-dashboard?student_id=${id}`);
-      if (!res.ok) throw new Error('API not available');
-      const json = await res.json();
-      setData(json);
-    } catch {
-      // Use demo data
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      } else {
+        throw new Error('Failed to fetch data');
+      }
+    } catch (err) {
       setData(EMPTY_DATA);
     } finally {
+      clearTimeout(loadingTimer);
       setLoading(false);
     }
   };
@@ -68,6 +76,18 @@ export default function StudentDashboard() {
     fetchData(studentId);
     fetchRecordings(studentId);
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6">
+        <div className="w-12 h-12 border-4 border-primary-500/30 border-t-primary-500 rounded-full animate-spin shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-slate-800 mb-1">Please Wait</h3>
+          <p className="text-slate-500 text-sm max-w-xs">{loadingText}</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!data) {
     return (

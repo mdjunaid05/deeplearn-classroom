@@ -21,10 +21,15 @@ const EMPTY_DATA = {
 export default function TeacherDashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingText, setLoadingText] = useState('Loading dashboard data...');
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('average_score');
 
   useEffect(() => {
+    const loadingTimer = setTimeout(() => {
+      setLoadingText('Server is waking up (this may take up to 50s on free tiers)...');
+    }, 5000);
+
     const fetchData = async () => {
       try {
         const res = await fetch(`${API_BASE}/teacher-dashboard`);
@@ -34,16 +39,23 @@ export default function TeacherDashboard() {
       } catch {
         setData(EMPTY_DATA);
       } finally {
+        clearTimeout(loadingTimer);
         setLoading(false);
       }
     };
     fetchData();
+
+    return () => clearTimeout(loadingTimer);
   }, []);
 
   if (loading || !data) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" />
+      <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6">
+        <div className="w-12 h-12 border-4 border-primary-500/30 border-t-primary-500 rounded-full animate-spin shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-slate-800 mb-1">Please Wait</h3>
+          <p className="text-slate-500 text-sm max-w-xs">{loadingText}</p>
+        </div>
       </div>
     );
   }
