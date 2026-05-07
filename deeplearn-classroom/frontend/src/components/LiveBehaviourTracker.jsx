@@ -38,6 +38,7 @@ export default function LiveBehaviourTracker({ onMetricsUpdate, compact = false,
   const streamRef = useRef(null);
   const interactionRef = useRef({ count: 0, mouseX: 0, mouseY: 0 });
   const lastPollRef = useRef(Date.now());
+  const sessionSecondsRef = useRef(0);
 
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState(null);
@@ -78,7 +79,12 @@ export default function LiveBehaviourTracker({ onMetricsUpdate, compact = false,
 
   // ── Session timer ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const timer = setInterval(() => setSessionSeconds(s => s + 1), 1000);
+    const timer = setInterval(() => {
+      setSessionSeconds(s => {
+        sessionSecondsRef.current = s + 1;
+        return s + 1;
+      });
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -173,14 +179,14 @@ export default function LiveBehaviourTracker({ onMetricsUpdate, compact = false,
         tabActive,
         interactionRate: parseFloat(interactionRate.toFixed(2)),
         timestamp: new Date().toISOString(),
-        sessionSeconds,
+        sessionSeconds: sessionSecondsRef.current,
       };
 
       setMetrics(newMetrics);
       if (onMetricsUpdate) onMetricsUpdate(newMetrics);
     }, POLL_INTERVAL);
     return () => clearInterval(interval);
-  }, [detectFace, tabActive, onMetricsUpdate, sessionSeconds]);
+  }, [detectFace, tabActive, onMetricsUpdate]);
 
   const formatTime = (s) => `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 

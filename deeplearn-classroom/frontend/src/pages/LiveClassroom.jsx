@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Peer from 'peerjs';
 import {
   Video, Mic, MicOff, VideoOff, Hand, PhoneOff, MessageSquare, 
@@ -9,8 +10,11 @@ import CaptionOverlay from '../components/CaptionOverlay';
 import VisualAlertBanner from '../components/VisualAlertBanner';
 import { useAuth } from '../contexts/AuthContext';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 export default function LiveClassroom() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
@@ -76,11 +80,11 @@ export default function LiveClassroom() {
     return () => clearInterval(timer);
   }, [isClassStarted]);
 
-  // Start Class API
+  // Start Class API — uses API_BASE instead of hardcoded localhost
   const startLiveClass = async () => {
     try {
       if (user?.role === 'teacher') {
-        const res = await fetch('http://127.0.0.1:5000/start-class', {
+        const res = await fetch(`${API_BASE}/start-class`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ teacher_id: user.id || 1, course_id: 1 })
@@ -97,14 +101,14 @@ export default function LiveClassroom() {
     }
   };
 
-  // End Class API
+  // End Class API — uses navigate() instead of window.location.href
   const endLiveClass = async () => {
     if (isRecording) {
       stopRecording();
     }
     try {
       if (user?.role === 'teacher' && sessionId) {
-        await fetch('http://127.0.0.1:5000/end-class', {
+        await fetch(`${API_BASE}/end-class`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ session_id: sessionId })
@@ -115,11 +119,11 @@ export default function LiveClassroom() {
     }
     
     if (peerRef.current) peerRef.current.destroy();
-    window.location.href = user?.role === 'teacher' ? '/teacher' : '/student';
+    navigate(user?.role === 'teacher' ? '/teacher' : '/student');
   };
 
   // Recording Logic
-  const startRecording = () => {
+  const startRecording = useCallback(() => {
     if (!streamRef.current) return;
     recordedChunksRef.current = [];
     const options = { mimeType: 'video/webm; codecs=vp9,opus' };
@@ -141,7 +145,7 @@ export default function LiveClassroom() {
       console.error('MediaRecorder error:', e);
       setActiveAlert({ type: 'error', message: 'Failed to start recording. Format not supported.', duration: 3000 });
     }
-  };
+  }, []);
 
   const pauseRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
@@ -166,6 +170,7 @@ export default function LiveClassroom() {
     }
   };
 
+  // Upload uses API_BASE
   const uploadRecording = async () => {
     if (recordedChunksRef.current.length === 0) return;
     
@@ -181,7 +186,7 @@ export default function LiveClassroom() {
     formData.append('transcript', JSON.stringify(fullTranscriptRef.current));
 
     try {
-      const res = await fetch('http://127.0.0.1:5000/upload-recording', {
+      const res = await fetch(`${API_BASE}/upload-recording`, {
         method: 'POST',
         body: formData
       });
@@ -216,7 +221,7 @@ export default function LiveClassroom() {
         if (peerRef.current && user?.role === 'teacher') {
           Object.values(peerRef.current.connections).forEach(conns => {
             conns.forEach(conn => {
-              const sender = conn.peerConnection.getSenders().find(s => s.track.kind === 'video');
+              const sender = conn.peerConnection?.getSenders()?.find(s => s.track?.kind === 'video');
               if (sender) sender.replaceTrack(displayTrack);
             });
           });
@@ -239,17 +244,19 @@ export default function LiveClassroom() {
   };
 
   const stopScreenShare = () => {
+    if (!streamRef.current || !originalVideoTrackRef.current) return;
     const currentVideoTrack = streamRef.current.getVideoTracks()[0];
-    currentVideoTrack.stop();
-    
-    streamRef.current.removeTrack(currentVideoTrack);
+    if (currentVideoTrack) {
+      currentVideoTrack.stop();
+      streamRef.current.removeTrack(currentVideoTrack);
+    }
     streamRef.current.addTrack(originalVideoTrackRef.current);
     
     // Replace track in peers
     if (peerRef.current && user?.role === 'teacher') {
       Object.values(peerRef.current.connections).forEach(conns => {
         conns.forEach(conn => {
-          const sender = conn.peerConnection.getSenders().find(s => s.track.kind === 'video');
+          const sender = conn.peerConnection?.getSenders()?.find(s => s.track?.kind === 'video');
           if (sender) sender.replaceTrack(originalVideoTrackRef.current);
         });
       });
@@ -259,7 +266,7 @@ export default function LiveClassroom() {
     setIsScreenSharing(false);
   };
 
-  // Initialize Speech Recognition
+  // Initialize Speech Recognition — fixed scoping bug
   useEffect(() => {
     if (!isClassStarted) return;
     
@@ -308,8 +315,10 @@ export default function LiveClassroom() {
     
     return () => {
       if (recognitionRef.current) {
-        recognition.onend = null; 
-        recognitionRef.current.stop();
+        // Fixed: was referencing out-of-scope `recognition` variable
+        recognitionRef.current.onend = null; 
+        try { recognitionRef.current.stop(); } catch (e) {}
+        recognitionRef.current = null;
       }
     };
   }, [isClassStarted]);
@@ -317,6 +326,7 @@ export default function LiveClassroom() {
   // Start Webcam and WebRTC Peer Connection
   useEffect(() => {
     if (!isClassStarted) return;
+    const role = user?.role;
     
     async function startCameraAndPeer() {
       try {
@@ -328,7 +338,7 @@ export default function LiveClassroom() {
           localVideoRef.current.srcObject = mediaStream;
         }
 
-        if (user?.role === 'teacher') {
+        if (role === 'teacher') {
           const peer = new Peer('deeplearn-teacher-room', {
             config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
           });
@@ -345,10 +355,12 @@ export default function LiveClassroom() {
             });
           });
           
-          // Automatically start recording when live class starts
-          setTimeout(() => {
-            startRecording();
-          }, 500);
+          // Delay recording start to ensure stream is ready
+          const recTimeout = setTimeout(() => {
+            if (streamRef.current) startRecording();
+          }, 1000);
+          
+          return () => clearTimeout(recTimeout);
         } else {
           // Student logic
           const peer = new Peer({
@@ -380,13 +392,17 @@ export default function LiveClassroom() {
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
       }
-      if (peerRef.current) peerRef.current.destroy();
+      if (peerRef.current) {
+        peerRef.current.destroy();
+        peerRef.current = null;
+      }
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
+        try { mediaRecorderRef.current.stop(); } catch(e) {}
       }
     };
-  }, [isClassStarted, user?.role]);
+  }, [isClassStarted, startRecording]);
 
   // Toggle video/audio tracks
   useEffect(() => {
@@ -405,7 +421,7 @@ export default function LiveClassroom() {
           setLiveCaption("Microphone active. Start speaking...");
         } catch (e) {}
       } else {
-        recognitionRef.current.stop();
+        try { recognitionRef.current.stop(); } catch (e) {}
         setLiveCaption("Microphone muted.");
       }
     }
@@ -449,197 +465,186 @@ export default function LiveClassroom() {
   }
 
   return (
-    <div className="page-enter max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6" role="main">
-      <div className="mb-4 w-full max-w-3xl mx-auto">
-        <VisualAlertBanner alert={activeAlert} onDismiss={() => setActiveAlert(null)} />
-      </div>
+    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {activeAlert && (
+        <VisualAlertBanner
+          type={activeAlert.type}
+          message={activeAlert.message}
+          duration={activeAlert.duration}
+          onClose={() => setActiveAlert(null)}
+        />
+      )}
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 gap-4">
+      {/* Header Bar */}
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3">
-            <Video className="w-6 h-6 text-red-500 animate-pulse" />
+            <Video className="w-7 h-7 text-primary-400" />
             Live Classroom
           </h1>
-          <p className="text-sm text-slate-500 mt-1 flex items-center gap-2">
-            Advanced Neural Networks 
-            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-            {formatTime(sessionTime)}
+          <p className="text-sm text-slate-500 mt-1">
+            {user?.role === 'teacher' ? `Session: ${sessionId || 'Local'} · ${connectedStudents} student(s)` : 'Connected to live session'}
           </p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Recording Controls for Teacher */}
-          {user?.role === 'teacher' && (
-            <div className="flex items-center gap-2 bg-white rounded-xl p-1.5 shadow-sm border border-slate-200">
-              {isRecording ? (
-                <>
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold border border-red-200 bg-red-50 text-red-600`}>
-                    <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse"></div>
-                    Auto-Recording: {formatTime(recordingTime)}
-                  </div>
-                </>
-              ) : isUploading ? (
-                <span className="text-xs text-primary-500 font-semibold px-2 animate-pulse">Saving Recording...</span>
-              ) : (
-                <span className="text-xs text-slate-500 font-semibold px-2">Ready to record</span>
-              )}
-            </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-mono bg-slate-100 text-slate-600 px-3 py-1.5 rounded-lg">
+            {formatTime(sessionTime)}
+          </span>
+          {isRecording && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-red-500 bg-red-50 px-3 py-1.5 rounded-lg">
+              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+              REC {formatTime(recordingTime)}
+            </span>
           )}
-
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-50 border border-red-100 text-red-600 shadow-sm">
-            <span className="text-xs font-bold tracking-widest">LIVE</span>
-          </div>
-
-          <button onClick={endLiveClass} className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-bold shadow-lg shadow-red-500/20 transition-all hover:scale-[1.02]">
-             {user?.role === 'teacher' ? 'End Class' : 'Leave'}
-          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column - Video & Controls (Span 8) */}
-        <div className="lg:col-span-9 flex flex-col space-y-4">
-          
-          {/* Main Video View */}
-          <div className="relative rounded-2xl bg-slate-900 overflow-hidden flex-1 min-h-[500px] border border-slate-800 shadow-2xl">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* Main Video Area */}
+        <div className="lg:col-span-3 space-y-4">
+          <div className="relative rounded-2xl overflow-hidden bg-slate-900 aspect-video glass border border-slate-200/60 shadow-lg">
             {user?.role === 'teacher' ? (
-              <video ref={localVideoRef} autoPlay playsInline muted className={`w-full h-full object-contain ${isVideoOff ? 'hidden' : 'block'} ${!isScreenSharing && 'transform scale-x-[-1]'}`} />
+              <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
             ) : (
-              <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-contain" />
+              <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full object-cover" />
             )}
 
-            {/* Video Off Placeholder */}
-            {(user?.role === 'teacher' && isVideoOff && !isScreenSharing) && (
-              <div className="absolute inset-0 flex items-center justify-center bg-slate-900">
-                 <div className="text-center">
-                    <div className="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center mx-auto mb-4">
-                      <Users className="w-10 h-10 text-slate-400" />
-                    </div>
-                    <h3 className="text-xl font-bold text-white">{user.name}</h3>
-                 </div>
+            {/* Student's own small video (PiP) */}
+            {user?.role !== 'teacher' && (
+              <div className="absolute bottom-4 right-4 w-32 h-24 rounded-lg overflow-hidden border-2 border-white/30 shadow-lg">
+                <video ref={localVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
               </div>
             )}
-            
-            <div className="absolute top-4 left-4 px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-md text-xs font-semibold text-white z-20">
-              {user?.role === 'teacher' ? `${user.name} (Host) ${isScreenSharing ? '- Screen Sharing' : ''}` : 'Teacher (Host)'}
-            </div>
 
-            <div className="absolute bottom-4 left-4 right-4 z-20">
-              <CaptionOverlay active={!isVideoOff || user?.role === 'student'} mockText={liveCaption} />
+            {/* Live caption overlay */}
+            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+              <p className="text-white text-sm text-center max-w-2xl mx-auto leading-relaxed">
+                {liveCaption}
+              </p>
             </div>
           </div>
 
-          {/* Teacher Tool Bar */}
-          <div className="flex items-center justify-center gap-4 py-3 px-6 rounded-2xl glass shadow-sm border border-slate-200">
-            <button onClick={() => setIsMuted(!isMuted)} className={`p-3.5 rounded-full transition-all ${isMuted ? 'bg-red-50 text-red-500' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}`}>
+          {/* Controls */}
+          <div className="flex items-center justify-center gap-3 flex-wrap">
+            <button
+              onClick={() => setIsMuted(!isMuted)}
+              className={`p-3 rounded-xl transition-all ${isMuted ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              title={isMuted ? "Unmute" : "Mute"}
+            >
               {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
-            <button onClick={() => setIsVideoOff(!isVideoOff)} className={`p-3.5 rounded-full transition-all ${isVideoOff ? 'bg-red-50 text-red-500' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}`}>
+            
+            <button
+              onClick={() => setIsVideoOff(!isVideoOff)}
+              className={`p-3 rounded-xl transition-all ${isVideoOff ? 'bg-red-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              title={isVideoOff ? "Turn Camera On" : "Turn Camera Off"}
+            >
               {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
             </button>
-            {user?.role === 'teacher' && (
-              <button onClick={toggleScreenShare} className={`p-3.5 rounded-full transition-all ${isScreenSharing ? 'bg-primary-50 text-primary-600' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}`}>
-                <MonitorUp className="w-5 h-5" />
-              </button>
-            )}
-            <button onClick={() => setHandRaised(!handRaised)} className={`p-3.5 rounded-full transition-all ${handRaised ? 'bg-amber-100 text-amber-600' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'}`}>
+
+            <button
+              onClick={() => setHandRaised(!handRaised)}
+              className={`p-3 rounded-xl transition-all ${handRaised ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+              title="Raise Hand"
+            >
               <Hand className="w-5 h-5" />
             </button>
-            <div className="w-px h-8 bg-slate-200 mx-2"></div>
-            <button onClick={endLiveClass} className="p-3.5 rounded-full bg-red-500 hover:bg-red-600 text-white transition-colors">
+
+            {user?.role === 'teacher' && (
+              <>
+                <button
+                  onClick={toggleScreenShare}
+                  className={`p-3 rounded-xl transition-all ${isScreenSharing ? 'bg-primary-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  title="Screen Share"
+                >
+                  <MonitorUp className="w-5 h-5" />
+                </button>
+
+                {!isRecording ? (
+                  <button
+                    onClick={startRecording}
+                    className="p-3 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all"
+                    title="Start Recording"
+                  >
+                    <Play className="w-5 h-5" />
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={isRecordingPaused ? resumeRecording : pauseRecording}
+                      className="p-3 rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-all"
+                      title={isRecordingPaused ? "Resume" : "Pause"}
+                    >
+                      {isRecordingPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
+                    </button>
+                    <button
+                      onClick={stopRecording}
+                      className="p-3 rounded-xl bg-red-100 text-red-700 hover:bg-red-200 transition-all"
+                      title="Stop Recording"
+                    >
+                      <StopCircle className="w-5 h-5" />
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+            
+            <button
+              onClick={endLiveClass}
+              className="p-3 rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all ml-4"
+              title="End Call"
+            >
               <PhoneOff className="w-5 h-5" />
             </button>
           </div>
+
+          {isUploading && (
+            <div className="p-3 rounded-xl bg-primary-50 border border-primary-200 text-center">
+              <p className="text-sm text-primary-700 font-semibold">Uploading recording...</p>
+            </div>
+          )}
         </div>
 
-        {/* Right Column - Sidebar (Span 4) */}
-        <div className="lg:col-span-3 flex flex-col space-y-4">
+        {/* Sidebar: Chat */}
+        <div className="glass rounded-2xl border border-slate-200/60 shadow-lg flex flex-col overflow-hidden max-h-[600px]">
+          <div className="px-4 py-3 border-b border-slate-200/40 flex items-center gap-2">
+            <MessageSquare className="w-4 h-4 text-primary-400" />
+            <h3 className="text-sm font-semibold text-slate-700">Chat</h3>
+            <span className="ml-auto text-xs text-slate-400">{chatMessages.length} messages</span>
+          </div>
           
-          {/* AI Tools & Accessibility */}
-          <div className="p-4 rounded-2xl glass shadow-sm border border-slate-200">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Settings className="w-4 h-4" /> AI & Accessibility
-            </h3>
-            <div className="grid grid-cols-2 gap-2">
-              <button className="flex flex-col items-center justify-center p-3 rounded-xl bg-primary-50 text-primary-600 hover:bg-primary-100 transition-colors">
-                <MessageSquare className="w-5 h-5 mb-1" />
-                <span className="text-[10px] font-bold">Auto Captions</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-3 rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors">
-                <HandMetal className="w-5 h-5 mb-1" />
-                <span className="text-[10px] font-bold">Sign Language</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-3 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors">
-                <Activity className="w-5 h-5 mb-1" />
-                <span className="text-[10px] font-bold">Analytics</span>
-              </button>
-              <button className="flex flex-col items-center justify-center p-3 rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 transition-colors">
-                <Users className="w-5 h-5 mb-1" />
-                <span className="text-[10px] font-bold">Attendance</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Participants Area */}
-          <div className="p-4 rounded-2xl glass shadow-sm border border-slate-200 flex-1 flex flex-col">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <Users className="w-4 h-4" /> Participants ({user?.role === 'teacher' ? connectedStudents + 1 : 2})
-            </h3>
-            <div className="flex-1 space-y-2 overflow-y-auto max-h-40 pr-2">
-               <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                 <span className="text-sm font-semibold text-slate-700">{user?.role === 'teacher' ? `${user.name} (Host, You)` : 'Teacher (Host)'}</span>
-                 <div className="flex gap-2">
-                    {user?.role === 'teacher' && isMuted ? <MicOff className="w-4 h-4 text-slate-400" /> : <Mic className="w-4 h-4 text-emerald-500" />}
-                 </div>
-               </div>
-               
-               {user?.role === 'student' && (
-                 <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50">
-                   <span className="text-sm font-semibold text-slate-700">{user.name} (You)</span>
-                   {isMuted ? <MicOff className="w-4 h-4 text-slate-400" /> : <Mic className="w-4 h-4 text-emerald-500" />}
-                 </div>
-               )}
-
-               {user?.role === 'teacher' && Array.from({ length: connectedStudents }).map((_, i) => (
-                 <div key={i} className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50">
-                   <span className="text-sm text-slate-600">Student {i + 1}</span>
-                   <Mic className="w-4 h-4 text-emerald-500" />
-                 </div>
-               ))}
-            </div>
-          </div>
-
-          {/* Chat */}
-          <div className="p-4 rounded-2xl glass shadow-sm border border-slate-200 flex flex-col h-64">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <MessageSquare className="w-4 h-4" /> Live Chat
-            </h3>
-            <div className="flex-1 overflow-y-auto space-y-3 mb-3 pr-2">
-              {chatMessages.map((chat, idx) => (
-                <div key={idx} className="bg-slate-50 p-2.5 rounded-xl">
-                  <div className="flex items-center justify-between mb-1">
-                     <span className={`text-xs font-bold ${chat.user === 'You' ? 'text-primary-600' : 'text-slate-700'}`}>{chat.user}</span>
-                     <span className="text-[10px] text-slate-400">{chat.time}</span>
-                  </div>
-                  <p className="text-xs text-slate-600">{chat.msg}</p>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+            {chatMessages.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-8">No messages yet. Start the conversation!</p>
+            )}
+            {chatMessages.map((msg, idx) => (
+              <div key={idx} className="flex flex-col gap-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-primary-600">{msg.user}</span>
+                  <span className="text-[10px] text-slate-400">{msg.time}</span>
                 </div>
-              ))}
-            </div>
-            <form onSubmit={handleSendChat} className="flex gap-2 mt-auto">
-               <input 
-                 type="text" 
-                 value={chatInput}
-                 onChange={(e) => setChatInput(e.target.value)}
-                 className="flex-1 px-3 py-2 rounded-xl bg-white border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 shadow-sm"
-                 placeholder="Type message..."
-               />
-               <button type="submit" className="p-2 rounded-xl bg-primary-600 hover:bg-primary-500 text-white shadow-sm transition-colors">
-                 <Send className="w-4 h-4" />
-               </button>
-            </form>
+                <p className="text-sm text-slate-700 bg-slate-50 rounded-lg px-3 py-2">{msg.msg}</p>
+              </div>
+            ))}
           </div>
-
+          
+          <form onSubmit={handleSendChat} className="p-3 border-t border-slate-200/40">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Type a message..."
+                className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50"
+              />
+              <button
+                type="submit"
+                className="p-2 rounded-lg bg-primary-500 hover:bg-primary-400 text-white transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

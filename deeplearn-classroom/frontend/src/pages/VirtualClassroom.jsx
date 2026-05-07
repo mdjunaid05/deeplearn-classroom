@@ -26,6 +26,8 @@ import CaptionOverlay             from '../components/CaptionOverlay';
 import VisualAlertBanner          from '../components/VisualAlertBanner';
 import SignAvatarOverlay          from '../components/SignAvatarOverlay';
 
+const API_BASE = import.meta.env.VITE_API_URL || '';
+
 // ---------------------------------------------------------------------------
 // Fallback quiz used only if the video has no audible speech
 // ---------------------------------------------------------------------------
@@ -165,8 +167,8 @@ export default function VirtualClassroom() {
     try {
       setLoadingRecordings(true);
       const url = user?.role === 'teacher' 
-        ? `http://127.0.0.1:5000/recordings?teacher_id=${user.id || 1}`
-        : `http://127.0.0.1:5000/recordings?student_id=${user?.id || 1}`;
+        ? `${API_BASE}/recordings?teacher_id=${user.id || 1}`
+        : `${API_BASE}/recordings?student_id=${user?.id || 1}`;
         
       const res = await fetch(url);
       const data = await res.json();
@@ -210,7 +212,7 @@ export default function VirtualClassroom() {
     // Save quiz score
     if (activeRecording && user?.role === 'student') {
       try {
-        await fetch('http://127.0.0.1:5000/submit-quiz', {
+        await fetch(`${API_BASE}/submit-quiz`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -716,7 +718,7 @@ export default function VirtualClassroom() {
                 }`}
                 onClick={() => {
                   if (recording.is_locked) return;
-                  setVideoSrc(`http://127.0.0.1:5000/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`);
+                  setVideoSrc(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`);
                   setVideoTitle(recording.class_title || "Virtual Class Session");
                   setActiveRecording(recording);
                   setVideoEnded(false);
@@ -726,7 +728,7 @@ export default function VirtualClassroom() {
                   setSavedCaptions([]); // CLEAR CAPTIONS FOR NEW VIDEO
                   
                   // Fetch captions.json if it exists
-                  fetch(`http://127.0.0.1:5000/recordings/${recording.course_id}/${recording.session_id}/captions.json`)
+                  fetch(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/captions.json`)
                     .then(res => {
                       if (res.ok) return res.json();
                       throw new Error('No captions');
@@ -744,7 +746,7 @@ export default function VirtualClassroom() {
                 <div className="relative aspect-video bg-slate-900 group">
                   {recording.thumbnail_path ? (
                     <img 
-                      src={`http://127.0.0.1:5000/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
+                      src={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
                       alt="Thumbnail" 
                       className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
                     />
@@ -786,7 +788,7 @@ export default function VirtualClassroom() {
 
                   <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
                     <a 
-                      href={`http://127.0.0.1:5000/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
+                      href={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
                       download
                       onClick={(e) => e.stopPropagation()}
                       className={`flex items-center gap-1.5 text-[10px] font-semibold transition-colors ${

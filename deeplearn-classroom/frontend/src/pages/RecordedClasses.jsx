@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Video, Play, Download, Trash2, Search, Clock, Calendar, AlertCircle } from 'lucide-react';
 import VisualAlertBanner from '../components/VisualAlertBanner';
+
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function RecordedClasses() {
   const { user } = useAuth();
@@ -18,8 +20,8 @@ export default function RecordedClasses() {
   const fetchRecordings = async () => {
     try {
       const url = user?.role === 'teacher' 
-        ? `http://127.0.0.1:5000/recordings?teacher_id=${user.id || 1}`
-        : 'http://127.0.0.1:5000/recordings';
+        ? `${API_BASE}/recordings?teacher_id=${user.id || 1}`
+        : `${API_BASE}/recordings`;
         
       const res = await fetch(url);
       const data = await res.json();
@@ -38,7 +40,7 @@ export default function RecordedClasses() {
     if (!window.confirm("Are you sure you want to delete this recording?")) return;
     
     try {
-      const res = await fetch(`http://127.0.0.1:5000/recordings/${recordingId}`, {
+      const res = await fetch(`${API_BASE}/recordings/${recordingId}`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -106,7 +108,7 @@ export default function RecordedClasses() {
             </button>
           </div>
           <video 
-            src={`http://127.0.0.1:5000/recordings/${selectedVideo.course_id}/${selectedVideo.session_id}/${selectedVideo.file_path}`}
+            src={`${API_BASE}/recordings/${selectedVideo.course_id}/${selectedVideo.session_id}/${selectedVideo.file_path}`}
             controls
             autoPlay
             className="w-full max-h-[60vh] object-contain rounded-xl"
@@ -131,7 +133,7 @@ export default function RecordedClasses() {
               <div className="relative aspect-video bg-slate-900 group cursor-pointer" onClick={() => setSelectedVideo(recording)}>
                 {recording.thumbnail_path ? (
                   <img 
-                    src={`http://127.0.0.1:5000/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
+                    src={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
                     alt="Thumbnail" 
                     className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
                   />
@@ -175,7 +177,7 @@ export default function RecordedClasses() {
                 
                 <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                   <a 
-                    href={`http://127.0.0.1:5000/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
+                    href={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
                     download
                     className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors"
                   >

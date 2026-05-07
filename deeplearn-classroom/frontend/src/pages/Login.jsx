@@ -159,7 +159,7 @@ export default function Login() {
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({...errors, email: ''}) }}
                   placeholder={role === 'student' ? 'student@deeplearn.edu' : 'teacher@deeplearn.edu'}
-                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
                 />
               </div>
               {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email}</p>}
@@ -178,7 +178,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: ''}) }}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.password ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.password ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
                 />
               </div>
               {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
@@ -187,13 +187,13 @@ export default function Login() {
             {/* Error Message */}
             {errors.submit && (
               <div className="p-3 rounded-lg bg-red-600/10 border border-red-500/20">
-                <p className="text-xs text-red-300">{errors.submit}</p>
+                <p className="text-xs text-red-600">{errors.submit}</p>
               </div>
             )}
 
             {/* Demo hint */}
             <div className="p-3 rounded-lg bg-primary-600/10 border border-primary-500/20">
-              <p className="text-xs text-primary-300">
+              <p className="text-xs text-primary-700">
                 <strong>Demo Accounts:</strong><br />
                 Student: student@deeplearn.edu / Student123<br />
                 Teacher: teacher@deeplearn.edu / Teacher123

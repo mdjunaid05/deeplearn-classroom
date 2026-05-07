@@ -125,7 +125,7 @@ export function EngagementGauge({ score, label }) {
           textAnchor="middle"
           dominantBaseline="middle"
           className="font-display"
-          fill="#e2e8f0"
+          fill="#1e293b"
           fontSize={28}
           fontWeight={700}
         >

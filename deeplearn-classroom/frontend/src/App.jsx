@@ -21,7 +21,7 @@ import RecordedClasses from './pages/RecordedClasses';
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-surface-900 rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+      <div className="min-h-screen bg-surface-900">
         <Navbar />
         <main className="pt-16">
           <Routes>

@@ -97,7 +97,7 @@ export default function Register() {
                   value={name}
                   onChange={(e) => { setName(e.target.value); if (errors.name) setErrors({...errors, name: ''}) }}
                   placeholder="John Doe"
-                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.name ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.name ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
                 />
               </div>
               {errors.name && <p className="mt-1 text-xs text-red-400">{errors.name}</p>}
@@ -112,7 +112,7 @@ export default function Register() {
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({...errors, email: ''}) }}
                   placeholder="student@example.com"
-                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.email ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
                 />
               </div>
               {errors.email && <p className="mt-1 text-xs text-red-400">{errors.email}</p>}
@@ -127,7 +127,7 @@ export default function Register() {
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: ''}) }}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-white placeholder-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.password ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
+                  className={`w-full pl-10 pr-4 py-2.5 rounded-lg bg-white/5 border text-slate-800 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/50 transition-all ${errors.password ? 'border-red-500/50 focus:ring-red-500/50' : 'border-white/10 focus:border-primary-500/50'}`}
                 />
               </div>
               {errors.password && <p className="mt-1 text-xs text-red-400">{errors.password}</p>}
