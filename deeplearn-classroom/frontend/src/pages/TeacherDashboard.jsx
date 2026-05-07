@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Users, BarChart3, TrendingUp, Filter, Search,
-  ArrowUpRight, ArrowDownRight, Minus, Video
+  ArrowUpRight, ArrowDownRight, Minus, Video, Brain,
+  AlertTriangle, CheckCircle, Shield, Eye, Award, Activity
 } from 'lucide-react';
 import { BehaviourBarChart, BehaviourPieChart } from '../components/BehaviourChart';
 import { EngagementAreaChart } from '../components/EngagementChart';
+import BehaviourHeatmap from '../components/BehaviourHeatmap';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -143,6 +145,101 @@ export default function TeacherDashboard() {
           </h3>
           <BehaviourPieChart data={data.behaviour_distribution} />
         </div>
+      </div>
+
+      {/* Behaviour Heatmap */}
+      <div className="p-6 rounded-2xl glass mb-8 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+        <div className="flex items-center gap-2 mb-5">
+          <Brain className="w-5 h-5 text-primary-400" />
+          <h3 className="text-sm font-semibold text-slate-700">AI Behaviour Heatmap</h3>
+          <span className="ml-2 text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Live Activity Periods</span>
+          <a
+            href="/behaviour"
+            className="ml-auto text-xs px-3 py-1.5 bg-primary-500 hover:bg-primary-400 text-white rounded-lg font-semibold transition-colors"
+          >
+            Open Monitor
+          </a>
+        </div>
+        <BehaviourHeatmap studentSummaries={data.student_summaries || []} periods={12} />
+      </div>
+
+      {/* Live Student Status Grid */}
+      <div className="p-6 rounded-2xl glass mb-8 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+        <div className="flex items-center gap-2 mb-5">
+          <Eye className="w-5 h-5 text-emerald-400" />
+          <h3 className="text-sm font-semibold text-slate-700">Live Student Status</h3>
+          <span className="ml-2 text-xs text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full font-semibold animate-pulse">● Live</span>
+          <span className="ml-auto text-xs text-slate-400">{data.student_summaries?.length || 0} students tracked</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          {(data.student_summaries || []).slice(0, 24).map((student) => {
+            const engagment = student.latest_engagement;
+            const behaviour = student.latest_behaviour;
+            const statusColor =
+              behaviour === 'Active' ? '#22c55e' :
+              behaviour === 'Passive' ? '#f97316' :
+              '#ef4444';
+            const avgScore = student.average_score;
+            return (
+              <div
+                key={student.student_id}
+                className="p-3 rounded-xl glass-light border border-slate-200/60 hover:border-cyan-400 transition-all duration-200 hover:shadow-md cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-mono text-slate-500">#{student.student_id}</span>
+                  <div className="w-2.5 h-2.5 rounded-full" style={{ background: statusColor, boxShadow: `0 0 6px ${statusColor}` }} />
+                </div>
+                <div className="text-base font-bold text-slate-800 mb-1">{avgScore}%</div>
+                <div className="text-xs" style={{ color: statusColor }}>{behaviour}</div>
+                <div className="mt-2 w-full bg-slate-100 rounded-full h-1">
+                  <div className="h-1 rounded-full" style={{ width: `${avgScore}%`, background: statusColor }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Attention Analytics Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-8">
+        {[
+          {
+            label: 'Focused Students',
+            value: Math.round((data.student_summaries || []).filter(s => s.latest_engagement === 'High').length),
+            icon: <CheckCircle className="w-5 h-5 text-emerald-400" />,
+            color: 'text-emerald-600',
+            bg: 'bg-emerald-50',
+          },
+          {
+            label: 'At Risk',
+            value: Math.round((data.student_summaries || []).filter(s => s.latest_behaviour === 'Distracted').length),
+            icon: <AlertTriangle className="w-5 h-5 text-red-400" />,
+            color: 'text-red-600',
+            bg: 'bg-red-50',
+          },
+          {
+            label: 'Class Avg Score',
+            value: `${Math.round((data.student_summaries || []).reduce((s, st) => s + st.average_score, 0) / Math.max(data.student_summaries?.length || 1, 1))}%`,
+            icon: <Award className="w-5 h-5 text-amber-400" />,
+            color: 'text-amber-600',
+            bg: 'bg-amber-50',
+          },
+          {
+            label: 'Active Learners',
+            value: Math.round((data.student_summaries || []).filter(s => s.latest_behaviour === 'Active').length),
+            icon: <Activity className="w-5 h-5 text-cyan-400" />,
+            color: 'text-cyan-600',
+            bg: 'bg-cyan-50',
+          },
+        ].map((stat, idx) => (
+          <div key={idx} className={`p-5 rounded-2xl ${stat.bg} border border-slate-200/60 shadow-lg flex items-center gap-4`}>
+            <div className="p-2.5 rounded-xl bg-white shadow-sm">{stat.icon}</div>
+            <div>
+              <p className="text-xs text-slate-500 mb-0.5">{stat.label}</p>
+              <p className={`text-2xl font-bold ${stat.color}`}>{stat.value}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Engagement Timeline */}

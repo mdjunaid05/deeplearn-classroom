@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   GraduationCap, TrendingUp, Target, BookOpen, Zap,
-  ChevronDown, RefreshCw, Award, Video, Play, Lock, Users
+  ChevronDown, RefreshCw, Award, Video, Play, Lock, Users, Brain
 } from 'lucide-react';
 import { EngagementLineChart, EngagementGauge } from '../components/EngagementChart';
 import ProgressBar from '../components/ProgressBar';
+import LiveBehaviourTracker from '../components/LiveBehaviourTracker';
+import AIRecommendations from '../components/AIRecommendations';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -28,6 +30,9 @@ export default function StudentDashboard() {
   const [studentId, setStudentId] = useState(1001);
   const [loading, setLoading] = useState(false);
   const [loadingText, setLoadingText] = useState('Loading student data...');
+  const [liveMetrics, setLiveMetrics] = useState(null);
+
+  const handleLiveMetrics = useCallback((m) => setLiveMetrics(m), []);
   const [error, setError] = useState(null);
   const [recordings, setRecordings] = useState([]);
 
@@ -97,13 +102,25 @@ export default function StudentDashboard() {
     );
   }
 
-  const engagementScore = data.average_score ?? 0;
-  const difficultyBadge = `badge-${(data.current_difficulty || 'none').toLowerCase()}`;
-  const engagementBadge = `badge-${(data.current_engagement || 'none').toLowerCase()}`;
-  const behaviourBadge = `badge-${(data.current_behaviour || 'none').toLowerCase()}`;
+  const engagementScore = liveMetrics?.engagementScore ?? (data?.average_score ?? 0);
+  const focusScore = liveMetrics?.focusScore ?? Math.round((data?.average_score ?? 0) * 0.9);
+  const currentBehaviour = liveMetrics?.behaviour ?? (data?.current_behaviour || 'Passive');
+  const difficultyBadge = `badge-${(data?.current_difficulty || 'none').toLowerCase()}`;
+  const engagementBadge = `badge-${(data?.current_engagement || 'none').toLowerCase()}`;
+  const behaviourBadge  = `badge-${(data?.current_behaviour || 'none').toLowerCase()}`;
 
   return (
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* AI Behaviour Monitoring Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <LiveBehaviourTracker onMetricsUpdate={handleLiveMetrics} studentId={studentId} />
+        <AIRecommendations
+          behaviour={currentBehaviour}
+          engagementScore={engagementScore}
+          focusScore={focusScore}
+        />
+      </div>
+
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
