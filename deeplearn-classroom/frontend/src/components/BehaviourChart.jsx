@@ -13,7 +13,7 @@ const BEHAVIOR_COLORS = {
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="glass rounded-lg px-3 py-2 text-xs">
+      <div className="glass rounded-lg px-3 py-2 text-xs shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
         {payload.map((entry, idx) => (
           <p key={idx} style={{ color: entry.color || entry.payload?.fill }} className="font-semibold">
             {entry.name}: {entry.value}
@@ -91,7 +91,7 @@ export function BehaviourTimeline({ events }) {
         return (
           <div
             key={idx}
-            className="flex items-start gap-3 p-3 rounded-lg glass-light card-hover"
+            className="flex items-start gap-3 p-3 rounded-lg glass-light card-hover shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300"
           >
             <div
               className="w-3 h-3 rounded-full mt-1 flex-shrink-0"
@@ -104,7 +104,7 @@ export function BehaviourTimeline({ events }) {
                 </span>
                 <span className="text-xs text-slate-500">Activity #{event.activity_id}</span>
               </div>
-              <div className="flex gap-4 text-xs text-slate-400">
+              <div className="flex gap-4 text-xs text-slate-600">
                 <span>Idle: {event.idle_time}min</span>
                 <span>Chat: {event.chat_count}</span>
               </div>

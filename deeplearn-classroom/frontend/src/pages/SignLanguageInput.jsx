@@ -17,19 +17,19 @@ export default function SignLanguageInput() {
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Sign Language Input Page">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
             <HandMetal className="w-8 h-8 text-emerald-400" aria-hidden="true" />
             Sign Language Input
           </h1>
-          <p className="text-slate-400 mt-1">Real-time ASL recognition powered by CNN+LSTM.</p>
+          <p className="text-slate-600 mt-1">Real-time ASL recognition powered by CNN+LSTM.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Col - Video Feed & Recognition */}
-        <div className="p-6 rounded-2xl glass">
+        <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
           <div className="flex items-center justify-between mb-4">
-             <h2 className="text-lg font-semibold text-white">Camera Feed</h2>
+             <h2 className="text-lg font-semibold text-slate-800">Camera Feed</h2>
              <button
                onClick={() => setIsActive(!isActive)}
                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${isActive ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'}`}
@@ -45,15 +45,15 @@ export default function SignLanguageInput() {
 
         {/* Right Col - Output Text */}
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl glass h-full flex flex-col">
+          <div className="p-6 rounded-2xl glass h-full flex flex-col shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
             <div className="flex items-center justify-between mb-4">
-               <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+               <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
                  <Activity className="w-5 h-5 text-primary-400" aria-hidden="true" />
                  Recognized Transcript
                </h2>
                <button
                  onClick={() => setRecognizedText("")}
-                 className="text-sm text-slate-400 hover:text-white"
+                 className="text-sm text-slate-600 hover:text-white"
                  aria-label="Clear transcript"
                  tabIndex={0}
                >
@@ -61,7 +61,7 @@ export default function SignLanguageInput() {
                </button>
             </div>
             <div 
-              className="flex-1 bg-surface-800/50 rounded-xl border border-white/5 p-4 min-h-[200px]"
+              className="flex-1 bg-surface-800/50 rounded-xl border border-white/5 p-4 min-h-[200px] shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300"
               aria-live="polite"
               aria-atomic="false"
             >
@@ -73,11 +73,11 @@ export default function SignLanguageInput() {
             </div>
             
             <div className="mt-4 p-4 rounded-xl bg-primary-500/10 border border-primary-500/20">
-              <h3 className="text-sm font-semibold text-primary-300 flex items-center gap-2 mb-2">
+              <h3 className="text-sm font-semibold text-primary-300 flex items-center gap-2 mb-2 text-slate-800">
                 <Settings className="w-4 h-4" aria-hidden="true" />
                 Supported Gestures
               </h3>
-              <p className="text-xs text-slate-400 leading-relaxed">
+              <p className="text-xs text-slate-600 leading-relaxed">
                 Hello, Yes, No, Help, Understand, Repeat, Stop, Good, Bad, Question.
                 <br/>
                 <em>Ensure hands are clearly visible in the camera frame for optimal tracking.</em>

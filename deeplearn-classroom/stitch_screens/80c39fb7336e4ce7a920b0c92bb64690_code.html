@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumina - Empowering Education through AI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed": "#dae2fd",
+                    "surface-tint": "#006877",
+                    "on-primary-fixed": "#001f25",
+                    "primary-container": "#22d3ee",
+                    "on-background": "#191c1e",
+                    "tertiary-fixed-dim": "#c0c1ff",
+                    "on-tertiary-fixed-variant": "#2f2ebe",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-container": "#3838c6",
+                    "tertiary-fixed": "#e1e0ff",
+                    "surface-container-low": "#f2f4f6",
+                    "surface-container-high": "#e6e8ea",
+                    "outline": "#6c797d",
+                    "tertiary-container": "#babbff",
+                    "on-secondary-fixed-variant": "#3f465c",
+                    "on-surface": "#191c1e",
+                    "secondary-container": "#dae2fd",
+                    "on-tertiary-fixed": "#07006c",
+                    "inverse-on-surface": "#eff1f3",
+                    "secondary": "#565e74",
+                    "on-primary": "#ffffff",
+                    "inverse-primary": "#2fd9f4",
+                    "primary": "#006877",
+                    "surface-dim": "#d8dadc",
+                    "secondary-fixed-dim": "#bec6e0",
+                    "surface-bright": "#f7f9fb",
+                    "primary-fixed": "#a2eeff",
+                    "surface-variant": "#e0e3e5",
+                    "error-container": "#ffdad6",
+                    "on-secondary-container": "#5c647a",
+                    "surface": "#f7f9fb",
+                    "on-primary-fixed-variant": "#004e5a",
+                    "surface-container": "#eceef0",
+                    "on-error": "#ffffff",
+                    "primary-fixed-dim": "#2fd9f4",
+                    "on-surface-variant": "#3c494c",
+                    "on-tertiary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "on-secondary": "#ffffff",
+                    "outline-variant": "#bbc9cd",
+                    "inverse-surface": "#2d3133",
+                    "error": "#ba1a1a",
+                    "on-secondary-fixed": "#131b2e",
+                    "background": "#f7f9fb",
+                    "tertiary": "#494bd6",
+                    "surface-container-highest": "#e0e3e5",
+                    "on-primary-container": "#005763"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "xl": "64px",
+                    "md": "24px",
+                    "lg": "40px",
+                    "xs": "8px",
+                    "container-max": "1280px",
+                    "sm": "16px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "label-caps": ["Inter"],
+                    "body-md": ["Inter"],
+                    "h2": ["Inter"],
+                    "h1": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "h3": ["Inter"]
+            },
+            "fontSize": {
+                    "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "h2": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "h1": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "h3": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+        }
+        .ai-glow {
+            box-shadow: 0 0 20px rgba(34, 211, 238, 0.3);
+        }
+        .neural-bg {
+            background-image: radial-gradient(circle at 2px 2px, rgba(0, 104, 119, 0.05) 1px, transparent 0);
+            background-size: 40px 40px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopNavBar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/70 backdrop-blur-xl border-b border-white/20 shadow-sm flex justify-between items-center px-md py-xs h-16 w-full">
+<div class="flex items-center gap-md">
+<span class="text-h3 font-h3 font-bold text-primary tracking-tight">Lumina</span>
+<div class="hidden md:flex gap-sm items-center ml-lg">
+<a class="text-primary border-b-2 border-primary pb-1 font-body-md text-body-md transition-colors" href="#">Explore</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">Resources</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">Enterprise</a>
+</div>
+</div>
+<div class="flex items-center gap-sm">
+<div class="relative hidden sm:block">
+<input class="bg-surface-container-low border-none rounded-full px-md py-xs text-body-md w-64 focus:ring-2 focus:ring-primary-container transition-all" placeholder="Search insights..." type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-2 text-outline-variant">search</span>
+</div>
+<button class="p-2 hover:bg-white/40 rounded-full transition-all duration-300 active:scale-95">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+</button>
+<button class="p-2 hover:bg-white/40 rounded-full transition-all duration-300 active:scale-95">
+<span class="material-symbols-outlined text-on-surface-variant">help</span>
+</button>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-primary/20">
+<img alt="User profile" data-alt="A professional close-up headshot of a diverse male user with a friendly expression. The background is a soft, out-of-focus modern office with cool blue and white tones. The lighting is bright and even, reflecting a clean light-mode UI aesthetic with professional clarity and high-quality resolution." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBS7oqPK24qHQh6ND7GdmL6YT-3cX_euW9Ne8qATlIaJiclOzExCwvnNYZietp-Vl5_whEbU-kQsQiBdkGsHGtOOZOmiMA65cJ2lrdmGKFdvsY2a2qx03ZdBqnpVr0MTrpHuesklRt6VDD9eRzngQrQgfIYuNQA6Peg_vNJHlL-rfICXSNFNgLB3PLz1Fr6R0O8sJU7RYGA37bG9z1Zp16O7SvXP1knNmvcPgwgETvmN4cKGDKpeX-n245PkNVrlxBmvxTnrdoJ2DU"/>
+</div>
+</div>
+</nav>
+<main class="pt-16">
+<!-- Hero Section -->
+<section class="relative min-h-[921px] flex items-center justify-center overflow-hidden neural-bg">
+<div class="absolute inset-0 pointer-events-none">
+<div class="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-container/20 rounded-full blur-[100px]"></div>
+<div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-tertiary-container/20 rounded-full blur-[100px]"></div>
+</div>
+<div class="container mx-auto px-md text-center z-10">
+<div class="inline-flex items-center gap-xs px-sm py-1 bg-primary-container/30 border border-primary/20 rounded-full mb-lg ai-glow">
+<span class="material-symbols-outlined text-primary text-[18px]" style="font-variation-settings: 'FILL' 1;">colors_spark</span>
+<span class="font-label-caps text-label-caps text-on-primary-container">AI-Powered Excellence</span>
+</div>
+<h1 class="font-h1 text-h1 text-on-surface max-w-4xl mx-auto mb-md leading-tight">
+                    Empowering Education <br/> through <span class="text-primary italic">Artificial Intelligence</span>
+</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto mb-lg">
+                    Unlock a personalized learning journey with real-time analytics, inclusive communication tools, and adaptive paths designed for the modern student.
+                </p>
+<div class="flex flex-col sm:flex-row gap-sm justify-center">
+<button class="px-xl py-md bg-primary text-on-primary rounded-xl font-h3 text-body-md hover:bg-on-primary-fixed-variant transition-all active:scale-95 shadow-lg shadow-primary/20">
+                        Get Started
+                    </button>
+<button class="px-xl py-md glass-card rounded-xl font-h3 text-body-md text-primary hover:bg-white/50 transition-all active:scale-95 border border-white/40">
+                        Watch Demo
+                    </button>
+</div>
+</div>
+</section>
+<!-- Bento Grid Features -->
+<section class="py-xl bg-surface-container-low">
+<div class="container mx-auto px-md">
+<div class="text-center mb-xl">
+<h2 class="font-h2 text-h2 text-on-surface mb-sm">Revolutionary Learning Ecosystem</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Sophisticated tools built on lumnious glassmorphic architecture.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Analytics - Large Feature -->
+<div class="md:col-span-8 glass-card rounded-[24px] p-lg flex flex-col justify-between overflow-hidden relative">
+<div class="z-10">
+<span class="material-symbols-outlined text-primary text-h1 mb-sm" style="font-variation-settings: 'FILL' 1;">analytics</span>
+<h3 class="font-h3 text-h3 text-on-surface mb-xs">Real-time AI Analytics</h3>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-md">
+                                Gain deep insights into student engagement and performance with predictive modeling that identifies learning gaps before they become obstacles.
+                            </p>
+</div>
+<div class="mt-lg relative h-48 rounded-xl bg-surface/50 border border-white/20 p-md">
+<div class="flex items-end gap-xs h-full">
+<div class="w-full bg-primary-container/40 rounded-t-lg h-[40%] transition-all hover:h-[60%]"></div>
+<div class="w-full bg-primary-container/40 rounded-t-lg h-[70%] transition-all hover:h-[90%]"></div>
+<div class="w-full bg-primary h-[85%] rounded-t-lg transition-all hover:h-[100%] ai-glow"></div>
+<div class="w-full bg-primary-container/40 rounded-t-lg h-[55%] transition-all hover:h-[75%]"></div>
+<div class="w-full bg-primary-container/40 rounded-t-lg h-[65%] transition-all hover:h-[85%]"></div>
+<div class="w-full bg-primary-container/40 rounded-t-lg h-[45%] transition-all hover:h-[65%]"></div>
+</div>
+</div>
+</div>
+<!-- Sign Language - Small Feature -->
+<div class="md:col-span-4 glass-card rounded-[24px] p-lg flex flex-col items-center text-center justify-center">
+<div class="w-20 h-20 bg-tertiary-container/30 rounded-full flex items-center justify-center mb-md ai-glow">
+<span class="material-symbols-outlined text-tertiary text-h2">sign_language</span>
+</div>
+<h3 class="font-h3 text-h3 text-on-surface mb-xs">Inclusion First</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">
+                            Live sign language recognition powered by neural computer vision for accessible classrooms.
+                        </p>
+</div>
+<!-- Adaptive Learning - Square Feature -->
+<div class="md:col-span-4 glass-card rounded-[24px] p-lg">
+<span class="material-symbols-outlined text-primary text-h2 mb-sm">psychology</span>
+<h3 class="font-h3 text-h3 text-on-surface mb-xs">Adaptive Pathing</h3>
+<p class="font-body-md text-body-md text-on-surface-variant mb-md">
+                            Curriculums that evolve with the student, adjusting complexity and medium in real-time.
+                        </p>
+<div class="w-full h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full w-2/3 bg-primary ai-glow"></div>
+</div>
+</div>
+<!-- Image Showcase -->
+<div class="md:col-span-8 rounded-[24px] overflow-hidden relative group">
+<img alt="Student collaboration" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="A group of diverse students in a high-tech, sunlit university lab collaborating on digital screens. The environment features glass walls, floating holograms of mathematical equations, and a soft blue atmosphere. The lighting is ethereal and bright, emphasizing a premium educational setting with a professional, clean UI feel and vibrant cyan accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdTvQQDZKHqrfF6cD9LgsvotSn7t5JnVIPEiD_BQXAsw-GiZfqT7oKYHn_rAh875QOKIdQYqYsBXEOzxKV-5Q-mzJvANiA9b9hijQl8x-27zm5NJW9qvFnXC5WdjNm49fdFET8d0tKBTPotTeEHBNcM-08gxPDu43GFjE5L0n5UHB3DF_KYDjfn7n0f4SgKgLf4OFwZfqZm-387nZrCKiDxMZ33hgnpVthbi-ftmoKt_7KEBNcILvL8Yjpj_Kqiza3l-s3oD-EAK4"/>
+<div class="absolute inset-0 bg-gradient-to-t from-primary/80 to-transparent flex items-end p-lg">
+<div class="text-on-primary">
+<h4 class="font-h3 text-h3">Global Collaboration</h4>
+<p class="font-body-md text-body-md opacity-90">Breaking language barriers through AI-driven simultaneous translation.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Insight Chips Section -->
+<section class="py-xl bg-surface">
+<div class="container mx-auto px-md">
+<div class="glass-card rounded-[32px] p-xl flex flex-col md:flex-row items-center gap-xl border-primary-container/20">
+<div class="flex-1">
+<div class="flex gap-xs mb-md flex-wrap">
+<span class="px-sm py-1 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-full text-label-caps font-label-caps flex items-center gap-xs">
+<span class="material-symbols-outlined text-[14px]">bolt</span> AI Generated
+                            </span>
+<span class="px-sm py-1 bg-surface-container-high text-on-surface-variant rounded-full text-label-caps font-label-caps">Predictive</span>
+<span class="px-sm py-1 bg-surface-container-high text-on-surface-variant rounded-full text-label-caps font-label-caps">Educational</span>
+</div>
+<h2 class="font-h2 text-h2 text-on-surface mb-md">Curated Intelligence</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-lg leading-relaxed">
+                            "Lumina has increased student retention by 42% in pilot programs across the EU. The seamless integration of sign language tools has set a new standard for inclusive EdTech."
+                        </p>
+<div class="flex items-center gap-sm">
+<div class="w-12 h-12 rounded-full overflow-hidden border-2 border-primary-container">
+<img alt="Dr. Sarah Jenkins" data-alt="A portrait of a confident female academic in her 40s with a warm, encouraging smile. She is wearing professional attire against a blurred bookshelf background with soft, natural lighting. The overall image has a high-key, bright aesthetic that aligns with a modern, professional edtech platform and light-mode design tokens." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDvz2EoO4qmAQg7VTvBlFVC2X2ECefe4COAnDkGRY-e1vigS0I-vnJZXyEpEbAkI9LdpQLH5fHef6Z7FXJLiyjlyiNhypdJqNoxLcCnn26WhklhVRqY1AmD1XCcnwUM1NYLC06iUedHcm5_N_5UCPAW6dq2lj-ADnDWgmRXhbas2gy9lo2XdPIMYcHQturOtPo80gq_aJ0kHCjGm9_b2FSvOOKmltqLee43PpBxdMZz5N2cvMM6fyUhF2vs_XpJXNGajUSE05uT2L4"/>
+</div>
+<div>
+<p class="font-h3 text-body-md font-bold text-on-surface">Dr. Sarah Jenkins</p>
+<p class="font-body-md text-label-caps text-on-surface-variant">Director of Digital Learning, EduGlobe</p>
+</div>
+</div>
+</div>
+<div class="flex-1 relative">
+<div class="absolute -inset-4 bg-primary-container/10 blur-2xl rounded-full"></div>
+<img alt="AI Interface" class="relative z-10 rounded-[24px] shadow-2xl" data-alt="A high-tech digital interface displaying complex data visualizations and neural network maps. The screen has a frosted glass effect with glowing cyan and blue light elements. Soft particles float in the air, creating a sense of depth and advanced technology. The color scheme is consistent with a professional, clean light-mode UI featuring primary teal and cyan accents." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7OT9USJZ-w7KTvQO5R0aFYe_nLKcuOsi7v7jqAg-0OM_2QI7zbWxpfma943-VCrF4Gq78yHXyv0kogjiUI3t4ABvodAbGcdYe0K1bZkxRUyL8hMV_AP7L2g7xnOIYuZ4Tcpcx5TlDzT21EGGyrr8jlkMxqZePD0a7fGBZJmgYbJ8cWxbfu8KTAqWj-mlKQIRDOy-L-jVRX_IEtYfOT-pTngOCwzXuHrIpQ4_Ieu2OEtifJ0r_QsT3OOzf0dWATGjrm3wOsQrv06U"/>
+</div>
+</div>
+</div>
+</section>
+<!-- CTA Section -->
+<section class="py-xl mb-xl">
+<div class="container mx-auto px-md text-center">
+<div class="max-w-3xl mx-auto glass-card p-xl rounded-[40px] border-primary/10">
+<h2 class="font-h1 text-h2 text-primary mb-md">Ready to illuminate the future?</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant mb-lg">Join 500+ institutions currently transforming the landscape of education.</p>
+<div class="relative max-w-md mx-auto">
+<input class="w-full h-16 rounded-full bg-surface-container-low border-none px-lg text-body-md focus:ring-2 focus:ring-primary-container transition-all shadow-inner" placeholder="Enter your institutional email" type="email"/>
+<button class="absolute right-2 top-2 bottom-2 px-lg bg-primary text-on-primary rounded-full font-label-caps hover:bg-on-primary-fixed-variant transition-all active:scale-95">
+                            Join Now
+                        </button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer -->
+<footer class="w-full bg-surface-container-lowest border-t border-outline-variant/30 flex flex-col md:flex-row justify-between items-center px-xl py-lg gap-md">
+<div class="flex flex-col items-center md:items-start gap-xs">
+<span class="text-h3 font-h3 font-bold text-primary tracking-tight">Lumina</span>
+<p class="font-body-md text-body-md text-secondary opacity-80">© 2024 Lumina EdTech. Empowering through AI.</p>
+</div>
+<div class="flex flex-wrap justify-center gap-md">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Terms of Service</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Accessibility Statement</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Contact Support</a>
+</div>
+<div class="flex gap-sm">
+<button class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-secondary hover:text-primary hover:bg-white transition-all">
+<span class="material-symbols-outlined text-[20px]">public</span>
+</button>
+<button class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-secondary hover:text-primary hover:bg-white transition-all">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</button>
+</div>
+</footer>
+</body></html>

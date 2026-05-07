@@ -115,13 +115,13 @@ export default function Login() {
                           bg-gradient-to-br from-primary-500 to-purple-500 mb-4 glow-primary">
             <Brain className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-white">Welcome Back</h1>
-          <p className="text-slate-400 text-sm mt-1">Sign in to your DeepLearn account</p>
+          <h1 className="text-2xl font-display font-bold text-slate-800">Welcome Back</h1>
+          <p className="text-slate-600 text-sm mt-1">Sign in to your DeepLearn account</p>
         </div>
 
         {/* Role Toggle */}
         {!requestedRole && (
-          <div className="flex gap-2 mb-6 p-1 rounded-xl glass" id="login-role-toggle">
+          <div className="flex gap-2 mb-6 p-1 rounded-xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300" id="login-role-toggle">
             {[
               { key: 'student', label: 'Student', icon: GraduationCap },
               { key: 'teacher', label: 'Teacher', icon: Users },
@@ -133,7 +133,7 @@ export default function Login() {
                             transition-all duration-200
                             ${role === key
                               ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
-                              : 'text-slate-400 hover:text-white'
+                              : 'text-slate-600 hover:text-white'
                             }`}
               >
                 <Icon className="w-4 h-4" />
@@ -145,10 +145,10 @@ export default function Login() {
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-4">
-          <div className="glass rounded-2xl p-6 space-y-4">
+          <div className="glass rounded-2xl p-6 space-y-4 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
             {/* Email */}
             <div>
-              <label htmlFor="login-email" className="block text-xs font-medium text-slate-400 mb-1.5">
+              <label htmlFor="login-email" className="block text-xs font-medium text-slate-600 mb-1.5">
                 Email Address
               </label>
               <div className="relative">
@@ -167,7 +167,7 @@ export default function Login() {
 
             {/* Password */}
             <div>
-              <label htmlFor="login-password" className="block text-xs font-medium text-slate-400 mb-1.5">
+              <label htmlFor="login-password" className="block text-xs font-medium text-slate-600 mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -224,7 +224,7 @@ export default function Login() {
           </button>
           
           <div className="text-center mt-6">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-600">
               Don't have an account?{' '}
               <a href="/register" className="text-primary-400 hover:text-primary-300 font-semibold transition-colors">
                 Sign Up

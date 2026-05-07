@@ -15,11 +15,11 @@ export default function BehaviourMonitor() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
             <Activity className="w-8 h-8 text-emerald-400" />
             Behaviour Monitor
           </h1>
-          <p className="text-slate-400 mt-1">Detailed breakdown of student interaction patterns</p>
+          <p className="text-slate-600 mt-1">Detailed breakdown of student interaction patterns</p>
         </div>
         <div className="flex gap-2">
            <input
@@ -37,51 +37,51 @@ export default function BehaviourMonitor() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column — Summary & Alerts */}
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl glass">
-            <h3 className="text-sm font-semibold text-slate-300 mb-4">Behaviour Categories</h3>
+          <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+            <h3 className="text-sm font-semibold text-slate-500 mb-4">Behaviour Categories</h3>
             <div className="space-y-3">
               <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-semibold text-emerald-400">Active</span>
                   <span className="text-xs text-emerald-300">Target State</span>
                 </div>
-                <p className="text-xs text-slate-400">High click frequency, fast response speed, active in chat.</p>
+                <p className="text-xs text-slate-600">High click frequency, fast response speed, active in chat.</p>
               </div>
               <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-semibold text-amber-400">Passive</span>
                   <span className="text-xs text-amber-300">Needs Motivation</span>
                 </div>
-                <p className="text-xs text-slate-400">Low interaction, moderate idle time, infrequent chatting.</p>
+                <p className="text-xs text-slate-600">Low interaction, moderate idle time, infrequent chatting.</p>
               </div>
               <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
                 <div className="flex justify-between items-center mb-1">
                   <span className="font-semibold text-red-400">Distracted</span>
                   <span className="text-xs text-red-300">Intervention Req.</span>
                 </div>
-                <p className="text-xs text-slate-400">High idle time, very low click frequency, zero chat activity.</p>
+                <p className="text-xs text-slate-600">High idle time, very low click frequency, zero chat activity.</p>
               </div>
             </div>
           </div>
 
-          <div className="p-6 rounded-2xl glass">
-            <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center gap-2">
+          <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+            <h3 className="text-sm font-semibold text-slate-500 mb-4 flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 text-amber-400" />
               Recent Alerts
             </h3>
             <div className="space-y-3">
-              <div className="flex items-start gap-3 p-3 rounded-lg glass-light">
+              <div className="flex items-start gap-3 p-3 rounded-lg glass-light shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
                 <Clock className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-white">No alerts yet</p>
-                  <p className="text-xs text-slate-400 mt-1">Alerts will appear here when data is available.</p>
+                  <p className="text-xs text-slate-600 mt-1">Alerts will appear here when data is available.</p>
                 </div>
               </div>
-              <div className="flex items-start gap-3 p-3 rounded-lg glass-light">
+              <div className="flex items-start gap-3 p-3 rounded-lg glass-light shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
                 <MousePointer2 className="w-4 h-4 text-amber-400 mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-medium text-white">—</p>
-                  <p className="text-xs text-slate-400 mt-1">—</p>
+                  <p className="text-xs text-slate-600 mt-1">—</p>
                 </div>
               </div>
             </div>
@@ -89,21 +89,21 @@ export default function BehaviourMonitor() {
         </div>
 
         {/* Right Column — Timeline */}
-        <div className="lg:col-span-2 p-6 rounded-2xl glass">
-          <h3 className="text-sm font-semibold text-slate-300 mb-4 flex items-center justify-between">
+        <div className="lg:col-span-2 p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+          <h3 className="text-sm font-semibold text-slate-500 mb-4 flex items-center justify-between">
             <span>Interaction Timeline (Student #{studentId})</span>
             <span className="text-xs font-normal text-slate-500">Based on LSTM classifications</span>
           </h3>
           
-          <div className="bg-surface-800/50 rounded-xl p-4 mb-6">
+          <div className="bg-surface-800/50 rounded-xl p-4 mb-6 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
               <div>
                 <p className="text-xs text-slate-500 mb-1">Avg Click Freq</p>
-                <p className="text-lg font-bold text-white">— <span className="text-xs font-normal text-slate-400">/min</span></p>
+                <p className="text-lg font-bold text-white">— <span className="text-xs font-normal text-slate-600">/min</span></p>
               </div>
               <div>
                 <p className="text-xs text-slate-500 mb-1">Avg Response</p>
-                <p className="text-lg font-bold text-white">— <span className="text-xs font-normal text-slate-400">sec</span></p>
+                <p className="text-lg font-bold text-white">— <span className="text-xs font-normal text-slate-600">sec</span></p>
               </div>
                <div>
                 <p className="text-xs text-slate-500 mb-1">Total Chats</p>

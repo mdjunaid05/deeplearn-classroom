@@ -61,11 +61,11 @@ export default function Register() {
                           bg-gradient-to-br from-primary-500 to-purple-500 mb-4 glow-primary">
             <Brain className="w-7 h-7 text-white" />
           </div>
-          <h1 className="text-2xl font-display font-bold text-white">Create an Account</h1>
-          <p className="text-slate-400 text-sm mt-1">Join DeepLearn to start learning</p>
+          <h1 className="text-2xl font-display font-bold text-slate-800">Create an Account</h1>
+          <p className="text-slate-600 text-sm mt-1">Join DeepLearn to start learning</p>
         </div>
 
-        <div className="flex gap-2 mb-6 p-1 rounded-xl glass">
+        <div className="flex gap-2 mb-6 p-1 rounded-xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
           {[
             { key: 'student', label: 'Student', icon: GraduationCap },
             { key: 'teacher', label: 'Teacher', icon: Users },
@@ -77,7 +77,7 @@ export default function Register() {
                           transition-all duration-200
                           ${role === key
                             ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/30'
-                            : 'text-slate-400 hover:text-white'
+                            : 'text-slate-600 hover:text-white'
                           }`}
             >
               <Icon className="w-4 h-4" />
@@ -87,9 +87,9 @@ export default function Register() {
         </div>
 
         <form onSubmit={handleRegister} className="space-y-4">
-          <div className="glass rounded-2xl p-6 space-y-4">
+          <div className="glass rounded-2xl p-6 space-y-4 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Full Name</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Full Name</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
@@ -104,7 +104,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Email Address</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Email Address</label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
@@ -119,7 +119,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-400 mb-1.5">Password</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">Password</label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                 <input
@@ -155,7 +155,7 @@ export default function Register() {
           </button>
           
           <div className="text-center mt-6">
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-600">
               Already have an account?{' '}
               <Link to="/login" className="text-primary-400 hover:text-primary-300 font-semibold transition-colors">
                 Sign In

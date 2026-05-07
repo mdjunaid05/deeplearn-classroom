@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "secondary-fixed": "#dae2fd",
+                    "surface-tint": "#006877",
+                    "on-primary-fixed": "#001f25",
+                    "primary-container": "#22d3ee",
+                    "on-background": "#191c1e",
+                    "tertiary-fixed-dim": "#c0c1ff",
+                    "on-tertiary-fixed-variant": "#2f2ebe",
+                    "surface-container-lowest": "#ffffff",
+                    "on-tertiary-container": "#3838c6",
+                    "tertiary-fixed": "#e1e0ff",
+                    "surface-container-low": "#f2f4f6",
+                    "surface-container-high": "#e6e8ea",
+                    "outline": "#6c797d",
+                    "tertiary-container": "#babbff",
+                    "on-secondary-fixed-variant": "#3f465c",
+                    "on-surface": "#191c1e",
+                    "secondary-container": "#dae2fd",
+                    "on-tertiary-fixed": "#07006c",
+                    "inverse-on-surface": "#eff1f3",
+                    "secondary": "#565e74",
+                    "on-primary": "#ffffff",
+                    "inverse-primary": "#2fd9f4",
+                    "primary": "#006877",
+                    "surface-dim": "#d8dadc",
+                    "secondary-fixed-dim": "#bec6e0",
+                    "surface-bright": "#f7f9fb",
+                    "primary-fixed": "#a2eeff",
+                    "surface-variant": "#e0e3e5",
+                    "error-container": "#ffdad6",
+                    "on-secondary-container": "#5c647a",
+                    "surface": "#f7f9fb",
+                    "on-primary-fixed-variant": "#004e5a",
+                    "surface-container": "#eceef0",
+                    "on-error": "#ffffff",
+                    "primary-fixed-dim": "#2fd9f4",
+                    "on-surface-variant": "#3c494c",
+                    "on-tertiary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "on-secondary": "#ffffff",
+                    "outline-variant": "#bbc9cd",
+                    "inverse-surface": "#2d3133",
+                    "error": "#ba1a1a",
+                    "on-secondary-fixed": "#131b2e",
+                    "background": "#f7f9fb",
+                    "tertiary": "#494bd6",
+                    "surface-container-highest": "#e0e3e5",
+                    "on-primary-container": "#005763"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "base": "4px",
+                    "xl": "64px",
+                    "md": "24px",
+                    "lg": "40px",
+                    "xs": "8px",
+                    "container-max": "1280px",
+                    "sm": "16px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "label-caps": ["Inter"],
+                    "body-md": ["Inter"],
+                    "h2": ["Inter"],
+                    "h1": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "h3": ["Inter"]
+            },
+            "fontSize": {
+                    "label-caps": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "h2": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "h1": ["48px", {"lineHeight": "1.1", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "h3": ["24px", {"lineHeight": "1.3", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+        }
+        .ai-glow {
+            box-shadow: 0 0 15px rgba(34, 211, 238, 0.3);
+        }
+        .inner-glow {
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen">
+<!-- Top Navigation Bar -->
+<nav class="fixed top-0 w-full z-50 bg-surface/70 backdrop-blur-xl border-b border-white/20 shadow-sm flex justify-between items-center px-md py-xs h-16 w-full">
+<div class="flex items-center gap-sm">
+<span class="text-h3 font-h3 font-bold text-primary tracking-tight">Lumina</span>
+</div>
+<div class="hidden md:flex items-center gap-lg">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Explore</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Resources</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors" href="#">Enterprise</a>
+</div>
+<div class="flex items-center gap-sm">
+<button class="p-xs text-on-surface-variant hover:bg-white/40 rounded-full transition-all">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-xs text-on-surface-variant hover:bg-white/40 rounded-full transition-all">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-secondary-container overflow-hidden border border-outline-variant/30">
+<img alt="User profile" data-alt="A professional headshot of a young adult student in a modern educational setting. The lighting is bright and clean, characteristic of a light-mode high-tech interface. The background is softly blurred with hints of cyan and white, maintaining the Lumina brand aesthetic. The subject has a friendly, accessible expression, conveying intelligence and curiosity." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCB9ROJ3CyAwQLhIechoWSRa-Ujbo7Lt-am9uT3HqgbHXgQ7rA480PA5N9vwJNtMnnIc4MR3p5qy4Hpy6u23I5xxtayPpMa-fEns--XczDuX7rniugStFNUn6N3wb0LtcNPzfpK6EoSbqW049wmSRpD9Rj65XBILvKALyxGaPiUJaqfpgOvWLWn_24onUd6AjrGcRzcLmLyyX7dacmcgGpKmBR41qRSd_XPzsI9fOFsz4IGOsqQ7RJjecMRuIBWqCqHz0nVz3fusNw"/>
+</div>
+</div>
+</nav>
+<!-- Side Navigation Bar -->
+<aside class="fixed left-0 top-0 h-full w-64 z-40 bg-surface/70 backdrop-blur-xl border-r border-white/20 shadow-md flex flex-col p-md gap-sm hidden md:flex">
+<div class="pt-20 pb-md">
+<div class="flex items-center gap-sm mb-xs">
+<div class="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-on-primary-container ai-glow">
+<span class="material-symbols-outlined">school</span>
+</div>
+<div>
+<h2 class="text-label-caps font-label-caps text-on-surface font-bold">Lumina AI</h2>
+<p class="text-[10px] text-on-surface-variant">Academic Assistant</p>
+</div>
+</div>
+</div>
+<button class="w-full py-sm px-md bg-primary text-on-primary rounded-xl font-label-caps flex items-center justify-center gap-xs mb-md hover:opacity-90 transition-all">
+<span class="material-symbols-outlined text-[18px]">add</span>
+            New Session
+        </button>
+<div class="flex flex-col gap-xs flex-1">
+<a class="flex items-center gap-sm p-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-caps">Dashboard</span>
+</a>
+<a class="flex items-center gap-sm p-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">school</span>
+<span class="font-label-caps">Classroom</span>
+</a>
+<a class="flex items-center gap-sm p-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low transition-all hover:translate-x-1" href="#">
+<span class="material-symbols-outlined">analytics</span>
+<span class="font-label-caps">Analytics</span>
+</a>
+<a class="flex items-center gap-sm p-sm rounded-xl bg-primary-container/30 text-on-primary-container border border-primary/20 transition-all" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-caps">Settings</span>
+</a>
+</div>
+<div class="border-t border-outline-variant/20 pt-sm flex flex-col gap-xs">
+<a class="flex items-center gap-sm p-sm rounded-xl text-on-surface-variant hover:bg-surface-container-low transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">accessibility_new</span>
+<span class="font-label-caps">Accessibility</span>
+</a>
+<a class="flex items-center gap-sm p-sm rounded-xl text-error hover:bg-error-container/20 transition-all" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-caps">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="md:ml-64 pt-20 pb-xl px-md md:px-xl min-h-screen">
+<div class="max-w-container-max mx-auto">
+<!-- Header Section -->
+<header class="mb-lg">
+<h1 class="font-h1 text-h1 text-primary mb-xs">Accessibility</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">
+                    Tailor your Lumina experience with intelligent assistive tools designed for every learning style.
+                </p>
+</header>
+<!-- Bento Grid of Settings -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<!-- Main Controls Grid (Left Side) -->
+<div class="md:col-span-8 grid grid-cols-1 sm:grid-cols-2 gap-gutter">
+<!-- Setting Card: Sign Language Overlay -->
+<div class="glass-panel p-md rounded-[24px] flex flex-col gap-sm relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500"></div>
+<div class="flex justify-between items-start">
+<div class="w-12 h-12 rounded-xl bg-secondary-container flex items-center justify-center text-primary ai-glow">
+<span class="material-symbols-outlined text-[28px]">sign_language</span>
+</div>
+<div class="flex h-6 w-11 cursor-pointer items-center rounded-full bg-surface-container-highest p-1 transition-colors hover:bg-outline-variant">
+<div class="h-4 w-4 rounded-full bg-white shadow-sm"></div>
+</div>
+</div>
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">Sign Language Overlay</h3>
+<p class="text-on-surface-variant font-body-md mt-xs">Real-time ASL interpreter avatar for video content and AI interactions.</p>
+</div>
+<div class="mt-auto pt-sm border-t border-outline-variant/10 flex items-center gap-xs">
+<span class="text-primary material-symbols-outlined text-[16px]">auto_awesome</span>
+<span class="text-label-caps font-label-caps text-primary">AI Powered</span>
+</div>
+</div>
+<!-- Setting Card: Real-time Lip Reading -->
+<div class="glass-panel p-md rounded-[24px] flex flex-col gap-sm relative overflow-hidden group">
+<div class="absolute top-0 right-0 w-32 h-32 bg-tertiary/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-500"></div>
+<div class="flex justify-between items-start">
+<div class="w-12 h-12 rounded-xl bg-tertiary-container/30 flex items-center justify-center text-tertiary ai-glow">
+<span class="material-symbols-outlined text-[28px]">record_voice_over</span>
+</div>
+<div class="flex h-6 w-11 cursor-pointer items-center rounded-full bg-primary p-1 transition-colors">
+<div class="h-4 w-4 rounded-full bg-white shadow-sm translate-x-5"></div>
+</div>
+</div>
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">Lip Reading Highlighting</h3>
+<p class="text-on-surface-variant font-body-md mt-xs">Visual emphasis on speaker's mouth movements to aid speech recognition.</p>
+</div>
+<div class="mt-auto pt-sm border-t border-outline-variant/10">
+<div class="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary ai-glow w-3/4"></div>
+</div>
+</div>
+</div>
+<!-- Setting Card: High Contrast Mode -->
+<div class="glass-panel p-md rounded-[24px] flex flex-col gap-sm relative overflow-hidden group">
+<div class="flex justify-between items-start">
+<div class="w-12 h-12 rounded-xl bg-inverse-surface flex items-center justify-center text-inverse-on-surface">
+<span class="material-symbols-outlined text-[28px]">contrast</span>
+</div>
+<div class="flex h-6 w-11 cursor-pointer items-center rounded-full bg-surface-container-highest p-1 transition-colors">
+<div class="h-4 w-4 rounded-full bg-white shadow-sm"></div>
+</div>
+</div>
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">High Contrast Mode</h3>
+<p class="text-on-surface-variant font-body-md mt-xs">Increases readability by optimizing color contrast and text clarity.</p>
+</div>
+</div>
+<!-- Setting Card: AI Audio Enhancement -->
+<div class="glass-panel p-md rounded-[24px] flex flex-col gap-sm relative overflow-hidden group">
+<div class="flex justify-between items-start">
+<div class="w-12 h-12 rounded-xl bg-primary-container/40 flex items-center justify-center text-primary ai-glow">
+<span class="material-symbols-outlined text-[28px]">hearing</span>
+</div>
+<div class="flex h-6 w-11 cursor-pointer items-center rounded-full bg-primary p-1 transition-colors">
+<div class="h-4 w-4 rounded-full bg-white shadow-sm translate-x-5"></div>
+</div>
+</div>
+<div>
+<h3 class="font-h3 text-h3 text-on-surface">AI Audio Enhancement</h3>
+<p class="text-on-surface-variant font-body-md mt-xs">Filters background noise and clarifies spoken academic terminology.</p>
+</div>
+<div class="mt-auto flex gap-base">
+<div class="h-8 w-1 bg-primary rounded-full animate-pulse opacity-20"></div>
+<div class="h-10 w-1 bg-primary rounded-full animate-pulse opacity-40"></div>
+<div class="h-12 w-1 bg-primary rounded-full animate-pulse opacity-60"></div>
+<div class="h-8 w-1 bg-primary rounded-full animate-pulse opacity-40"></div>
+<div class="h-6 w-1 bg-primary rounded-full animate-pulse opacity-20"></div>
+</div>
+</div>
+</div>
+<!-- Preview / Quick Action Sidebar (Right Side) -->
+<div class="md:col-span-4 flex flex-col gap-gutter">
+<!-- Live Preview Panel -->
+<div class="glass-panel rounded-[24px] overflow-hidden flex flex-col h-full border-primary/10">
+<div class="h-48 relative">
+<img class="w-full h-full object-cover" data-alt="A serene digital classroom interface shown on a high-definition screen. The visual features a soft-focus background of a library with intelligent, translucent data overlays in cyan and white. A small, friendly 3D avatar in the corner is performing American Sign Language, demonstrating the 'Sign Language Overlay' feature in action. The overall lighting is warm and invites focused learning." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDiIAvgb5kv1JQjlbw_1GrzCcRFLJXAa5qPhTok9vPhNmY6xIKRzOKc8dHOVkh2mM1zF_o74fyu3r_YzC7jX4gc5JfVWpZGC5l5Vb-eWCh7aUThh1bW2WOdlBdTmLqMc_Z0lW6nA0jOgf01XEwn2fYFGCr9h3qQIEc8fs4W7Nyf-bVyivVTbdbL5ZuKuGkstd0Aic9D3jtehQsDS0q8Wmin-5hBgxqCYHYYzIx-LGJdWmyrg1VL6JIRrY5U9kXz29zRbgJTfHD1jk4"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+<div class="absolute bottom-4 left-4 flex items-center gap-xs">
+<div class="px-3 py-1 bg-primary/90 backdrop-blur-md rounded-full text-white text-[10px] font-bold tracking-widest uppercase">Live Preview</div>
+</div>
+</div>
+<div class="p-md flex flex-col gap-sm">
+<h4 class="font-h3 text-h3 text-on-surface">Student Profile</h4>
+<p class="text-on-surface-variant font-body-md italic">"How can I help you optimize your learning environment today?"</p>
+<div class="space-y-sm mt-md">
+<div class="flex items-center justify-between text-body-md">
+<span class="text-on-surface-variant">Active Profiling</span>
+<span class="text-primary font-bold">Standard</span>
+</div>
+<div class="flex items-center justify-between text-body-md">
+<span class="text-on-surface-variant">Assistive Layer</span>
+<span class="text-primary font-bold">Visual + Audio</span>
+</div>
+</div>
+<button class="mt-md w-full py-sm border border-primary text-primary rounded-xl font-label-caps hover:bg-primary/5 transition-all">
+                                Run Diagnostics
+                            </button>
+</div>
+</div>
+<!-- AI Insight Chip -->
+<div class="bg-gradient-to-br from-primary to-tertiary p-md rounded-[24px] text-white ai-glow">
+<div class="flex items-center gap-xs mb-xs">
+<span class="material-symbols-outlined text-[20px]">lightbulb</span>
+<span class="font-label-caps">AI Suggestion</span>
+</div>
+<p class="text-body-md leading-snug">Based on your recent classroom performance, we recommend enabling <strong>Lip Reading Highlighting</strong> for today's lecture on quantum mechanics.</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Footer -->
+<footer class="bg-surface-container-lowest border-t border-outline-variant/30 flex flex-col md:flex-row justify-between items-center px-xl py-lg gap-md w-full">
+<div>
+<h2 class="text-h3 font-h3 font-bold text-primary tracking-tight mb-2">Lumina</h2>
+<p class="font-body-md text-body-md text-secondary">© 2024 Lumina EdTech. Empowering through AI.</p>
+</div>
+<div class="flex flex-wrap justify-center gap-md">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md" href="#">Privacy Policy</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md" href="#">Terms of Service</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md font-bold" href="#">Accessibility Statement</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-body-md" href="#">Contact Support</a>
+</div>
+</footer>
+</body></html>

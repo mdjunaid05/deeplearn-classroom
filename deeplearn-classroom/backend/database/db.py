@@ -169,6 +169,44 @@ def _init_sqlite(conn):
             FOREIGN KEY (student_id) REFERENCES students(student_id),
             FOREIGN KEY (video_id) REFERENCES videos(video_id)
         );
+
+        CREATE TABLE IF NOT EXISTS live_sessions (
+            session_id     TEXT PRIMARY KEY,
+            teacher_id     INTEGER NOT NULL,
+            course_id      INTEGER NOT NULL,
+            start_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            end_time       DATETIME,
+            status         TEXT DEFAULT 'live',
+            FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id),
+            FOREIGN KEY (course_id) REFERENCES courses(course_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS recordings (
+            recording_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id          TEXT NOT NULL,
+            teacher_id          INTEGER NOT NULL,
+            course_id           INTEGER NOT NULL,
+            file_path           TEXT NOT NULL,
+            thumbnail_path      TEXT,
+            duration            REAL DEFAULT 0.0,
+            recording_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            participants_count  INTEGER DEFAULT 0,
+            status              TEXT DEFAULT 'processing',
+            FOREIGN KEY (session_id) REFERENCES live_sessions(session_id),
+            FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id),
+            FOREIGN KEY (course_id) REFERENCES courses(course_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_scores (
+            score_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id   INTEGER NOT NULL,
+            recording_id INTEGER NOT NULL,
+            score        REAL DEFAULT 0.0,
+            passed       BOOLEAN DEFAULT 0,
+            taken_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES students(student_id),
+            FOREIGN KEY (recording_id) REFERENCES recordings(recording_id)
+        );
     """)
 
     conn.commit()

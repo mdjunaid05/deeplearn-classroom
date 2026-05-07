@@ -22,6 +22,7 @@ def create_app():
     from routes.dashboard import dashboard_bp
     from routes.accessibility import accessibility_bp
     from routes.video_processing import video_bp
+    from routes.recordings import recordings_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(predict_bp)
@@ -29,6 +30,7 @@ def create_app():
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(accessibility_bp)
     app.register_blueprint(video_bp)
+    app.register_blueprint(recordings_bp)
 
     # ── Health check ──
     @app.route("/", methods=["GET"])

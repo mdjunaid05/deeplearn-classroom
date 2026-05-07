@@ -16,11 +16,12 @@ import VideoUpload from './pages/VideoUpload';
 import LiveClassroom from './pages/LiveClassroom';
 import ProtectedRoute from './components/ProtectedRoute';
 import TeacherRoute from './components/TeacherRoute';
+import RecordedClasses from './pages/RecordedClasses';
 
 function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-surface-900">
+      <div className="min-h-screen bg-surface-900 rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
         <Navbar />
         <main className="pt-16">
           <Routes>
@@ -41,6 +42,7 @@ function App() {
             <Route path="/behaviour" element={<TeacherRoute><BehaviourMonitor /></TeacherRoute>} />
             <Route path="/engagement" element={<TeacherRoute><EngagementAnalytics /></TeacherRoute>} />
             <Route path="/video-upload" element={<TeacherRoute><VideoUpload /></TeacherRoute>} />
+            <Route path="/recordings" element={<TeacherRoute><RecordedClasses /></TeacherRoute>} />
           </Routes>
         </main>
       </div>

@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Space+Grotesk:wght@600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-fixed-dim": "#4edea3",
+                    "primary-fixed": "#6ffbbe",
+                    "outline": "#86948a",
+                    "tertiary-fixed-dim": "#ffb3af",
+                    "on-tertiary-container": "#711419",
+                    "surface-container-lowest": "#060e20",
+                    "surface-bright": "#31394d",
+                    "on-primary": "#003824",
+                    "secondary": "#d0bcff",
+                    "surface-dim": "#0b1326",
+                    "on-error-container": "#ffdad6",
+                    "surface-container-highest": "#2d3449",
+                    "outline-variant": "#3c4a42",
+                    "inverse-primary": "#006c49",
+                    "surface-tint": "#4edea3",
+                    "on-primary-fixed-variant": "#005236",
+                    "surface-container-high": "#222a3d",
+                    "on-secondary-fixed-variant": "#5516be",
+                    "secondary-container": "#571bc1",
+                    "background": "#0b1326",
+                    "primary-container": "#10b981",
+                    "on-tertiary-fixed-variant": "#842225",
+                    "on-tertiary-fixed": "#410005",
+                    "on-primary-fixed": "#002113",
+                    "primary": "#4edea3",
+                    "inverse-surface": "#dae2fd",
+                    "on-surface-variant": "#bbcabf",
+                    "secondary-fixed-dim": "#d0bcff",
+                    "inverse-on-surface": "#283044",
+                    "surface-variant": "#2d3449",
+                    "on-surface": "#dae2fd",
+                    "tertiary": "#ffb3af",
+                    "secondary-fixed": "#e9ddff",
+                    "on-primary-container": "#00422b",
+                    "error": "#ffb4ab",
+                    "error-container": "#93000a",
+                    "on-secondary-container": "#c4abff",
+                    "tertiary-fixed": "#ffdad7",
+                    "tertiary-container": "#fc7c78",
+                    "surface-container-low": "#131b2e",
+                    "on-secondary-fixed": "#23005c",
+                    "on-background": "#dae2fd",
+                    "on-tertiary": "#650911",
+                    "on-secondary": "#3c0091",
+                    "surface": "#0b1326",
+                    "surface-container": "#171f33",
+                    "on-error": "#690005"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "stack-lg": "48px",
+                    "stack-md": "24px",
+                    "container-padding": "32px",
+                    "unit": "8px",
+                    "stack-sm": "12px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "h2": ["Inter"],
+                    "h1": ["Inter"],
+                    "body-md": ["Inter"],
+                    "h3": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-caps": ["Space Grotesk"]
+            },
+            "fontSize": {
+                    "h2": ["36px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "h1": ["48px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "h3": ["24px", {"lineHeight": "1.4", "letterSpacing": "0em", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "1.0", "letterSpacing": "0.1em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .glass-card {
+            background: rgba(23, 31, 51, 0.4);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-glow {
+            box-shadow: 0 0 20px rgba(78, 222, 163, 0.15);
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface font-body-md overflow-x-hidden">
+<!-- TopAppBar -->
+<header class="fixed top-0 z-50 flex justify-between items-center w-full px-container-padding py-unit h-20 bg-surface/80 backdrop-blur-md dark:bg-surface/80 border-b border-white/10">
+<div class="flex items-center gap-4">
+<span class="font-h2 text-h2 font-bold text-primary dark:text-primary-fixed-dim">Lumina Academy</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex gap-8">
+<a class="text-primary dark:text-primary-fixed-dim font-bold font-body-md" href="#">Classroom</a>
+<a class="text-on-surface-variant/70 dark:text-on-surface-variant/70 hover:text-primary transition-colors duration-300 font-body-md" href="#">Resources</a>
+<a class="text-on-surface-variant/70 dark:text-on-surface-variant/70 hover:text-primary transition-colors duration-300 font-body-md" href="#">Community</a>
+</div>
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-primary p-2 rounded-full hover:bg-white/5 transition-all">notifications</button>
+<div class="w-10 h-10 rounded-full border-2 border-primary/30 overflow-hidden">
+<img alt="User Profile" data-alt="A professional studio portrait of a young adult male with a friendly expression, wearing a minimalist dark shirt. The lighting is soft and cinematic, with a subtle emerald green rim light reflecting the brand's primary color palette against a deep charcoal background to maintain the premium e-learning aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBdEqT6sLQ0y2cIF1Co-NkGyU1JT_oaVmQc7wu0Zbwd-cAIvOwc_7SRhHJbOvwKE-wynJvHsg1CYyaF9henwwwP7C4KlgolAazQHJ91GQl2X2nLIcd8XUljqolVSKZivH5C9692eQlYSMsspkd29mtGYSi306Z71NC4-tHgf_3j6aIWWFXwwWASE7qVA6yNdECOw19B0J9qoYLn9OCxDVPjRabKP6RKy_Ex00bj9opZDBO6jGNQq5qAeaiQaZwfyA47NoR-jdhxeRs"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Sidebar (NavigationDrawer) -->
+<aside class="hidden lg:flex flex-col h-screen fixed left-0 top-0 z-40 bg-surface-dim/90 backdrop-blur-2xl dark:bg-surface-dim/90 border-r border-white/10 w-80 pt-24">
+<div class="px-6 py-4 mb-6">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center">
+<span class="material-symbols-outlined text-secondary" style="font-variation-settings: 'FILL' 1;">video_chat</span>
+</div>
+<div>
+<h4 class="text-on-surface font-semibold">Virtual Classroom</h4>
+<p class="text-on-surface-variant/60 text-sm">Session ID: 882-991 • <span class="text-primary">Live</span></p>
+</div>
+</div>
+</div>
+<nav class="flex-1">
+<a class="flex items-center gap-4 text-on-surface-variant/80 px-6 py-4 hover:bg-white/5 hover:text-white transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md font-medium">Dashboard</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant/80 px-6 py-4 hover:bg-white/5 hover:text-white transition-all" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-body-md font-medium">My Courses</span>
+</a>
+<a class="flex items-center gap-4 bg-secondary/20 text-secondary-fixed-dim border-l-4 border-secondary px-6 py-4 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">video_chat</span>
+<span class="font-body-md font-medium">Classroom</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant/80 px-6 py-4 hover:bg-white/5 hover:text-white transition-all" href="#">
+<span class="material-symbols-outlined">query_stats</span>
+<span class="font-body-md font-medium">Analytics</span>
+</a>
+<a class="flex items-center gap-4 text-on-surface-variant/80 px-6 py-4 hover:bg-white/5 hover:text-white transition-all" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-body-md font-medium">Settings</span>
+</a>
+</nav>
+<div class="p-6">
+<button class="w-full py-4 px-6 rounded-xl glass-card flex items-center justify-center gap-2 text-secondary hover:bg-secondary/10 transition-all">
+<span class="material-symbols-outlined">support_agent</span>
+<span>AI Help</span>
+</button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="pt-24 lg:ml-80 min-h-screen px-4 md:px-gutter pb-32">
+<div class="max-w-[1400px] mx-auto grid grid-cols-1 xl:grid-cols-12 gap-gutter">
+<!-- Main Column -->
+<div class="xl:col-span-8 space-y-gutter">
+<!-- Video Player Section -->
+<div class="relative group rounded-2xl overflow-hidden aspect-video glass-card active-glow">
+<img class="w-full h-full object-cover" data-alt="A high-definition wide shot of a modern, futuristic lecture hall where a professor is presenting complex data on a transparent glass screen. The environment is dark with vibrant emerald and purple ambient lighting illuminating the surfaces. The scene is captured with professional cinema lenses, emphasizing depth and a high-focus learning atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAAUkU8YFsDXBjA_Y3u_QjxKV9wQrHfJhIjfN2SQljeXNklvUi5tHT65bddHkzvqjrsF6EvmnNWGFP5VSELXwJ_o2FD81k2Z2lkjovET1WdaU9V9Gmfts0yrJ251y6b3VSpBF7jp1B9gsV9wfLSz_rzlT21d5S6yKJ6bur6eRhf08lo_kjGHZU7jxLB2piB0LMPC3qtWw-oTRtWoHh_ZAkwAqvYlh1klbH4JMgRSP8oVrWMBEBBXhMK4J3MuNVnKsfX2GzLkXBgF4k"/>
+<!-- Overlay ASL Interpreter -->
+<div class="absolute bottom-6 right-6 w-32 h-44 md:w-48 md:h-64 rounded-xl overflow-hidden border-2 border-primary/40 shadow-2xl z-20 glass-card">
+<img class="w-full h-full object-cover" data-alt="A focused close-up of a sign language interpreter performing expressive ASL gestures. She is positioned against a clean, softly lit purple-gradient background that complements the UI's secondary accent color. The lighting is bright and clear to ensure hand movements are perfectly visible for educational accessibility." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqH9yI4W0RfDRWZoEjM9QZL4mJecciv6XTo0QrxhMm2vdEGe9ivu8-Fd0Hk9nSA5Bx3MYxQqgxu9tdLChfJEkpL096yppQyUcujt2iJHYILuRgpq7dKyRZXWVksb_ywwt0OgMyLkEc0DZPpLGrG1cyJgcUx0F2A-CUwcMRcPUh5aMAXVtUTcwvHPi4WamtOkMk1321t60K5QBIOsWCsiEMN8kmqxa6wqMLNqGIaKosm1sLigdwDua0NGzz1448DeJFpnbN8AkpnE8"/>
+<div class="absolute top-2 left-2 bg-primary px-2 py-0.5 rounded text-[10px] font-bold text-on-primary">ASL LIVE</div>
+</div>
+<!-- Video Controls Mock -->
+<div class="absolute bottom-0 left-0 w-full p-6 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex items-center gap-4 text-white">
+<span class="material-symbols-outlined cursor-pointer">pause</span>
+<div class="flex-1 h-1 bg-white/20 rounded-full relative">
+<div class="absolute h-full w-2/3 bg-primary rounded-full"></div>
+<div class="absolute top-1/2 left-2/3 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg"></div>
+</div>
+<span class="text-sm font-label-caps">42:15 / 60:00</span>
+<span class="material-symbols-outlined cursor-pointer">volume_up</span>
+<span class="material-symbols-outlined cursor-pointer">fullscreen</span>
+</div>
+</div>
+</div>
+<!-- Captions Section -->
+<div class="glass-card rounded-2xl p-6 h-32 overflow-y-auto">
+<p class="text-primary-fixed-dim font-medium mb-1 text-sm">[00:42:08] Professor Sterling:</p>
+<p class="text-on-surface-variant text-body-lg">"The architectural significance of these neural structures lies in their ability to process multi-modal inputs while maintaining a low-latency state. Notice how the emerald paths highlight the priority data..."</p>
+</div>
+<!-- Quick Assessment Section -->
+<section class="space-y-6">
+<div class="flex items-center justify-between">
+<h2 class="font-h3 text-h3 text-on-surface flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">quiz</span>
+                            Quick Assessment
+                        </h2>
+<span class="text-primary font-label-caps bg-primary/10 px-3 py-1 rounded-full">Question 4 of 10</span>
+</div>
+<div class="glass-card rounded-2xl p-8 space-y-8">
+<p class="text-body-lg font-medium">According to the lecture, which primary factor contributes most to the "Glassmorphism" depth effect in UI design?</p>
+<div class="grid grid-cols-1 gap-4">
+<button class="w-full text-left p-6 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all flex items-center justify-between group">
+<span>High contrast color palettes</span>
+<div class="w-6 h-6 rounded-full border-2 border-outline group-hover:border-primary transition-all"></div>
+</button>
+<button class="w-full text-left p-6 rounded-xl border border-primary/40 bg-primary/10 transition-all flex items-center justify-between">
+<span class="text-primary-fixed-dim font-bold">Backdrop blur combined with luminosity</span>
+<div class="w-6 h-6 rounded-full border-2 border-primary bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px] text-on-primary">check</span>
+</div>
+</button>
+<button class="w-full text-left p-6 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 transition-all flex items-center justify-between group">
+<span>Heavy drop shadows and dark gradients</span>
+<div class="w-6 h-6 rounded-full border-2 border-outline group-hover:border-primary transition-all"></div>
+</button>
+</div>
+<div class="pt-4 border-t border-white/5 flex justify-end">
+<button class="bg-primary-container text-on-primary-container px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:scale-105 active:scale-95 transition-all active-glow">
+                                Next Question
+                                <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Sidebar Column -->
+<aside class="xl:col-span-4 space-y-gutter">
+<!-- Live Engagement -->
+<div class="glass-card rounded-2xl p-6">
+<div class="flex items-center justify-between mb-4">
+<span class="font-label-caps text-on-surface-variant/70 uppercase">Live Engagement</span>
+<div class="flex items-center gap-2">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="text-primary text-xs font-bold">Active</span>
+</div>
+</div>
+<div class="flex items-end gap-1 h-12">
+<div class="bg-primary/40 w-full h-[30%] rounded-t-sm"></div>
+<div class="bg-primary/40 w-full h-[50%] rounded-t-sm"></div>
+<div class="bg-primary/40 w-full h-[80%] rounded-t-sm"></div>
+<div class="bg-primary w-full h-[95%] rounded-t-sm shadow-[0_0_10px_rgba(78,222,163,0.3)]"></div>
+<div class="bg-primary/40 w-full h-[60%] rounded-t-sm"></div>
+<div class="bg-primary/40 w-full h-[40%] rounded-t-sm"></div>
+</div>
+</div>
+<!-- Session Info -->
+<div class="glass-card rounded-2xl p-6 space-y-4">
+<div class="flex items-center gap-4">
+<img class="w-12 h-12 rounded-lg object-cover" data-alt="A professional headshot of a middle-aged female professor with a visionary and warm expression. She is wearing modern eyewear and a charcoal blazer, set against a background with subtle hints of glowing digital network lines in emerald green." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5uQMLVdCQMBqkbf8YEW7Bhim0S_ZgjM8s65HPx7s1ybD6A792917siRLqvYP4Oj0o_lH4d_aM2DyNtd1dbaaLIQ_bcLYaodBOTB_dNlnhOXIp03Ng9MxR0PhHHV8NPgVC4_FYJa5wmkZ0VaSxsq3JLc58FfuqCr_sifydBiKZ_Q6sDrob8FJ-K_QLV4oQHQlyymI79_qSRfol3ad-ntLasAmtSGceKwOwoB-DafLlFPT6qqHLjPAAvBZNjiu-BoIDYky8-c8Y1l4"/>
+<div>
+<h3 class="font-bold text-on-surface leading-tight">Advanced Visual Systems</h3>
+<p class="text-on-surface-variant/60 text-sm">Prof. Elena Sterling</p>
+</div>
+</div>
+<div class="flex items-center justify-between text-sm py-2 border-y border-white/5">
+<span class="flex items-center gap-1 text-on-surface-variant"><span class="material-symbols-outlined text-sm">schedule</span> 14:00 - 15:30</span>
+<span class="flex items-center gap-1 text-on-surface-variant"><span class="material-symbols-outlined text-sm">group</span> 124 Online</span>
+</div>
+</div>
+<!-- Class Chat Window -->
+<div class="glass-card rounded-2xl flex flex-col h-[500px]">
+<div class="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+<span class="font-bold text-on-surface">Class Chat</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">more_vert</span>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-4">
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary-container flex items-center justify-center shrink-0">
+<span class="text-xs font-bold text-on-tertiary-container">JD</span>
+</div>
+<div class="bg-surface-container rounded-2xl rounded-tl-none p-3 max-w-[80%]">
+<p class="text-xs text-secondary-fixed-dim font-bold mb-1">Julian Day</p>
+<p class="text-sm">Can someone explain the 8px grid rule again? Is it mandatory for mobile too?</p>
+</div>
+</div>
+<div class="flex gap-3 flex-row-reverse">
+<div class="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center shrink-0">
+<span class="text-xs font-bold text-on-primary-container">ME</span>
+</div>
+<div class="bg-primary/20 border border-primary/20 rounded-2xl rounded-tr-none p-3 max-w-[80%]">
+<p class="text-xs text-primary-fixed-dim font-bold mb-1">You</p>
+<p class="text-sm">Yes! It maintains mathematical harmony across all screen sizes. Consistent spacing is key.</p>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
+<span class="text-xs font-bold">SL</span>
+</div>
+<div class="bg-surface-container rounded-2xl rounded-tl-none p-3 max-w-[80%]">
+<p class="text-xs text-secondary-fixed-dim font-bold mb-1">Sarah Lee</p>
+<p class="text-sm">I'm having some trouble with the blur values. 12px feels too little on white backgrounds.</p>
+</div>
+</div>
+</div>
+<div class="p-4 bg-surface-container-lowest border-t border-white/10">
+<div class="relative">
+<input class="w-full bg-surface-dim border border-white/10 rounded-xl px-4 py-3 pr-12 focus:outline-none focus:border-primary/50 text-sm transition-all" placeholder="Type a message..." type="text"/>
+<button class="absolute right-2 top-1/2 -translate-y-1/2 material-symbols-outlined text-primary">send</button>
+</div>
+</div>
+</div>
+<!-- Sign Language Button & Special Actions -->
+<div class="space-y-4">
+<button class="w-full py-4 rounded-xl font-bold bg-gradient-to-r from-secondary-container to-primary-container text-white flex items-center justify-center gap-3 shadow-lg hover:brightness-110 active:scale-[0.98] transition-all">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">sign_language</span>
+                        Use Sign Language
+                    </button>
+<div class="grid grid-cols-2 gap-4">
+<button class="glass-card p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-secondary">pan_tool</span>
+<span class="text-xs font-label-caps">Raise Hand</span>
+</button>
+<button class="glass-card p-4 rounded-xl flex flex-col items-center gap-2 hover:bg-white/10 transition-all">
+<span class="material-symbols-outlined text-tertiary">edit_note</span>
+<span class="text-xs font-label-caps">Take Notes</span>
+</button>
+</div>
+</div>
+</aside>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full flex justify-around items-center px-4 py-3 h-20 bg-surface-container/60 backdrop-blur-xl border-t border-white/10 z-50">
+<button class="flex flex-col items-center justify-center text-primary dark:text-primary-fixed-dim bg-primary/10 rounded-xl px-4 py-1">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">school</span>
+<span class="font-label-caps text-label-caps mt-1">Learn</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant/60">
+<span class="material-symbols-outlined">calendar_today</span>
+<span class="font-label-caps text-label-caps mt-1">Schedule</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant/60">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-label-caps text-label-caps mt-1">AI Tutor</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant/60">
+<span class="material-symbols-outlined">account_circle</span>
+<span class="font-label-caps text-label-caps mt-1">Profile</span>
+</button>
+</nav>
+</body></html>

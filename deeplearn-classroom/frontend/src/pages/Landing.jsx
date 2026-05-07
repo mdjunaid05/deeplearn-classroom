@@ -73,18 +73,18 @@ export default function Landing() {
              }} />
 
         <div className="relative max-w-5xl mx-auto px-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass mb-6 animate-fade-in">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass mb-6 animate-fade-in shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
             <Sparkles className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-medium text-slate-300">Powered by TensorFlow Deep Learning</span>
+            <span className="text-xs font-medium text-slate-500">Powered by TensorFlow Deep Learning</span>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-extrabold mb-6 leading-tight animate-fade-in">
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-extrabold mb-6 leading-tight animate-fade-in font-bold text-slate-800">
             <span className="text-white">Smart Virtual</span>
             <br />
             <span className="gradient-text">Classroom System</span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up">
+          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl mx-auto mb-10 leading-relaxed animate-slide-up">
             An AI-powered adaptive learning platform with real-time behaviour monitoring,
             engagement detection, and intelligent difficulty adjustment — built on deep learning.
           </p>
@@ -108,8 +108,8 @@ export default function Landing() {
               to="/teacher"
               id="hero-teacher-btn"
               className="group flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold
-                         text-slate-200 glass hover:bg-white/10
-                         transition-all duration-300"
+  text-slate-200 glass hover:bg-white/10
+ transition-all duration-300 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400"
             >
               <Users className="w-5 h-5" />
               Teacher Dashboard
@@ -125,7 +125,7 @@ export default function Landing() {
           {stats.map((stat, idx) => (
             <div key={idx} className="text-center">
               <div className="text-3xl font-display font-bold gradient-text">{stat.value}</div>
-              <div className="text-sm text-slate-400 mt-1">{stat.label}</div>
+              <div className="text-sm text-slate-600 mt-1">{stat.label}</div>
             </div>
           ))}
         </div>
@@ -135,10 +135,10 @@ export default function Landing() {
       <section className="py-24 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-display font-bold text-white mb-4">
+            <h2 className="text-3xl sm:text-4xl font-display font-bold text-slate-800 mb-4">
               Intelligent Features
             </h2>
-            <p className="text-slate-400 max-w-xl mx-auto">
+            <p className="text-slate-600 max-w-xl mx-auto">
               Three deep learning models work together to create a truly adaptive learning experience.
             </p>
           </div>
@@ -147,7 +147,7 @@ export default function Landing() {
             {features.map((feat, idx) => (
               <div
                 key={idx}
-                className="group p-6 rounded-2xl glass card-hover"
+                className="group p-6 rounded-2xl glass card-hover shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300"
                 style={{ animationDelay: `${idx * 0.1}s` }}
               >
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${feat.color}
@@ -155,8 +155,8 @@ export default function Landing() {
                                  transition-transform group-hover:scale-110`}>
                   <feat.icon className="w-6 h-6 text-white" />
                 </div>
-                <h3 className="text-lg font-semibold text-white mb-2">{feat.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">{feat.desc}</p>
+                <h3 className="text-lg font-semibold text-slate-800 mb-2">{feat.title}</h3>
+                <p className="text-sm text-slate-600 leading-relaxed">{feat.desc}</p>
               </div>
             ))}
           </div>

@@ -35,7 +35,7 @@ export default function Navbar() {
   });
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/5">
+    <nav className="fixed top-0 left-0 right-0 z-50 glass border-b border-white/5 rounded-2xl shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300 border-slate-200/60 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -61,7 +61,7 @@ export default function Navbar() {
                   className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap
                     ${isActive
                       ? 'bg-primary-600/20 text-primary-300 shadow-sm'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      : 'text-slate-600 hover:text-white hover:bg-white/5'
                     }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
@@ -76,7 +76,7 @@ export default function Navbar() {
             {user ? (
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/10 transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-500 hover:text-white hover:bg-white/10 transition-all duration-200"
               >
                 <LogOut className="w-4 h-4" />
                 Logout ({user.role})
@@ -97,7 +97,7 @@ export default function Navbar() {
           {/* Mobile menu button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors shrink-0"
+            className="md:hidden p-2 rounded-lg text-slate-600 hover:text-white hover:bg-white/5 transition-colors shrink-0"
             id="nav-mobile-toggle"
           >
             {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -107,7 +107,7 @@ export default function Navbar() {
 
       {/* Mobile Navigation */}
       {isOpen && (
-        <div className="md:hidden glass border-t border-white/5 animate-slide-up max-h-[80vh] overflow-y-auto">
+        <div className="md:hidden glass border-t border-white/5 animate-slide-up max-h-[80vh] overflow-y-auto rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
           <div className="px-4 py-3 space-y-1">
             {navLinks.map(({ path, label, icon: Icon }) => {
               const isActive = location.pathname === path;
@@ -119,7 +119,7 @@ export default function Navbar() {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
                     ${isActive
                       ? 'bg-primary-600/20 text-primary-300'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5'
+                      : 'text-slate-600 hover:text-white hover:bg-white/5'
                     }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -131,7 +131,7 @@ export default function Navbar() {
             {user ? (
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/10 transition-all duration-200 mt-2 border border-white/10"
+                className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-semibold text-slate-500 hover:text-white hover:bg-white/10 transition-all duration-200 mt-2 border border-white/10"
               >
                 <LogOut className="w-4 h-4" />
                 Logout

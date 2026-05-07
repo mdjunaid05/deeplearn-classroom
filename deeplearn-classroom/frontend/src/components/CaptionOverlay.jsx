@@ -23,6 +23,7 @@ export default function CaptionOverlay({
   currentCaption  = '',
   isActive        = false,
   usingSimulation = false,
+  captionSize     = 'normal',
 }) {
   const containerRef = useRef(null);
 
@@ -38,6 +39,19 @@ export default function CaptionOverlay({
 
   // Show only the last 4 historical segments
   const recentHistory = transcript.slice(-4);
+  
+  // Size mapping
+  const sizeClass = {
+    small: 'text-xs',
+    normal: 'text-sm',
+    large: 'text-lg',
+  }[captionSize] || 'text-sm';
+  
+  const currentSizeClass = {
+    small: 'text-sm',
+    normal: 'text-base',
+    large: 'text-xl',
+  }[captionSize] || 'text-base';
 
   return (
     <div
@@ -66,7 +80,7 @@ export default function CaptionOverlay({
             return (
               <p
                 key={`cap-${item.timestamp}-${idx}`}
-                className="text-sm leading-snug transition-colors duration-500"
+                className={`${sizeClass} leading-snug transition-colors duration-500`}
                 style={{
                   color: isLatest ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.28)',
                   fontWeight: isLatest ? 500 : 400,
@@ -80,7 +94,7 @@ export default function CaptionOverlay({
           {/* Live current caption - highlighted with purple left border */}
           {isActive && currentCaption && (
             <p
-              className="text-base font-semibold leading-snug text-white"
+              className={`${currentSizeClass} font-semibold leading-snug text-white`}
               style={{
                 textShadow: '0 0 14px rgba(139, 92, 246, 0.7)',
                 borderLeft: '3px solid #8b5cf6',

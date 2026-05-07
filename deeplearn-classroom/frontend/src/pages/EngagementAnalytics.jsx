@@ -17,66 +17,66 @@ export default function EngagementAnalytics() {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
             <BarChart3 className="w-8 h-8 text-primary-400" />
             Engagement Analytics
           </h1>
-          <p className="text-slate-400 mt-1">Platform-wide engagement trends and time-of-day analysis</p>
+          <p className="text-slate-600 mt-1">Platform-wide engagement trends and time-of-day analysis</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* KPI Cards */}
-        <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-primary-900/40 to-transparent border-primary-500/20">
+        <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-primary-900/40 to-transparent border-primary-500/20 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-primary-300">Peak Engagement</p>
-              <h3 className="text-3xl font-bold text-white mt-1">—</h3>
+              <h3 className="text-3xl font-bold text-slate-800 mt-1">—</h3>
             </div>
              <div className="p-2 bg-primary-500/20 rounded-lg">
                 <TrendingUp className="w-5 h-5 text-primary-400" />
              </div>
           </div>
-          <p className="text-xs text-slate-400">No data available yet.</p>
+          <p className="text-xs text-slate-600">No data available yet.</p>
         </div>
 
-         <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-emerald-900/40 to-transparent border-emerald-500/20">
+         <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-emerald-900/40 to-transparent border-emerald-500/20 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-emerald-300">Avg Session Time</p>
-              <h3 className="text-3xl font-bold text-white mt-1">—</h3>
+              <h3 className="text-3xl font-bold text-slate-800 mt-1">—</h3>
             </div>
              <div className="p-2 bg-emerald-500/20 rounded-lg">
                 <Activity className="w-5 h-5 text-emerald-400" />
              </div>
           </div>
-           <p className="text-xs text-slate-400">No data available yet.</p>
+           <p className="text-xs text-slate-600">No data available yet.</p>
         </div>
 
-        <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-amber-900/40 to-transparent border-amber-500/20">
+        <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-amber-900/40 to-transparent border-amber-500/20 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-amber-300">Risk Factor</p>
-              <h3 className="text-3xl font-bold text-white mt-1">—</h3>
+              <h3 className="text-3xl font-bold text-slate-800 mt-1">—</h3>
             </div>
              <div className="p-2 bg-amber-500/20 rounded-lg">
                 <BarChart3 className="w-5 h-5 text-amber-400" />
              </div>
           </div>
-           <p className="text-xs text-slate-400">No data available yet.</p>
+           <p className="text-xs text-slate-600">No data available yet.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Engagement Over Time */}
-        <div className="p-6 rounded-2xl glass">
-           <h3 className="text-sm font-semibold text-slate-300 mb-4">Long-Term Engagement Trend</h3>
+        <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+           <h3 className="text-sm font-semibold text-slate-500 mb-4">Long-Term Engagement Trend</h3>
            <EngagementAreaChart data={TIMELINE_DATA} />
         </div>
 
         {/* Time-of-Day Heatmap (Simulated with visual blocks) */}
-        <div className="p-6 rounded-2xl glass">
-          <h3 className="text-sm font-semibold text-slate-300 mb-4">Engagement by Time-of-Day</h3>
+        <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+          <h3 className="text-sm font-semibold text-slate-500 mb-4">Engagement by Time-of-Day</h3>
           
           <div className="space-y-4">
             {HEATMAP_DATA.map((row, idx) => {
@@ -86,9 +86,9 @@ export default function EngagementAnalytics() {
               const lPct = (row.Low / total) * 100;
 
               return (
-                <div key={idx} className="p-4 rounded-xl glass-light">
+                <div key={idx} className="p-4 rounded-xl glass-light shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-3">
-                    <row.icon className="w-4 h-4 text-slate-400" />
+                    <row.icon className="w-4 h-4 text-slate-600" />
                     <span className="text-sm font-medium text-white">{row.time}</span>
                   </div>
                   
@@ -109,7 +109,7 @@ export default function EngagementAnalytics() {
             })}
           </div>
           
-          <div className="mt-4 p-3 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-400">
+          <div className="mt-4 p-3 rounded-lg bg-white/5 border border-white/10 text-xs text-slate-600">
             <strong>Insight:</strong> Night sessions show a significant drop in high engagement. Consider recommending complex topics for morning sessions.
           </div>
         </div>

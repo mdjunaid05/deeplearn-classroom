@@ -31,7 +31,7 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
   return (
     <div className="flex flex-col gap-4">
       {/* Webcam Feed Placeholder */}
-      <div className="relative aspect-video bg-surface-800 rounded-xl border border-white/10 overflow-hidden flex items-center justify-center">
+      <div className="relative aspect-video bg-surface-800 rounded-xl border border-white/10 overflow-hidden flex items-center justify-center shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
         {isDetecting ? (
           <div className="absolute inset-0 border-2 border-emerald-500/50 rounded-xl" />
         ) : null}
@@ -40,9 +40,9 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
       </div>
       
       {/* Confidence Bar */}
-      <div className="p-4 rounded-xl bg-surface-800/50 border border-white/5">
+      <div className="p-4 rounded-xl bg-surface-800/50 border border-white/5 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-semibold text-slate-300">
+          <span className="text-sm font-semibold text-slate-500">
             {currentSign ? `Sign: ${currentSign}` : 'Waiting for gesture...'}
           </span>
           <span className="text-xs font-mono text-emerald-400">
@@ -59,7 +59,7 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
 
       {/* History */}
       <div className="space-y-2">
-        <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider">Recent Signs</h4>
+        <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider font-bold">Recent Signs</h4>
         <div className="flex flex-wrap gap-2" role="list" aria-label="Recent signs recognized">
           {history.map((sign, idx) => (
             <div key={idx} role="listitem" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">

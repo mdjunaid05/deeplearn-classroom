@@ -7,8 +7,8 @@ import {
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="glass rounded-lg px-3 py-2 text-xs">
-        <p className="text-slate-300 mb-1">{`Activity ${label}`}</p>
+      <div className="glass rounded-lg px-3 py-2 text-xs shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+        <p className="text-slate-500 mb-1">{`Activity ${label}`}</p>
         {payload.map((entry, idx) => (
           <p key={idx} style={{ color: entry.color }} className="font-semibold">
             {entry.name}: {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}

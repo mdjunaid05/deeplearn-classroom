@@ -122,6 +122,14 @@ export default function VideoUpload() {
     setStep('Step 1/4: Sending video to backend...');
 
     try {
+      // Clear previous IndexedDB and window states
+      import('../utils/db').then(({ saveCaptions, saveVideo }) => {
+        saveCaptions([]).catch(console.error);
+      });
+      window.uploadedDemoVideo = null;
+      window.uploadedDemoTitle = null;
+      window.uploadedDemoCaptions = [];
+
       const formData = new FormData();
       formData.append('video_file', file);
 
@@ -240,11 +248,11 @@ export default function VideoUpload() {
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Video Upload and Pipeline">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
             <UploadCloud className="w-8 h-8 text-primary-400" aria-hidden="true" />
             Sign Language Video Pipeline
           </h1>
-          <p className="text-slate-400 mt-1">Upload lesson videos to automatically extract captions and render an ASL avatar overlay.</p>
+          <p className="text-slate-600 mt-1">Upload lesson videos to automatically extract captions and render an ASL avatar overlay.</p>
         </div>
       </div>
 
@@ -271,13 +279,13 @@ export default function VideoUpload() {
               <>
                 <Video className="w-12 h-12 text-primary-400 mb-4" aria-hidden="true" />
                 <p className="text-lg font-semibold text-white">{file.name}</p>
-                <p className="text-sm text-slate-400 mt-2">{(file.size / (1024*1024)).toFixed(2)} MB</p>
+                <p className="text-sm text-slate-600 mt-2">{(file.size / (1024*1024)).toFixed(2)} MB</p>
               </>
             ) : (
               <>
                 <UploadCloud className="w-12 h-12 text-slate-500 mb-4" aria-hidden="true" />
                 <p className="text-lg font-semibold text-white">Drag & drop video here</p>
-                <p className="text-sm text-slate-400 mt-2">MP4, AVI, or MOV up to 500MB</p>
+                <p className="text-sm text-slate-600 mt-2">MP4, AVI, or MOV up to 500MB</p>
               </>
             )}
           </div>
@@ -308,7 +316,7 @@ export default function VideoUpload() {
 
           {/* Progress Bar */}
           {status === 'processing' && (
-            <div className="p-6 rounded-2xl glass" aria-live="polite">
+            <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300" aria-live="polite">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-semibold text-primary-300">Processing Video Pipeline...</span>
                 <span className="text-sm font-mono text-white">{progress}%</span>
@@ -319,7 +327,7 @@ export default function VideoUpload() {
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-slate-400 mt-3 text-center">
+              <p className="text-xs text-slate-600 mt-3 text-center">
                 {step || 'Extracting Audio → Whisper STT → Sign Mapping → Avatar Render → Output'}
               </p>
             </div>
@@ -329,10 +337,10 @@ export default function VideoUpload() {
           {status === 'error' && (
             <div className="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-center" aria-live="polite">
               <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" aria-hidden="true" />
-              <h3 className="text-lg font-bold text-red-300">Processing Failed</h3>
+              <h3 className="text-lg font-bold text-red-300 text-slate-800">Processing Failed</h3>
               <p className="text-sm text-red-400/80 mt-1">{error}</p>
               <button 
-                className="mt-4 px-6 py-2 rounded-lg glass text-sm text-white hover:bg-white/10 transition"
+                className="mt-4 px-6 py-2 rounded-lg glass text-sm text-white hover:bg-white/10 transition shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300"
                 onClick={() => { resetState(); setUploading(false); }}
               >
                 Try Again
@@ -344,7 +352,7 @@ export default function VideoUpload() {
           {status === 'done' && (
             <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center" aria-live="polite">
               <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-3" aria-hidden="true" />
-              <h3 className="text-lg font-bold text-emerald-300">Processing Complete!</h3>
+              <h3 className="text-lg font-bold text-emerald-300 text-slate-800">Processing Complete!</h3>
               <p className="text-sm text-emerald-400/80 mt-1">
                 Video has captions and sign language overlay. Ready for download.
               </p>
@@ -372,8 +380,8 @@ export default function VideoUpload() {
 
         {/* Preview Area */}
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl glass min-h-[300px]">
-             <h2 className="text-lg font-semibold text-white mb-4">Pipeline Output Preview</h2>
+          <div className="p-6 rounded-2xl glass min-h-[300px] shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+             <h2 className="text-lg font-semibold text-slate-800 mb-4">Pipeline Output Preview</h2>
              {status === 'done' ? (
                <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/10">
                  {/* Show actual processed video if available */}
@@ -391,13 +399,13 @@ export default function VideoUpload() {
                  <SignAvatarOverlay currentWord={currentGesture} />
                </div>
              ) : status === 'processing' ? (
-               <div className="aspect-video bg-surface-800/50 rounded-xl border-2 border-dashed border-primary-500/30 flex flex-col items-center justify-center text-center gap-3">
+               <div className="aspect-video bg-surface-800/50 rounded-xl border-2 border-dashed border-primary-500/30 flex flex-col items-center justify-center text-center gap-3 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
                  <Loader2 className="w-10 h-10 text-primary-400 animate-spin" />
                  <p className="text-sm text-primary-300 font-medium">{step || 'Processing...'}</p>
                  <p className="text-xs text-slate-500">This may take a few minutes depending on video length</p>
                </div>
              ) : (
-               <div className="aspect-video bg-surface-800/50 rounded-xl border-2 border-dashed border-white/10 flex items-center justify-center text-slate-500">
+               <div className="aspect-video bg-surface-800/50 rounded-xl border-2 border-dashed border-white/10 flex items-center justify-center text-slate-500 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
                  Preview will appear here after processing.
                </div>
              )}
@@ -405,14 +413,14 @@ export default function VideoUpload() {
 
           {/* Extracted Captions */}
           {status === 'done' && captions.length > 0 && (
-            <div className="p-6 rounded-2xl glass max-h-80 overflow-y-auto">
-              <h3 className="text-sm font-semibold text-slate-300 mb-4 sticky top-0 bg-surface-900/90 py-2 flex items-center justify-between">
+            <div className="p-6 rounded-2xl glass max-h-80 overflow-y-auto shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+              <h3 className="text-sm font-semibold text-slate-500 mb-4 sticky top-0 bg-surface-900/90 py-2 flex items-center justify-between rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
                 <span>Extracted Captions & Sign Gesture Mapping</span>
                 <span className="text-xs text-primary-400 font-normal">{captions.length} segments</span>
               </h3>
               <ul className="space-y-3">
                 {captions.map((cap, idx) => (
-                  <li key={idx} className="p-3 rounded-lg bg-surface-800 border border-white/5">
+                  <li key={idx} className="p-3 rounded-lg bg-surface-800 border border-white/5 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-xs font-mono text-primary-400">
                         [{cap.start_time || '—'} — {cap.end_time || '—'}]

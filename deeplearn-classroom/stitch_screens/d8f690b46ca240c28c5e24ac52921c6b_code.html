@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumina Classroom | Advanced Neural Architectures</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .emerald-glow {
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+        }
+        .purple-gradient {
+            background: linear-gradient(135deg, #6d28d9 0%, #10b981 100%);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+        @keyframes pulse-emerald {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+        .animate-pulse-emerald {
+            animation: pulse-emerald 2s infinite;
+        }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-tertiary-fixed": "#321300",
+                      "inverse-on-surface": "#332f39",
+                      "on-primary-fixed-variant": "#5b00c5",
+                      "on-secondary-container": "#00311f",
+                      "primary": "#d3bbff",
+                      "surface-container-lowest": "#100d16",
+                      "surface-dim": "#15121b",
+                      "on-primary-fixed": "#250059",
+                      "secondary": "#4edea3",
+                      "on-error-container": "#ffdad6",
+                      "error": "#ffb4ab",
+                      "primary-fixed": "#ebddff",
+                      "primary-container": "#6d28d9",
+                      "surface-variant": "#37333e",
+                      "on-tertiary-fixed-variant": "#743400",
+                      "on-secondary-fixed": "#002113",
+                      "on-error": "#690005",
+                      "surface-tint": "#d3bbff",
+                      "surface-container-low": "#1d1a24",
+                      "tertiary-fixed-dim": "#ffb68b",
+                      "surface-container-high": "#2c2833",
+                      "surface": "#15121b",
+                      "surface-container": "#221e28",
+                      "surface-bright": "#3c3742",
+                      "tertiary": "#ffb68b",
+                      "on-primary-container": "#dac5ff",
+                      "tertiary-container": "#8f4200",
+                      "on-tertiary-container": "#ffc19e",
+                      "inverse-surface": "#e8e0ee",
+                      "on-primary": "#3f008d",
+                      "on-surface-variant": "#ccc3d7",
+                      "on-tertiary": "#522300",
+                      "secondary-fixed": "#6ffbbe",
+                      "on-secondary": "#003824",
+                      "background": "#15121b",
+                      "outline-variant": "#4a4455",
+                      "on-background": "#e8e0ee",
+                      "error-container": "#93000a",
+                      "on-surface": "#e8e0ee",
+                      "on-secondary-fixed-variant": "#005236",
+                      "tertiary-fixed": "#ffdbc8",
+                      "secondary-container": "#00a572",
+                      "inverse-primary": "#7331df",
+                      "surface-container-highest": "#37333e",
+                      "primary-fixed-dim": "#d3bbff",
+                      "secondary-fixed-dim": "#4edea3",
+                      "outline": "#958da1"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "16px",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "base": "8px",
+                      "container-max": "1280px",
+                      "xl": "80px",
+                      "sm": "12px",
+                      "xs": "4px",
+                      "gutter": "24px",
+                      "md": "24px",
+                      "lg": "48px"
+              },
+              "fontFamily": {
+                      "display": ["Inter"],
+                      "body-md": ["Inter"],
+                      "h2": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "h1": ["Inter"],
+                      "label-sm": ["Inter"],
+                      "caption": ["Inter"]
+              }
+            }
+          }
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen overflow-x-hidden">
+<!-- TopNavBar (Shared Component) -->
+<header class="flex justify-between items-center px-gutter py-md w-full sticky top-0 z-50 bg-surface/10 backdrop-blur-md border-b border-white/15 shadow-sm">
+<div class="font-display text-h1 font-bold text-primary">Lumina Classroom</div>
+<nav class="hidden md:flex items-center gap-8">
+<a class="font-display text-body-lg text-secondary border-b-2 border-secondary pb-1 transition-colors" href="#">Classroom</a>
+<a class="font-display text-body-lg text-on-surface-variant hover:text-primary transition-colors" href="#">Curriculum</a>
+<a class="font-display text-body-lg text-on-surface-variant hover:text-primary transition-colors" href="#">Resources</a>
+<a class="font-display text-body-lg text-on-surface-variant hover:text-primary transition-colors" href="#">Analytics</a>
+</nav>
+<div class="flex items-center gap-6">
+<div class="relative flex items-center bg-white/5 rounded-full px-4 py-2 border border-white/10 group focus-within:border-primary-container transition-all">
+<span class="material-symbols-outlined text-on-surface-variant mr-2">search</span>
+<input class="bg-transparent border-none focus:ring-0 text-sm w-48 placeholder:text-outline" placeholder="Search knowledge base..." type="text"/>
+</div>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">notifications</button>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-primary transition-colors">settings</button>
+<img alt="Instructor Profile" class="w-10 h-10 rounded-full border-2 border-primary-container object-cover" data-alt="A professional instructor profile portrait in a high-end digital classroom environment. The subject is a woman with a confident expression, wearing modern academic attire. The background is softly blurred with deep charcoal and emerald accents, matching the sophisticated glassmorphism UI style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_CZuLi1HuLXTJM70vIgKAc7Lw6RtEsAiHJar8N4qT4JTIoLwXRRd83D9IqiftvKPmbp7Fa26ZG4wVkd2DBgetCPhKB74DGt5GfQlnl5AIpYtgCUqltfau2okZT3FPODULuyQOzGxVlVZk_TogEfwh6aRN6J7eDK2UdOKsWtQyPBFWRLYhVGSrbN0flpwoQ_F2OwI7mTC-po1HxeD49U4HIzpWHPOrf0DmgdX4tsEDyPYs2lNvXR6R7Xy9lim7OuKOcnEmL512jDE"/>
+</div>
+</header>
+<div class="flex max-w-[1280px] mx-auto min-h-[calc(100vh-80px)]">
+<!-- SideNavBar (Shared Component) -->
+<aside class="w-64 flex flex-col pt-8 border-r border-white/15 bg-surface/10 backdrop-blur-md">
+<div class="px-6 mb-8">
+<div class="flex items-center gap-3 mb-2">
+<div class="w-10 h-10 rounded-lg bg-primary-container flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary-container">psychology</span>
+</div>
+<div>
+<div class="font-display text-h2 font-bold text-primary leading-none">Advanced Physics</div>
+<div class="text-[10px] text-secondary flex items-center gap-1 mt-1">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse-emerald"></span>
+                            Section A • Live Now
+                        </div>
+</div>
+</div>
+<button class="w-full mt-4 py-2 px-4 rounded-lg bg-primary-container text-on-primary-container text-sm font-semibold hover:opacity-90 transition-all">Join Breakout</button>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-body-md text-body-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-4 bg-primary-container text-on-primary-container rounded-lg mx-2 px-4 py-3 transition-all" href="#">
+<span class="material-symbols-outlined">live_tv</span>
+<span class="font-body-md text-body-md">Live Sessions</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">menu_book</span>
+<span class="font-body-md text-body-md">Materials</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">quiz</span>
+<span class="font-body-md text-body-md">Assessments</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">history</span>
+<span class="font-body-md text-body-md">History</span>
+</a>
+</nav>
+<div class="p-6 border-t border-white/10">
+<a class="flex items-center gap-4 text-on-surface-variant hover:text-on-surface transition-all" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="text-sm">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 p-gutter grid grid-cols-1 lg:grid-cols-12 gap-gutter overflow-y-auto">
+<!-- Main Column -->
+<div class="lg:col-span-8 space-y-gutter">
+<!-- Video Player Container -->
+<div class="relative aspect-video rounded-xl overflow-hidden glass-panel group">
+<img alt="Lecture Main Stream" class="w-full h-full object-cover" data-alt="A high-definition 16:9 cinematic video frame of a futuristic lecture hall. Professor Elena Sterling is presenting complex neural architecture diagrams on a glowing holographic screen. The atmosphere is professional and high-tech, with deep charcoal shadows and vibrant emerald neon light accents flowing through the data visualizations." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAevLkLV3Sbi6qGN3Wl1HJ8En-ip3N3HqWnaRhtNLuZa9WKiBlNzCq783gHkxrDursH52nFcihzyt6VI3bgrdCDYLpf-URHzfobxLeddPiOS7BDIXACaQjB256JG4y30mQ47-d5P0s2WE4fNiI5mBjwPLXINlOGzLEGp5ffNLDidmFJxiS9Yt15JSsIMWu_J8zdGcXf02zL_bNNA2vcvAXgaqHRvA3Gwc8w_PcKF1AAzyaUx9DQ8b6YDKEvribdlGAhB7h6TFvuXTI"/>
+<!-- ASL Overlay -->
+<div class="absolute bottom-4 right-4 w-48 aspect-video rounded-lg overflow-hidden border-2 border-secondary/50 glass-panel shadow-2xl">
+<img alt="ASL Interpreter" class="w-full h-full object-cover" data-alt="A high-quality rectangular video insert showing a sign language interpreter. The interpreter is clearly visible against a neutral, dark professional background, signing with expressive clarity. The lighting is soft and focused, maintaining the futuristic aesthetic of the Lumina Classroom interface." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWDfd3ljsHNxtx5Efzq5HYSv5mGLYaelTxO7BKaYbhrsvy3A8lXTl6LLYKcr4aQ5bgMG88zAbTD2nzxlFk2W45iEG35qCdiUkwvS0vjAFC_Sfv_bYNRCDF7hcGU5Tgd1YsNwQzJEJ276YNI_Knr5wBCEwj-rS_TDUT_LoNz2NMlKdsHftuCifNX6QlvuZ-xzdBlitjbGenFfCAKfwAJUTxf9aGclNtR7aTeSHodigO7ItSHEtp6mLEJasvuqQZBZ-8QKjKu-Xz29A"/>
+<div class="absolute top-2 left-2 bg-secondary text-on-secondary px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">ASL LIVE</div>
+</div>
+<!-- Video Controls Overlay (Glass) -->
+<div class="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex items-center gap-4">
+<button class="material-symbols-outlined text-white">play_arrow</button>
+<div class="flex-1 h-1 bg-white/20 rounded-full relative overflow-hidden">
+<div class="absolute inset-y-0 left-0 bg-secondary w-2/3 emerald-glow"></div>
+</div>
+<span class="text-xs text-white">45:20 / 1:30:00</span>
+<button class="material-symbols-outlined text-white">volume_up</button>
+<button class="material-symbols-outlined text-white">fullscreen</button>
+</div>
+</div>
+</div>
+<!-- Transcript Section -->
+<div class="glass-panel p-md rounded-xl max-h-48 overflow-hidden flex flex-col">
+<div class="flex justify-between items-center mb-4">
+<h3 class="font-display font-semibold text-primary flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">description</span>
+                            Live Transcript
+                        </h3>
+<span class="text-[10px] px-2 py-1 bg-white/5 rounded-full text-on-surface-variant uppercase tracking-widest">Auto-Scroll Active</span>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar pr-4 space-y-4">
+<p class="text-on-surface-variant leading-relaxed">
+<span class="text-secondary font-bold mr-2">[45:10]</span>
+                            "When we look at the weight distribution in the third hidden layer, the sparsity becomes a feature, not a bug. This leads us to the concept of gradient clipping in large-scale models..."
+                        </p>
+<p class="text-on-surface leading-relaxed font-medium">
+<span class="text-secondary font-bold mr-2">[45:18]</span>
+                            "If you observe the current diagram, the emerald paths represent the high-confidence activation functions. Notice how they bypass the redundant nodes to preserve computational energy."
+                        </p>
+</div>
+</div>
+<!-- Quick Assessment Section -->
+<div class="glass-panel p-md rounded-xl">
+<div class="flex items-center justify-between mb-6">
+<h3 class="font-display font-semibold text-primary">Quick Check: Concept Retrieval</h3>
+<div class="text-xs text-on-surface-variant">Question 3 of 5</div>
+</div>
+<div class="space-y-4">
+<p class="text-lg font-medium mb-4">What is the primary benefit of the 'Sparsity' feature discussed in the current segment?</p>
+<div class="grid grid-cols-1 gap-3">
+<button class="w-full text-left p-4 rounded-lg border border-white/10 hover:bg-white/5 transition-all flex justify-between items-center group">
+<span>A. Increases total computational power consumption</span>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 text-outline">radio_button_unchecked</span>
+</button>
+<button class="w-full text-left p-4 rounded-lg border-2 border-secondary bg-secondary/10 emerald-glow transition-all flex justify-between items-center">
+<span class="text-on-surface">B. Minimizes redundant node activation and preserves energy</span>
+<span class="material-symbols-outlined text-secondary">check_circle</span>
+</button>
+<button class="w-full text-left p-4 rounded-lg border border-white/10 hover:bg-white/5 transition-all flex justify-between items-center group">
+<span>C. Reduces the overall accuracy of the neural model</span>
+<span class="material-symbols-outlined opacity-0 group-hover:opacity-100 text-outline">radio_button_unchecked</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Sidebar -->
+<div class="lg:col-span-4 space-y-gutter">
+<!-- Session Info Card -->
+<div class="glass-panel p-md rounded-xl">
+<div class="mb-4">
+<h2 class="text-h2 font-bold text-primary mb-1">Advanced Neural Architectures</h2>
+<p class="text-on-surface-variant text-sm">Instructor: Prof. Elena Sterling</p>
+</div>
+<div class="flex items-center gap-4 pt-4 border-t border-white/10">
+<div class="flex flex-col">
+<span class="text-[10px] text-outline uppercase">Duration</span>
+<span class="text-sm font-medium">1:30:00</span>
+</div>
+<div class="flex flex-col border-l border-white/10 pl-4">
+<span class="text-[10px] text-outline uppercase">Learners</span>
+<span class="text-sm font-medium">1,248 Online</span>
+</div>
+</div>
+</div>
+<!-- Live Engagement & Behavior -->
+<div class="grid grid-cols-2 gap-4">
+<div class="glass-panel p-4 rounded-xl flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="text-[10px] text-outline uppercase">Engagement</span>
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse-emerald"></span>
+</div>
+<div class="mt-4">
+<div class="text-2xl font-bold text-secondary">94%</div>
+<div class="text-[10px] text-on-surface-variant">Active Participation</div>
+</div>
+</div>
+<div class="glass-panel p-4 rounded-xl">
+<span class="text-[10px] text-outline uppercase">Focus Level</span>
+<div class="mt-4 flex items-end gap-1 h-10">
+<div class="flex-1 bg-secondary/20 rounded-t h-4"></div>
+<div class="flex-1 bg-secondary/40 rounded-t h-6"></div>
+<div class="flex-1 bg-secondary/60 rounded-t h-8"></div>
+<div class="flex-1 bg-secondary rounded-t h-10 emerald-glow"></div>
+<div class="flex-1 bg-secondary/80 rounded-t h-7"></div>
+</div>
+</div>
+</div>
+<!-- Class Chat -->
+<div class="glass-panel rounded-xl flex flex-col h-[400px]">
+<div class="p-4 border-b border-white/10 flex items-center justify-between">
+<h3 class="font-semibold text-sm">Class Chat</h3>
+<span class="text-[10px] text-on-surface-variant">12 new messages</span>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-4">
+<div class="flex gap-3">
+<img alt="Avatar" class="w-8 h-8 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuANgqSkjSKa4Eh-4IXO_fMuOx7bJB7ESme9knXj-ockCCtKhRxQM-PQBUOMdZC8_jo0aIkeAtf7O8iLqrIRoVOfdhmNLkRZBC_i14K4Wni-t7Eg7MLeR2KBUlClYy_tGB4xnwg7tBBID3W_hUKn4qB-kLEz2YqU7eoHKulvIDJMAMOlao2vdHnpq8wohpMPVSu4UiEz8wlI5wzQKDZCFCkXOuIDU2ec39g2Aqq2PPPrBcd3l2s_3wlHCWtNVn8RAVbCdtU2bF6hsts"/>
+<div class="bg-white/5 p-3 rounded-lg rounded-tl-none">
+<div class="text-[10px] font-bold text-primary mb-1">Julian D.</div>
+<div class="text-sm text-on-surface-variant">The sparsity concept is finally clicking. Great visual aid!</div>
+</div>
+</div>
+<div class="flex gap-3 justify-end">
+<div class="bg-primary-container/20 border border-primary-container/30 p-3 rounded-lg rounded-tr-none text-right">
+<div class="text-[10px] font-bold text-primary mb-1">You</div>
+<div class="text-sm text-on-surface">Agreed, the ASL interpreter is also doing a fantastic job with technical terms.</div>
+</div>
+</div>
+<div class="flex gap-3">
+<img alt="Avatar" class="w-8 h-8 rounded-full" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBtpb1LvI_4Lho8NJ11n9WsNAdEjNqm2YPKv-_x4a0NI-SjxhIj4KfppLOyWhgKdINRIlLS7qaz-ubsUGHZ-oFZvcnTJoCTC5iDLA1s8z1WunWfv4zUoc4ONkcpHAFZ_bzGvhqkcqI1RF83BCq0AsZTmsBHKR_1k-YYuwCSGDw2qwTZpkioZnHpE1Qojr3H2qrtXqikeClBsyBb_pRjVshGBmtjHqnhhivjzrAI2rNspYEt76iRhN0OHiKD5DJs8LVVTPEneqnbwQ0"/>
+<div class="bg-white/5 p-3 rounded-lg rounded-tl-none">
+<div class="text-[10px] font-bold text-primary mb-1">Amara M.</div>
+<div class="text-sm text-on-surface-variant">Could someone clarify the weight distribution part again?</div>
+</div>
+</div>
+</div>
+<div class="p-4 border-t border-white/10">
+<div class="relative flex items-center">
+<input class="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-sm focus:ring-1 focus:ring-secondary transition-all pr-10" placeholder="Type a message..." type="text"/>
+<button class="absolute right-2 material-symbols-outlined text-secondary">send</button>
+</div>
+</div>
+</div>
+<!-- Accessibility Button -->
+<button class="w-full purple-gradient glass-panel p-4 rounded-xl flex items-center justify-center gap-3 group hover:scale-[1.02] transition-transform duration-300">
+<span class="material-symbols-outlined text-white text-2xl" style="font-variation-settings: 'FILL' 1;">sign_language</span>
+<span class="font-display font-bold text-white tracking-wide">Use Sign Language</span>
+</button>
+</div>
+</main>
+</div>
+</body></html>

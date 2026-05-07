@@ -153,6 +153,47 @@ CREATE TABLE video_views (
     FOREIGN KEY (video_id) REFERENCES videos(video_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ── Live Sessions ──────────────────────────────────────────
+CREATE TABLE live_sessions (
+    session_id     VARCHAR(64) PRIMARY KEY,
+    teacher_id     INT NOT NULL,
+    course_id      INT NOT NULL,
+    start_time     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    end_time       DATETIME,
+    status         ENUM('live', 'ended') DEFAULT 'live',
+    FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ── Recordings ─────────────────────────────────────────────
+CREATE TABLE recordings (
+    recording_id        INT AUTO_INCREMENT PRIMARY KEY,
+    session_id          VARCHAR(64) NOT NULL,
+    teacher_id          INT NOT NULL,
+    course_id           INT NOT NULL,
+    file_path           VARCHAR(512) NOT NULL,
+    thumbnail_path      VARCHAR(512),
+    duration            DECIMAL(8,2) DEFAULT 0.0,
+    recording_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    participants_count  INT DEFAULT 0,
+    status              ENUM('processing', 'processed', 'failed') DEFAULT 'processing',
+    FOREIGN KEY (session_id) REFERENCES live_sessions(session_id) ON DELETE CASCADE,
+    FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+-- ── Quiz Scores ─────────────────────────────────────────────
+CREATE TABLE quiz_scores (
+    score_id      INT AUTO_INCREMENT PRIMARY KEY,
+    student_id    INT NOT NULL,
+    recording_id  INT NOT NULL,
+    score         DECIMAL(5,2) DEFAULT 0.00,
+    passed        BOOLEAN DEFAULT FALSE,
+    taken_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (recording_id) REFERENCES recordings(recording_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ── Indexes for common queries ────────────────────────────
 CREATE INDEX idx_perf_student       ON performance(student_id);
 CREATE INDEX idx_perf_activity      ON performance(activity_id);

@@ -13,18 +13,18 @@ export default function VisualAlerts() {
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Visual Alerts Dashboard">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-white flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
             <Bell className="w-8 h-8 text-primary-400" aria-hidden="true" />
             Visual Alerts
           </h1>
-          <p className="text-slate-400 mt-1">Color-coded, non-auditory notifications for classroom events.</p>
+          <p className="text-slate-600 mt-1">Color-coded, non-auditory notifications for classroom events.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Controls */}
-        <div className="p-6 rounded-2xl glass">
-          <h2 className="text-lg font-semibold text-white mb-6">Test Alert Types</h2>
+        <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+          <h2 className="text-lg font-semibold text-slate-800 mb-6">Test Alert Types</h2>
           
           <div className="space-y-4">
             <button 
@@ -77,8 +77,8 @@ export default function VisualAlerts() {
 
         {/* Live Display Area */}
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl glass min-h-[300px]">
-            <h2 className="text-lg font-semibold text-white mb-4">Alert Display Zone</h2>
+          <div className="p-6 rounded-2xl glass min-h-[300px] shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+            <h2 className="text-lg font-semibold text-slate-800 mb-4">Alert Display Zone</h2>
             
             <div className="h-full flex flex-col gap-4 relative">
               <VisualAlertBanner 
