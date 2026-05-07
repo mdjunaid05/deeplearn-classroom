@@ -58,7 +58,7 @@ def student_dashboard():
 
     # Behaviour history
     behaviour_history = student_data[["activity_id", "behaviour_label",
-                                       "idle_time", "chat_count"]].to_dict("records")
+                                       "idle_time", "chat_count", "response_speed", "clicks", "session_time"]].to_dict("records")
 
     # Current stats
     avg_score = float(student_data["quiz_score"].mean())
