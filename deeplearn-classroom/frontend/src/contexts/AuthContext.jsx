@@ -38,13 +38,18 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: u };
     }
 
-    // Otherwise, call the login API
+    // Otherwise, call the login API with a 10-second timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       const data = await res.json();
 
       if (res.ok && data.token) {
@@ -61,28 +66,14 @@ export const AuthProvider = ({ children }) => {
         return { success: true, user: userData };
       }
 
-      return { success: false, error: data.error || 'Login failed' };
+      return { success: false, error: data.error || 'Login failed. Please check your credentials.' };
     } catch (err) {
-      // Offline / backend unreachable — demo-account fallback
-      console.warn('Backend unreachable, trying demo fallback…');
-      const { email, password, role } = credentials;
-
-      const demoAccounts = {
-        'student@deeplearn.edu': { password: 'Student123', name: 'Demo Student', role: 'student', user_id: 1001 },
-        'teacher@deeplearn.edu': { password: 'Teacher123', name: 'Demo Teacher', role: 'teacher', user_id: 2001 },
-      };
-
-      const demo = demoAccounts[email];
-      if (demo && demo.password === password && demo.role === role) {
-        const userData = { user_id: demo.user_id, email, name: demo.name, role: demo.role };
-        setUser(userData);
-        setToken('demo-token');
-        localStorage.setItem('auth_token', 'demo-token');
-        localStorage.setItem('user', JSON.stringify(userData));
-        return { success: true, user: userData };
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        return { success: false, error: 'Server is taking too long to respond. Please try again in a moment.' };
       }
-
-      return { success: false, error: 'Cannot reach server. Use demo accounts: student@deeplearn.edu / Student123' };
+      console.error('Login error:', err);
+      return { success: false, error: 'Cannot reach the server. Please check your connection and try again.' };
     }
   }, []);
 
