@@ -22,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { loadVideo, loadCaptions }    from '../utils/db';
 import { useVideoTranscript }     from '../utils/useVideoTranscript';
 import { useQuizGenerator }       from '../utils/useQuizGenerator';
+import { useSignLanguage }        from '../utils/useSignLanguage';
 import CaptionOverlay             from '../components/CaptionOverlay';
 import VisualAlertBanner          from '../components/VisualAlertBanner';
 import SignAvatarOverlay          from '../components/SignAvatarOverlay';
@@ -242,26 +243,21 @@ export default function VirtualClassroom() {
     setChatInput('');
   };
 
-  // ── Derive current word for avatar gesture by estimating based on video time ────────
-  let avatarWord = '';
-  if (isPlaying && currentCaption) {
-    const activeCap = savedCaptions.find(c => {
-      const start = c.start ?? c.start_time ?? 0;
-      const end = c.end ?? c.end_time ?? 0;
-      return videoTime >= start && videoTime <= end;
-    });
-    if (activeCap) {
-      const words = activeCap.text.trim().split(/\s+/);
-      const start = activeCap.start ?? activeCap.start_time ?? 0;
-      const end = activeCap.end ?? activeCap.end_time ?? 0;
-      const duration = (end - start) || 1;
-      const timePerWord = duration / words.length;
-      let wordIdx = Math.floor((videoTime - start) / timePerWord);
-      if (wordIdx < 0) wordIdx = 0;
-      if (wordIdx >= words.length) wordIdx = words.length - 1;
-      avatarWord = words[wordIdx].replace(/[^a-zA-Z]/g, '');
+  // ── Sign Language Interpretation via AI hook ─────────────────────────────
+  const {
+    currentSign,
+    signQueue,
+    isProcessing: signProcessing,
+    signCount,
+    updateFromLiveWord,
+  } = useSignLanguage(videoRef, savedCaptions, signLangEnabled, playbackSpeed);
+
+  // Live word fallback (when no savedCaptions, use currentCaption directly)
+  useEffect(() => {
+    if (savedCaptions.length === 0 && currentCaption) {
+      updateFromLiveWord(currentCaption);
     }
-  }
+  }, [currentCaption, savedCaptions.length, updateFromLiveWord]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -387,19 +383,14 @@ export default function VirtualClassroom() {
 
             {/* ── Sign Language Avatar — right of video ── */}
             {signLangEnabled && (
-              <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                <p className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold">
-                  ASL Interpreter
-                </p>
+              <div className="flex-shrink-0 sign-panel-enter">
                 <SignAvatarOverlay
-                  currentWord={avatarWord}
+                  currentSign={currentSign}
                   isActive={isPlaying}
+                  signQueue={signQueue}
+                  isProcessing={signProcessing}
+                  signCount={signCount}
                 />
-                {transcript.length > 0 && (
-                  <p className="text-[10px] text-emerald-400/60 text-center max-w-[140px] leading-tight">
-                    Signing based on live transcript
-                  </p>
-                )}
               </div>
             )}
           </div>
@@ -421,11 +412,23 @@ export default function VirtualClassroom() {
             </button>
             
             <button 
+              id="toggle-sign-language"
               onClick={() => setSignLangEnabled(!signLangEnabled)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${signLangEnabled ? 'bg-primary-500/10 text-primary-600 border border-primary-500/20' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${
+                signLangEnabled
+                  ? 'bg-cyan-500/10 text-cyan-600 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+              aria-pressed={signLangEnabled}
+              aria-label="Toggle sign language interpreter"
             >
               <HandMetal className="w-4 h-4" />
               Sign Language
+              {signLangEnabled && signCount > 0 && (
+                <span className="ml-1 text-[10px] font-bold bg-cyan-500/20 text-cyan-600 px-1.5 py-0.5 rounded-full">
+                  {signCount}
+                </span>
+              )}
             </button>
             
             <div className="flex items-center gap-2 ml-auto">

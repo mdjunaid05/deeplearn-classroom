@@ -3,28 +3,82 @@
  * -------------------
  * NLP module to convert English text into ASL-like grammar sequences.
  * Handles sentence splitting, stop-word removal, and keyword recognition.
+ *
+ * Extended with 150+ sign mappings across academic, educational and general vocabulary.
  */
 
-const STOP_WORDS = new Set(["a", "an", "the", "is", "are", "am", "be", "to", "in", "on", "at", "it"]);
+const STOP_WORDS = new Set([
+  'a', 'an', 'the', 'is', 'are', 'am', 'be', 'to', 'in', 'on', 'at',
+  'it', 'of', 'and', 'or', 'but', 'if', 'as', 'by', 'for', 'with',
+  'this', 'that', 'these', 'those', 'was', 'were', 'has', 'have', 'had',
+  'will', 'would', 'could', 'should', 'may', 'might', 'shall', 'can',
+  'do', 'does', 'did', 'its', 'his', 'her', 'our', 'their', 'we', 'they',
+  'i', 'you', 'he', 'she', 'us', 'them', 'my', 'your',
+]);
 
-// Simple keyword mapping to gesture categories used by our avatar
-const ASL_KEYWORD_MAP = {
-  // Greetings
-  hello: 'wave', hi: 'wave', welcome: 'wave',
-  // Affirmation
-  yes: 'yes', correct: 'yes', right: 'yes', good: 'yes', great: 'yes', okay: 'yes',
-  // Negation
-  no: 'no', wrong: 'no', not: 'no', never: 'no', bad: 'no',
-  // Numbers
-  one: 'count', two: 'count', three: 'count', four: 'count', five: 'count', first: 'count',
-  // Explanation / Action
-  because: 'explain', means: 'explain', explain: 'explain', show: 'explain', help: 'explain', make: 'explain',
-  // Question
-  what: 'question', which: 'question', how: 'question', why: 'question', who: 'question', where: 'question',
-  // Cognition
-  think: 'think', understand: 'think', know: 'think', remember: 'think', learn: 'think',
-  // Attention
-  look: 'point', see: 'point', focus: 'point', there: 'point', attention: 'point'
+// Comprehensive keyword → gesture category mapping
+export const ASL_KEYWORD_MAP = {
+  // ── Greetings / social ─────────────────────────────────────────────────
+  hello: 'wave',     hi: 'wave',        welcome: 'wave',    goodbye: 'wave',
+  bye: 'wave',       greet: 'wave',     morning: 'wave',    evening: 'wave',
+
+  // ── Affirmation ────────────────────────────────────────────────────────
+  yes: 'yes',        correct: 'yes',    right: 'yes',       good: 'yes',
+  great: 'yes',      okay: 'yes',       fine: 'yes',        agree: 'yes',
+  true: 'yes',       sure: 'yes',       exactly: 'yes',     perfect: 'yes',
+  excellent: 'yes',  well: 'yes',       done: 'yes',        complete: 'yes',
+
+  // ── Negation ───────────────────────────────────────────────────────────
+  no: 'no',          wrong: 'no',       not: 'no',          never: 'no',
+  bad: 'no',         false: 'no',       incorrect: 'no',    fail: 'no',
+  error: 'no',       stop: 'no',        avoid: 'no',        reject: 'no',
+
+  // ── Numbers / quantity ─────────────────────────────────────────────────
+  one: 'count',      two: 'count',      three: 'count',     four: 'count',
+  five: 'count',     six: 'count',      seven: 'count',     eight: 'count',
+  nine: 'count',     ten: 'count',      first: 'count',     second: 'count',
+  third: 'count',    many: 'count',     few: 'count',       several: 'count',
+  multiple: 'count', number: 'count',   count: 'count',     total: 'count',
+
+  // ── Explanation / demonstration ────────────────────────────────────────
+  because: 'explain',  means: 'explain',  explain: 'explain', show: 'explain',
+  help: 'explain',     make: 'explain',   create: 'explain',  build: 'explain',
+  process: 'explain',  define: 'explain', describe: 'explain', demonstrate: 'explain',
+  example: 'explain',  instance: 'explain', case: 'explain',  result: 'explain',
+  output: 'explain',   produce: 'explain',  represent: 'explain',
+
+  // ── Question ───────────────────────────────────────────────────────────
+  what: 'question',  which: 'question', how: 'question',    why: 'question',
+  who: 'question',   where: 'question', when: 'question',   whether: 'question',
+
+  // ── Cognition / learning ───────────────────────────────────────────────
+  think: 'think',    understand: 'think', know: 'think',    remember: 'think',
+  learn: 'think',    study: 'think',      analyze: 'think', consider: 'think',
+  recognize: 'think', identify: 'think',  classify: 'think', evaluate: 'think',
+  comprehend: 'think', grasp: 'think',    realize: 'think',  discover: 'think',
+
+  // ── Attention / direction ──────────────────────────────────────────────
+  look: 'point',     see: 'point',      focus: 'point',     there: 'point',
+  attention: 'point', here: 'point',    observe: 'point',   notice: 'point',
+  watch: 'point',    view: 'point',     find: 'point',      locate: 'point',
+
+  // ── Math / science ─────────────────────────────────────────────────────
+  calculate: 'math', compute: 'math',   solve: 'math',      equation: 'math',
+  formula: 'math',   algorithm: 'math', function: 'math',   matrix: 'math',
+  vector: 'math',    variable: 'math',  value: 'math',      data: 'math',
+  model: 'math',     train: 'math',     predict: 'math',    classify: 'math',
+  network: 'math',   layer: 'math',     node: 'math',       weight: 'math',
+
+  // ── Movement / action ──────────────────────────────────────────────────
+  move: 'action',    go: 'action',      run: 'action',      start: 'action',
+  begin: 'action',   open: 'action',    close: 'action',    apply: 'action',
+  use: 'action',     set: 'action',     put: 'action',      take: 'action',
+  give: 'action',    send: 'action',    receive: 'action',  connect: 'action',
+
+  // ── Important / urgent ─────────────────────────────────────────────────
+  important: 'alert', key: 'alert',     critical: 'alert',  note: 'alert',
+  warning: 'alert',   remember: 'alert', must: 'alert',     always: 'alert',
+  never: 'alert',     careful: 'alert',  significant: 'alert',
 };
 
 /**
@@ -35,18 +89,39 @@ const ASL_KEYWORD_MAP = {
 export function translateToASL(text) {
   if (!text) return [];
 
-  // 1. Sentence splitting and tokenization
+  // 1. Tokenize and normalize
   const tokens = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
 
-  // 2. Grammar simplification (remove stop words)
+  // 2. Grammar simplification (remove stop words, keep content words)
   const filteredTokens = tokens.filter(word => word && !STOP_WORDS.has(word));
 
   // 3. Keyword recognition and mapping
   const sequence = filteredTokens.map(word => {
-    // Map to known gesture or default to 'talk' (generic signing)
     const gesture = ASL_KEYWORD_MAP[word] || 'talk';
     return { word: word.toUpperCase(), gesture };
   });
 
   return sequence;
+}
+
+/**
+ * Returns the gesture category label for display.
+ */
+export function getGestureLabel(gesture) {
+  const labels = {
+    wave:     'GREETING',
+    yes:      'AFFIRMATION',
+    no:       'NEGATION',
+    count:    'NUMBER',
+    explain:  'EXPLAIN',
+    question: 'QUESTION',
+    think:    'COGNITION',
+    point:    'ATTENTION',
+    math:     'TECHNICAL',
+    action:   'ACTION',
+    alert:    'IMPORTANT',
+    talk:     'SIGNING',
+    idle:     'READY',
+  };
+  return labels[gesture] || 'SIGNING';
 }

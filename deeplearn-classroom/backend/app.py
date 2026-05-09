@@ -24,6 +24,7 @@ def create_app():
     from routes.video_processing import video_bp
     from routes.recordings import recordings_bp
     from routes.behaviour_analytics import behaviour_analytics_bp
+    from routes.sign_language import sign_language_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(predict_bp)
@@ -33,6 +34,7 @@ def create_app():
     app.register_blueprint(video_bp)
     app.register_blueprint(recordings_bp)
     app.register_blueprint(behaviour_analytics_bp)
+    app.register_blueprint(sign_language_bp)
 
     # ── Health check ──
     @app.route("/", methods=["GET"])
@@ -53,6 +55,9 @@ def create_app():
                 "POST /upload-video",
                 "GET  /video-status",
                 "GET  /download-signed-video",
+                "POST /sign-data",
+                "GET  /sign-data/<recording_id>",
+                "POST /process-signs",
             ],
         })
 
