@@ -59,8 +59,8 @@ def main():
 
     # ── 7. Evaluate ──
     loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
-    print(f"\n[✓] Test Accuracy: {accuracy:.4f}")
-    print(f"[✓] Test Loss:     {loss:.4f}")
+    print(f"\n[v] Test Accuracy: {accuracy:.4f}")
+    print(f"[v] Test Loss:     {loss:.4f}")
 
     # ── 8. Save model & scaler ──
     save_dir = os.path.join(os.path.dirname(__file__), "..", "saved_models")
@@ -68,18 +68,18 @@ def main():
 
     model_path = os.path.join(save_dir, "adaptive_model.h5")
     model.save(model_path)
-    print(f"[✓] Model saved: {model_path}")
+    print(f"[v] Model saved: {model_path}")
 
     scaler_path = os.path.join(save_dir, "adaptive_scaler.pkl")
     with open(scaler_path, "wb") as f:
         pickle.dump(scaler, f)
-    print(f"[✓] Scaler saved: {scaler_path}")
+    print(f"[v] Scaler saved: {scaler_path}")
 
     # Save label encoder too
     le_path = os.path.join(save_dir, "adaptive_label_encoder.pkl")
     with open(le_path, "wb") as f:
         pickle.dump(le, f)
-    print(f"[✓] Label encoder saved: {le_path}")
+    print(f"[v] Label encoder saved: {le_path}")
 
 
 if __name__ == "__main__":

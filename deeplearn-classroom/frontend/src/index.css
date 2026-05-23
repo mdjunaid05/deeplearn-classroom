@@ -161,3 +161,29 @@ body {
 .sign-panel-enter {
   animation: slide-in-right 0.35s ease-out;
 }
+
+/* Fullscreen video container */
+.fullscreen-video-container {
+  display: flex;
+  flex-direction: column;
+  background: #000;
+  border-radius: 0 !important;
+  border: none !important;
+}
+.fullscreen-video-container video {
+  flex: 1;
+  min-height: 0;
+}
+/* Show the custom fullscreen button always when in fullscreen */
+.fullscreen-video-container .group:hover button,
+.fullscreen-video-container button[aria-label*="fullscreen"] {
+  opacity: 1 !important;
+}
+
+/* Hide the native video fullscreen button so users use our custom one */
+video::-webkit-media-controls-fullscreen-button {
+  display: none !important;
+}
+video::-moz-full-screen-button {
+  display: none !important;
+}

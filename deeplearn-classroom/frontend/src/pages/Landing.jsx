@@ -79,7 +79,7 @@ export default function Landing() {
           </div>
 
           <h1 className="text-5xl sm:text-6xl lg:text-7xl font-display font-extrabold mb-6 leading-tight animate-fade-in font-bold text-slate-800">
-            <span className="text-white">Smart Virtual</span>
+            <span>Smart Virtual</span>
             <br />
             <span className="gradient-text">Classroom System</span>
           </h1>
@@ -108,7 +108,7 @@ export default function Landing() {
               to="/teacher"
               id="hero-teacher-btn"
               className="group flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold
-  text-slate-200 glass hover:bg-white/10
+  text-slate-700 hover:text-primary-600 glass hover:bg-white/10
  transition-all duration-300 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400"
             >
               <Users className="w-5 h-5" />

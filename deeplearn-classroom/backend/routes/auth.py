@@ -72,9 +72,10 @@ def verify_password(password: str, stored_hash: str) -> bool:
     """Verify a password against a stored hash."""
     if "$" not in stored_hash:
         # Legacy plain-text comparison (demo accounts)
-        return password == stored_hash
+        return hmac.compare_digest(password, stored_hash)
     salt, hashed = stored_hash.split("$", 1)
-    return hashlib.sha256(f"{salt}:{password}".encode()).hexdigest() == hashed
+    computed_hash = hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
+    return hmac.compare_digest(computed_hash, hashed)
 
 # ── Validation ───────────────────────────────────────────────────────────────
 

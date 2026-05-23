@@ -29,7 +29,7 @@ def main():
     os.makedirs(save_dir, exist_ok=True)
     model_path = os.path.join(save_dir, "lip_reading_model.h5")
     model.save(model_path)
-    print(f"[✓] Lip reading model saved: {model_path}")
+    print(f"[OK] Lip reading model saved: {model_path}")
 
 if __name__ == "__main__":
     main()

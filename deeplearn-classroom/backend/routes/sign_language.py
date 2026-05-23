@@ -20,7 +20,8 @@ SIGN_DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'recordings')
 
 def _sign_data_path(recording_id: str) -> str:
     """Return the filesystem path for a recording's sign data file."""
-    return os.path.join(SIGN_DATA_DIR, f"signs_{recording_id}.json")
+    from werkzeug.utils import secure_filename
+    return os.path.join(SIGN_DATA_DIR, f"signs_{secure_filename(recording_id)}.json")
 
 
 # ---------------------------------------------------------------------------

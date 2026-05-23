@@ -89,7 +89,7 @@ def main():
 
     df.to_csv(output_path, index=False)
 
-    print(f"[✓] Dataset generated: {output_path}")
+    print(f"[v] Dataset generated: {output_path}")
     print(f"    Shape: {df.shape}")
     print(f"\n    Difficulty distribution:\n{df['difficulty_label'].value_counts().to_string()}")
     print(f"\n    Behaviour distribution:\n{df['behaviour_label'].value_counts().to_string()}")

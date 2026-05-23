@@ -10,12 +10,12 @@
  *   - Sidebar: engagement, behaviour, chat, session info
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Monitor, CheckCircle, XCircle, Clock,
   MessageSquare, Activity, Send, HandMetal, Mic, MicOff,
   Video, Play, Download, Trash2, Search, Calendar, Lock, AlertCircle,
-  Settings, Type, FastForward, Eye, EyeOff
+  Settings, Type, FastForward, Eye, EyeOff, Maximize, Minimize
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -72,6 +72,7 @@ const formatTime = (seconds) => {
 export default function VirtualClassroom() {
   // ── Video state ───────────────────────────────────────────────────────────
   const videoRef      = useRef(null);
+  const videoContainerRef = useRef(null);
   const [videoSrc,    setVideoSrc]    = useState('https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4');
   const [videoTitle,  setVideoTitle]  = useState('Deep Learning Fundamentals');
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
@@ -79,6 +80,7 @@ export default function VirtualClassroom() {
   const [videoTime,   setVideoTime]   = useState(0);
   const [videoEnded,  setVideoEnded]  = useState(false);
   const [activeRecording, setActiveRecording] = useState(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // ── Accessibility State ───────────────────────────────────────────────────
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
@@ -193,6 +195,27 @@ export default function VirtualClassroom() {
       videoRef.current.playbackRate = playbackSpeed;
     }
   }, [playbackSpeed, videoSrc]);
+
+  // ── Fullscreen toggle ─────────────────────────────────────────────────────
+  const toggleFullscreen = useCallback(() => {
+    const container = videoContainerRef.current;
+    if (!container) return;
+
+    if (!document.fullscreenElement) {
+      container.requestFullscreen().catch(err =>
+        console.warn('[Classroom] Fullscreen request failed:', err)
+      );
+    } else {
+      document.exitFullscreen();
+    }
+  }, []);
+
+  // Track fullscreen state changes
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
 
   // ── Session timer ─────────────────────────────────────────────────────────
   useEffect(() => {
@@ -317,8 +340,11 @@ export default function VirtualClassroom() {
           <div className="flex flex-col xl:flex-row gap-4 items-start">
 
             {/* Video Player */}
-            <div className="flex-1 rounded-2xl glass overflow-hidden shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-              <div className="aspect-video bg-black relative group">
+            <div
+              ref={videoContainerRef}
+              className={`flex-1 rounded-2xl glass overflow-hidden shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300 ${isFullscreen ? 'fullscreen-video-container' : ''}`}
+            >
+              <div className={`bg-black relative group ${isFullscreen ? 'h-full' : 'aspect-video'}`}>
               {/* 
                 BUGFIX: Always render <video> so videoRef.current is populated
                 immediately on mount. Previously wrapped in {isVideoLoaded && ...}
@@ -344,8 +370,8 @@ export default function VirtualClassroom() {
 
                 {/* Title overlay on hover */}
                 <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <h3 className="text-lg font-bold text-slate-800">{videoTitle}</h3>
-                  <p className="text-xs text-slate-500">
+                  <h3 className="text-lg font-bold text-white">{videoTitle}</h3>
+                  <p className="text-xs text-slate-300">
                     {videoTitle === 'Deep Learning Fundamentals'
                       ? 'Lecture 5: Neural Network Architectures'
                       : 'Custom Uploaded Content'}
@@ -357,13 +383,36 @@ export default function VirtualClassroom() {
                   <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center pointer-events-none">
                     <CheckCircle className="w-16 h-16 text-emerald-400 mb-3" />
                     <p className="text-white font-semibold text-lg">Video Complete</p>
-                    <p className="text-slate-600 text-sm mt-1">Quiz generated below ↓</p>
+                    <p className="text-slate-400 text-sm mt-1">Quiz generated below</p>
                   </div>
                 )}
+
+                {/* ── Caption overlay — only visible in fullscreen ── */}
+                {captionsEnabled && isFullscreen && (
+                  <div className="absolute left-0 right-0 bottom-16 z-10 pointer-events-none px-4">
+                    <CaptionOverlay
+                      transcript={transcript}
+                      currentCaption={currentCaption}
+                      isActive={isPlaying}
+                      usingSimulation={usingSimulation}
+                      captionSize={isFullscreen ? 'large' : captionSize}
+                    />
+                  </div>
+                )}
+
+                {/* Custom fullscreen toggle button */}
+                <button
+                  onClick={toggleFullscreen}
+                  className="absolute top-3 right-3 z-20 p-2 rounded-lg bg-black/60 hover:bg-black/80 text-white opacity-70 hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
+                  aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                  title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen with captions'}
+                >
+                  {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
+                </button>
               </div>
 
-              {/* ── Captions — below the video, inside the same card ── */}
-              {captionsEnabled && (
+              {/* ── Captions — below video in normal mode ── */}
+              {captionsEnabled && !isFullscreen && (
                 <div className="p-3 border-t border-white/5">
                   <CaptionOverlay
                     transcript={transcript}

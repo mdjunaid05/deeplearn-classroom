@@ -27,7 +27,7 @@ def main():
     os.makedirs(save_dir, exist_ok=True)
     model_path = os.path.join(save_dir, "sign_overlay_model.h5")
     model.save(model_path)
-    print(f"[✓] Sign overlay model saved: {model_path}")
+    print(f"[OK] Sign overlay model saved: {model_path}")
 
 if __name__ == "__main__":
     main()

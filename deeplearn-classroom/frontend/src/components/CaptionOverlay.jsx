@@ -82,7 +82,7 @@ export default function CaptionOverlay({
                 key={`cap-${item.timestamp}-${idx}`}
                 className={`${sizeClass} leading-snug transition-colors duration-500`}
                 style={{
-                  color: isLatest ? 'rgba(255,255,255,0.65)' : 'rgba(255,255,255,0.28)',
+                  color: isLatest ? '#f1f5f9' : '#94a3b8',
                   fontWeight: isLatest ? 500 : 400,
                 }}
               >
@@ -94,8 +94,9 @@ export default function CaptionOverlay({
           {/* Live current caption - highlighted with purple left border */}
           {isActive && currentCaption && (
             <p
-              className={`${currentSizeClass} font-semibold leading-snug text-white`}
+              className={`${currentSizeClass} font-semibold leading-snug`}
               style={{
+                color: '#ffffff',
                 textShadow: '0 0 14px rgba(139, 92, 246, 0.7)',
                 borderLeft: '3px solid #8b5cf6',
                 paddingLeft: 10,

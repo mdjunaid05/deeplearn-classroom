@@ -210,6 +210,62 @@ function HandShape({ fingers, color, side, animate }) {
         <circle cx="6"  cy="14" r="3"   fill={color} opacity="0.7" />
       </>
     ),
+    l_shape: (
+      <>
+        <rect x="10" y="0" width="6" height="12" rx="3" fill={color} />
+        <rect x="8" y="10" width="22" height="10" rx="4" fill={color} opacity="0.8" />
+        <circle cx={isLeft ? "6" : "34"} cy="15" r="3.5" fill={color} />
+      </>
+    ),
+    y_shape: (
+      <>
+        <rect x="8" y="10" width="22" height="10" rx="4" fill={color} opacity="0.8" />
+        <rect x={isLeft ? "10" : "32"} y="2" width="5" height="9" rx="2" fill={color} />
+        <circle cx={isLeft ? "34" : "6"} cy="15" r="3.5" fill={color} />
+      </>
+    ),
+    v_shape: (
+      <>
+        <rect x="12" y="0" width="6" height="11" rx="3" fill={color} />
+        <rect x="22" y="1" width="6" height="11" rx="3" fill={color} />
+        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.8" />
+        <circle cx="6" cy="15" r="3.5" fill={color} opacity="0.7" />
+      </>
+    ),
+    w_shape: (
+      <>
+        <rect x="10" y="0" width="5" height="11" rx="2" fill={color} />
+        <rect x="17" y="0" width="5" height="11" rx="2" fill={color} />
+        <rect x="24" y="1" width="5" height="10" rx="2" fill={color} />
+        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.8" />
+        <circle cx="6" cy="15" r="3" fill={color} opacity="0.7" />
+      </>
+    ),
+    i_shape: (
+      <>
+        <rect x="8" y="8" width="24" height="11" rx="5" fill={color} opacity="0.8" />
+        <rect x={isLeft ? "10" : "30"} y="0" width="5" height="10" rx="2" fill={color} />
+        <circle cx="6" cy="14" r="3" fill={color} opacity="0.7" />
+      </>
+    ),
+    f_shape: (
+      <>
+        <circle cx="14" cy="9" r="3" fill={color} />
+        <circle cx="6" cy="12" r="3" fill={color} opacity="0.7" />
+        <rect x="18" y="0" width="5" height="12" rx="2" fill={color} />
+        <rect x="24" y="0" width="5" height="12" rx="2" fill={color} />
+        <rect x="30" y="2" width="5" height="10" rx="2" fill={color} />
+        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.7" />
+      </>
+    ),
+    d_shape: (
+      <>
+        <rect x="12" y="0" width="6" height="11" rx="3" fill={color} />
+        <circle cx="22" cy="10" r="4.5" fill={color} opacity="0.9" />
+        <circle cx="6" cy="12" r="3" fill={color} opacity="0.8" />
+        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.7" />
+      </>
+    ),
   };
 
   return (
@@ -386,6 +442,36 @@ function Avatar({ pose, color, blink, isActive, animKey }) {
   );
 }
 
+// Map letters to custom finger poses
+const letterFingers = {
+  a: 'fist',
+  b: 'open',
+  c: 'curved',
+  d: 'd_shape',
+  e: 'fist',
+  f: 'f_shape',
+  g: 'index_point',
+  h: 'index_point',
+  i: 'i_shape',
+  j: 'i_shape',
+  k: 'v_shape',
+  l: 'l_shape',
+  m: 'fist',
+  n: 'fist',
+  o: 'curved',
+  p: 'd_shape',
+  q: 'd_shape',
+  r: 'v_shape',
+  s: 'fist',
+  t: 'fist',
+  u: 'v_shape',
+  v: 'v_shape',
+  w: 'w_shape',
+  x: 'curved',
+  y: 'y_shape',
+  z: 'index_point'
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function SignAvatarOverlay({
   currentSign,
@@ -401,9 +487,52 @@ export default function SignAvatarOverlay({
 
   // Determine active gesture
   const gesture = currentSign?.gesture || (isActive ? 'talk' : 'idle');
-  const pose    = GESTURE_POSES[gesture] || GESTURE_POSES.idle;
-  const color   = GESTURE_COLORS[gesture] || GESTURE_COLORS.idle;
-  const label   = pose.label || getGestureLabel(gesture);
+
+  // Dynamic color resolution
+  let color = GESTURE_COLORS[gesture];
+  if (!color) {
+    if (gesture.length === 1 && /[a-z]/.test(gesture)) {
+      // Purple theme for letters
+      color = { primary: '#c084fc', secondary: '#7e22ce', glow: 'rgba(192,132,252,0.4)' };
+    } else if (gesture.startsWith('num_')) {
+      // Amber theme for digits
+      color = { primary: '#fbbf24', secondary: '#b45309', glow: 'rgba(251,191,36,0.4)' };
+    } else {
+      color = GESTURE_COLORS.idle;
+    }
+  }
+
+  // Dynamic pose resolution
+  let pose = GESTURE_POSES[gesture];
+  if (!pose) {
+    if (gesture.length === 1 && /[a-z]/.test(gesture)) {
+      const handShape = letterFingers[gesture] || 'relaxed';
+      const code = gesture.charCodeAt(0);
+      const rotateRight = `${-25 - (code % 5) * 8}deg`;
+      const tx = `${4 + (code % 3) * 2}px`;
+      const ty = `${-12 - (code % 4) * 4}px`;
+      pose = {
+        label: `LETTER ${gesture.toUpperCase()}`,
+        leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',  scale: 1 },
+        rightHand: { rotate: rotateRight, tx: tx,      ty: ty,     scale: 1.18 },
+        fingers: handShape,
+        bodyLean: (code % 3) - 1,
+      };
+    } else if (gesture.startsWith('num_')) {
+      const numStr = gesture.slice(4);
+      pose = {
+        label: `NUMBER ${numStr}`,
+        leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',  scale: 1 },
+        rightHand: { rotate: `-${25 + parseInt(numStr || 0) * 5}deg`, tx: '8px', ty: '-12px', scale: 1.2 },
+        fingers: 'count',
+        bodyLean: 1,
+      };
+    } else {
+      pose = GESTURE_POSES.idle;
+    }
+  }
+
+  const label = pose.label || getGestureLabel(gesture);
 
   // Animate on sign change
   useEffect(() => {
@@ -426,7 +555,7 @@ export default function SignAvatarOverlay({
     return () => clearInterval(id);
   }, [isActive]);
 
-  // Up to 6 upcoming signs in the queue strip
+  // Up to 8 upcoming signs in the queue strip
   const upcomingQueue = useMemo(() => signQueue.slice(0, 8), [signQueue]);
 
   return (
@@ -510,7 +639,13 @@ export default function SignAvatarOverlay({
           </div>
           <div className="flex flex-wrap gap-1">
             {upcomingQueue.map((s, i) => {
-              const c = GESTURE_COLORS[s.gesture] || GESTURE_COLORS.talk;
+              const isChar = s.gesture.length === 1 && /[a-z]/.test(s.gesture);
+              const isNum = s.gesture.startsWith('num_');
+              const c = isChar
+                ? { primary: '#c084fc' }
+                : isNum
+                ? { primary: '#fbbf24' }
+                : GESTURE_COLORS[s.gesture] || GESTURE_COLORS.talk;
               return (
                 <span
                   key={i}

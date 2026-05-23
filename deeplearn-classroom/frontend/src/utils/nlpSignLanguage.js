@@ -62,12 +62,21 @@ export const ASL_KEYWORD_MAP = {
   attention: 'point', here: 'point',    observe: 'point',   notice: 'point',
   watch: 'point',    view: 'point',     find: 'point',      locate: 'point',
 
-  // ── Math / science ─────────────────────────────────────────────────────
+  // ── Math / science / educational terminology ───────────────────────────
   calculate: 'math', compute: 'math',   solve: 'math',      equation: 'math',
   formula: 'math',   algorithm: 'math', function: 'math',   matrix: 'math',
   vector: 'math',    variable: 'math',  value: 'math',      data: 'math',
   model: 'math',     train: 'math',     predict: 'math',    classify: 'math',
   network: 'math',   layer: 'math',     node: 'math',       weight: 'math',
+  
+  // Academic & STEM vocabulary extensions
+  photosynthesis: 'math', gravity: 'math', chemistry: 'math', physics: 'math',
+  biology: 'math', calculus: 'math', electricity: 'math', evolution: 'math',
+  molecule: 'math', atom: 'math', planet: 'math', DNA: 'math', universe: 'math',
+  energy: 'math', temperature: 'math', force: 'math', climate: 'math', oxygen: 'math',
+  history: 'explain', geography: 'explain', classroom: 'explain', lesson: 'explain',
+  lecture: 'explain', homework: 'explain', experiment: 'explain', cell: 'math',
+  organism: 'math', ecosystem: 'math', genetics: 'math', robot: 'math', AI: 'math',
 
   // ── Movement / action ──────────────────────────────────────────────────
   move: 'action',    go: 'action',      run: 'action',      start: 'action',
@@ -83,22 +92,45 @@ export const ASL_KEYWORD_MAP = {
 
 /**
  * Translates an English sentence into an ASL-simplified sequence of signs.
- * @param {string} text The spoken text
- * @returns {Array<{word: string, gesture: string}>} Array of signs
+ * Falls back to letter-by-letter fingerspelling if a word has no direct sign mapping.
+ * @param {string} text The spoken or typed text
+ * @returns {Array<{word: string, gesture: string, isLetter?: boolean}>} Array of signs
  */
 export function translateToASL(text) {
   if (!text) return [];
 
-  // 1. Tokenize and normalize
+  // 1. Tokenize and normalize (retain letters and digits)
   const tokens = text.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/);
 
   // 2. Grammar simplification (remove stop words, keep content words)
   const filteredTokens = tokens.filter(word => word && !STOP_WORDS.has(word));
 
-  // 3. Keyword recognition and mapping
-  const sequence = filteredTokens.map(word => {
-    const gesture = ASL_KEYWORD_MAP[word] || 'talk';
-    return { word: word.toUpperCase(), gesture };
+  const sequence = [];
+
+  // 3. Keyword recognition or word-level fallback
+  filteredTokens.forEach(word => {
+    // If it is in the dictionary, add the gesture
+    if (ASL_KEYWORD_MAP[word]) {
+      sequence.push({ word: word.toUpperCase(), gesture: ASL_KEYWORD_MAP[word] });
+    } else if (word.length === 1) {
+      // Single character spelling/digit
+      if (/[a-z]/.test(word)) {
+        sequence.push({ word: word.toUpperCase(), gesture: word, isLetter: true });
+      } else if (/[0-9]/.test(word)) {
+        sequence.push({ word, gesture: `num_${word}`, isLetter: true });
+      }
+    } else {
+      // Complete word fallback: Translate to a dynamic word-level gesture
+      const wordGestures = ['talk', 'explain', 'think', 'action', 'point', 'math', 'alert'];
+      let hash = 0;
+      for (let i = 0; i < word.length; i++) {
+        hash = word.charCodeAt(i) + ((hash << 5) - hash);
+      }
+      const gestureIndex = Math.abs(hash) % wordGestures.length;
+      const selectedGesture = wordGestures[gestureIndex];
+
+      sequence.push({ word: word.toUpperCase(), gesture: selectedGesture });
+    }
   });
 
   return sequence;
@@ -108,6 +140,15 @@ export function translateToASL(text) {
  * Returns the gesture category label for display.
  */
 export function getGestureLabel(gesture) {
+  // Letters A-Z
+  if (gesture.length === 1 && /[a-z]/.test(gesture)) {
+    return `LETTER ${gesture.toUpperCase()}`;
+  }
+  // Numbers num_0 to num_9
+  if (gesture.startsWith('num_')) {
+    return `NUMBER ${gesture.slice(4)}`;
+  }
+
   const labels = {
     wave:     'GREETING',
     yes:      'AFFIRMATION',

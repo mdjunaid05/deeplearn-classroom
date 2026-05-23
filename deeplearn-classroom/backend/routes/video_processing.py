@@ -55,6 +55,7 @@ def download_signed_video():
     if not filename:
         return jsonify({"error": "Missing filename"}), 400
         
+    filename = secure_filename(filename)
     path = os.path.join(PROCESSED_FOLDER, filename)
     if not os.path.exists(path):
         return jsonify({"error": "File not found or processing not complete"}), 404

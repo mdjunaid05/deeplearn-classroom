@@ -75,6 +75,10 @@ def upload_recording():
     if not session_id:
         return jsonify({"error": "Missing session_id"}), 400
 
+    import re
+    if not re.match(r'^[a-zA-Z0-9\-]+$', session_id):
+        return jsonify({"error": "Invalid session_id format"}), 400
+
     session_dir = os.path.join(RECORDINGS_DIR, str(course_id), session_id)
     os.makedirs(session_dir, exist_ok=True)
     
@@ -195,6 +199,10 @@ def get_recordings():
 
 @recordings_bp.route("/recordings/<int:course_id>/<session_id>/<filename>", methods=["GET"])
 def serve_recording(course_id, session_id, filename):
+    import re
+    if not re.match(r'^[a-zA-Z0-9\-]+$', session_id):
+        return jsonify({"error": "Invalid session_id format"}), 400
+
     filepath = os.path.join(RECORDINGS_DIR, str(course_id), session_id, secure_filename(filename))
     if not os.path.exists(filepath):
         return jsonify({"error": "File not found"}), 404

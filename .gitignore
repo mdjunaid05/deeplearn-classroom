@@ -36,6 +36,8 @@ deeplearn-classroom/backend/saved_models/
 deeplearn-classroom/backend/data/
 deeplearn-classroom/backend/uploads/
 deeplearn-classroom/backend/processed/
+deeplearn-classroom/backend/recordings/
+deeplearn-classroom/backend/processed_videos/
 
 # ── Editor / OS ──
 .vscode/
