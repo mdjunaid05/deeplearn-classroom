@@ -273,3 +273,101 @@ def active_session():
         conn.close()
 
     return jsonify({"session_id": session_id}), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /session-chat   — send a chat message
+# ---------------------------------------------------------------------------
+@live_session_bp.route("/session-chat", methods=["POST"])
+def session_chat_send():
+    """Store a new chat message for a live session."""
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id")
+    user_id    = str(data.get("user_id", ""))
+    user_name  = data.get("user_name", "Anonymous")
+    message    = data.get("message", "").strip()
+
+    if not session_id or not user_id or not message:
+        return jsonify({"error": "session_id, user_id, and message are required"}), 400
+
+    now = time.time()
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO session_chat_messages (session_id, user_id, user_name, message, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (session_id, user_id, user_name, message, now))
+        conn.commit()
+        message_id = cursor.lastrowid
+    except Exception as e:
+        print(f"Error sending chat message: {e}")
+        return jsonify({"error": "Could not send message"}), 500
+    finally:
+        conn.close()
+
+    return jsonify({
+        "status": "sent",
+        "message_id": message_id,
+        "created_at": now,
+    }), 201
+
+
+# ---------------------------------------------------------------------------
+# GET /session-chat?session_id=<id>&after=<timestamp>
+# ---------------------------------------------------------------------------
+@live_session_bp.route("/session-chat", methods=["GET"])
+def session_chat_poll():
+    """
+    Return chat messages for a session.
+    Pass `after` timestamp to get only new messages (long-poll friendly).
+    Returns the latest 100 messages if no `after` is specified.
+    """
+    session_id = request.args.get("session_id")
+    after      = request.args.get("after", type=float, default=0)
+
+    if not session_id:
+        return jsonify({"error": "session_id is required"}), 400
+
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    messages = []
+    try:
+        if after > 0:
+            cursor.execute("""
+                SELECT message_id, user_id, user_name, message, created_at
+                FROM session_chat_messages
+                WHERE session_id = ? AND created_at > ?
+                ORDER BY created_at ASC
+                LIMIT 200
+            """, (session_id, after))
+        else:
+            cursor.execute("""
+                SELECT message_id, user_id, user_name, message, created_at
+                FROM session_chat_messages
+                WHERE session_id = ?
+                ORDER BY created_at DESC
+                LIMIT 100
+            """, (session_id,))
+
+        rows = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
+        for row in rows:
+            messages.append(dict(zip(columns, row)))
+
+        # If we fetched latest 100 (no after filter), reverse to chronological order
+        if after <= 0:
+            messages.reverse()
+    except Exception as e:
+        print(f"Error fetching chat messages: {e}")
+    finally:
+        conn.close()
+
+    return jsonify({
+        "session_id": session_id,
+        "messages":   messages,
+        "count":      len(messages),
+    }), 200
+

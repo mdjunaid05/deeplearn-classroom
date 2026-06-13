@@ -230,6 +230,15 @@ def _init_sqlite(conn):
             last_seen       REAL NOT NULL,
             PRIMARY KEY (session_id, user_id)
         );
+
+        CREATE TABLE IF NOT EXISTS session_chat_messages (
+            message_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id      TEXT NOT NULL,
+            user_id         TEXT NOT NULL,
+            user_name       TEXT NOT NULL,
+            message         TEXT NOT NULL,
+            created_at      REAL NOT NULL
+        );
     """)
 
     conn.commit()

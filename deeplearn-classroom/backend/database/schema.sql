@@ -208,6 +208,17 @@ CREATE TABLE live_session_participants (
     FOREIGN KEY (session_id) REFERENCES live_sessions(session_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ── Session Chat Messages ────────────────────────────────────
+CREATE TABLE session_chat_messages (
+    message_id      INT AUTO_INCREMENT PRIMARY KEY,
+    session_id      VARCHAR(64) NOT NULL,
+    user_id         VARCHAR(64) NOT NULL,
+    user_name       VARCHAR(120) NOT NULL,
+    message         TEXT NOT NULL,
+    created_at      DOUBLE NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES live_sessions(session_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ── Indexes for common queries ────────────────────────────
 CREATE INDEX idx_perf_student       ON performance(student_id);
 CREATE INDEX idx_perf_activity      ON performance(activity_id);
@@ -215,3 +226,5 @@ CREATE INDEX idx_behaviour_student  ON behaviour_logs(student_id);
 CREATE INDEX idx_behaviour_session  ON behaviour_logs(session_id);
 CREATE INDEX idx_engagement_student ON engagement_metrics(student_id);
 CREATE INDEX idx_engagement_session ON engagement_metrics(session_id);
+CREATE INDEX idx_chat_session       ON session_chat_messages(session_id, created_at);
+

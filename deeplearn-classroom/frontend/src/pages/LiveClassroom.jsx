@@ -86,6 +86,10 @@ export default function LiveClassroom() {
     sessionId, user, isActive: isClassStarted, isMuted, isVideoOff,
   });
 
+  // ── Chat refs ───────────────────────────────────────────────────────────
+  const chatEndRef = useRef(null);
+  const lastChatTsRef = useRef(0);
+
   // ── Session timer ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!isClassStarted) return;
@@ -331,12 +335,79 @@ export default function LiveClassroom() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isClassStarted, user?.role, roomName]);
 
-  const handleSendChat = e => {
+  // ── Chat: send via API ──────────────────────────────────────────────────
+  const handleSendChat = async (e) => {
     e.preventDefault();
-    if (!chatInput.trim()) return;
-    setChatMessages(prev => [...prev, { user: user?.name||'You', msg: chatInput, time: new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) }]);
+    const msg = chatInput.trim();
+    if (!msg) return;
     setChatInput('');
+
+    // Optimistic local add
+    const now = Date.now() / 1000;
+    const optimistic = {
+      message_id: `local-${now}`,
+      user_id: String(user?.user_id || user?.id || 'local'),
+      user_name: user?.name || 'You',
+      message: msg,
+      created_at: now,
+    };
+    setChatMessages(prev => [...prev, optimistic]);
+
+    if (sessionId) {
+      try {
+        await fetch(`${API_BASE}/session-chat`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: sessionId,
+            user_id: user?.user_id || user?.id,
+            user_name: user?.name || 'Anonymous',
+            message: msg,
+          }),
+        });
+      } catch (err) {
+        console.warn('[Chat] Send failed:', err.message);
+      }
+    }
   };
+
+  // ── Chat: poll for new messages ─────────────────────────────────────────
+  useEffect(() => {
+    if (!isClassStarted || !sessionId) return;
+
+    const fetchChat = async () => {
+      try {
+        const url = `${API_BASE}/session-chat?session_id=${sessionId}&after=${lastChatTsRef.current}`;
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.messages && data.messages.length > 0) {
+          setChatMessages(prev => {
+            // Merge: deduplicate by message_id, keep server versions
+            const existing = new Map(prev.map(m => [m.message_id, m]));
+            for (const m of data.messages) {
+              existing.set(m.message_id, m);
+            }
+            return Array.from(existing.values()).sort((a, b) => a.created_at - b.created_at);
+          });
+          const latest = data.messages[data.messages.length - 1];
+          if (latest.created_at > lastChatTsRef.current) {
+            lastChatTsRef.current = latest.created_at;
+          }
+        }
+      } catch (_) {}
+    };
+
+    // Initial fetch (all history)
+    fetchChat();
+    const iv = setInterval(fetchChat, 3000);
+    return () => clearInterval(iv);
+  }, [isClassStarted, sessionId]);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
   // ── Pre-class screen ────────────────────────────────────────────────────
   if (!isClassStarted) return (
@@ -563,17 +634,28 @@ export default function LiveClassroom() {
           {activeTab==='chat' && (<>
             <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
               {chatMessages.length===0 && (
-                <p className="text-xs text-slate-400 text-center py-8">No messages yet.</p>
+                <p className="text-xs text-slate-400 text-center py-8">No messages yet. Say hi! 👋</p>
               )}
-              {chatMessages.map((msg,i) => (
-                <div key={i} className="bg-white rounded-xl px-3 py-2 border border-slate-100 shadow-sm">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-xs font-semibold text-cyan-600">{msg.user}</span>
-                    <span className="text-[10px] text-slate-400">{msg.time}</span>
+              {chatMessages.map((msg) => {
+                const isSelf = String(msg.user_id) === String(user?.user_id || user?.id);
+                const timeStr = msg.created_at
+                  ? new Date(msg.created_at * 1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})
+                  : '';
+                return (
+                  <div key={msg.message_id} className={`rounded-xl px-3 py-2 border shadow-sm ${
+                    isSelf ? 'bg-cyan-50 border-cyan-100' : 'bg-white border-slate-100'
+                  }`}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className={`text-xs font-semibold ${isSelf ? 'text-cyan-700' : 'text-cyan-600'}`}>
+                        {isSelf ? 'You' : (msg.user_name || 'Anonymous')}
+                      </span>
+                      <span className="text-[10px] text-slate-400">{timeStr}</span>
+                    </div>
+                    <p className="text-sm text-slate-700">{msg.message}</p>
                   </div>
-                  <p className="text-sm text-slate-700">{msg.msg}</p>
-                </div>
-              ))}
+                );
+              })}
+              <div ref={chatEndRef} />
             </div>
             <form onSubmit={handleSendChat} className="p-3 border-t border-slate-200/40">
               <div className="flex gap-2">
