@@ -218,6 +218,18 @@ def _init_sqlite(conn):
             FOREIGN KEY (student_id) REFERENCES students(student_id),
             FOREIGN KEY (recording_id) REFERENCES recordings(recording_id)
         );
+
+        CREATE TABLE IF NOT EXISTS live_session_participants (
+            session_id      TEXT NOT NULL,
+            user_id         TEXT NOT NULL,
+            name            TEXT NOT NULL,
+            role            TEXT NOT NULL,
+            is_muted        BOOLEAN DEFAULT 0,
+            is_video_off    BOOLEAN DEFAULT 0,
+            joined_at       REAL NOT NULL,
+            last_seen       REAL NOT NULL,
+            PRIMARY KEY (session_id, user_id)
+        );
     """)
 
     conn.commit()

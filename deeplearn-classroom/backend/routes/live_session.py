@@ -1,31 +1,16 @@
 """
-live_session.py — /session-join, /session-leave, /session-status, /session-participants
+live_session.py — /session-join, /session-leave, /session-status, /session-participants, /active-session
 ----------------------------------------------------------------------------------------
-Lightweight in-memory + DB live session participant registry.
+Database-backed live session participant registry.
 
 No WebSockets required. Frontend polls /session-participants every 4 s.
 Participants are purged after 15 s of inactivity (heartbeat via any status call).
 """
 
 import time
-import threading
 from flask import Blueprint, request, jsonify
 
 live_session_bp = Blueprint("live_session", __name__)
-
-# ── In-memory session registry ────────────────────────────────────────────────
-# Structure:
-#   _sessions = {
-#     "<session_id>": {
-#       "<user_id>": {
-#         "user_id", "name", "role",
-#         "is_muted", "is_video_off", "is_speaking",
-#         "joined_at", "last_seen"  ← unix timestamp
-#       }
-#     }
-#   }
-_sessions: dict = {}
-_lock = threading.Lock()
 
 INACTIVE_TIMEOUT_S = 15   # remove participant after 15 s without heartbeat
 
@@ -33,12 +18,19 @@ INACTIVE_TIMEOUT_S = 15   # remove participant after 15 s without heartbeat
 def _purge_inactive(session_id: str):
     """Remove participants whose last_seen > INACTIVE_TIMEOUT_S ago."""
     now = time.time()
-    with _lock:
-        session = _sessions.get(session_id, {})
-        stale = [uid for uid, p in session.items()
-                 if now - p.get("last_seen", 0) > INACTIVE_TIMEOUT_S]
-        for uid in stale:
-            del session[uid]
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            DELETE FROM live_session_participants
+            WHERE session_id = ? AND (? - last_seen) > ?
+        """, (session_id, now, INACTIVE_TIMEOUT_S))
+        conn.commit()
+    except Exception as e:
+        print(f"Error purging inactive participants: {e}")
+    finally:
+        conn.close()
 
 
 # ---------------------------------------------------------------------------
@@ -59,19 +51,21 @@ def session_join():
         return jsonify({"error": "session_id and user_id are required"}), 400
 
     now = time.time()
-    with _lock:
-        if session_id not in _sessions:
-            _sessions[session_id] = {}
-        _sessions[session_id][user_id] = {
-            "user_id":      user_id,
-            "name":         name,
-            "role":         role,
-            "is_muted":     is_muted,
-            "is_video_off": is_video_off,
-            "is_speaking":  False,
-            "joined_at":    now,
-            "last_seen":    now,
-        }
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Use REPLACE INTO for cross-database compatibility (both SQLite and MySQL support this)
+        cursor.execute("""
+            REPLACE INTO live_session_participants (session_id, user_id, name, role, is_muted, is_video_off, joined_at, last_seen)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (session_id, user_id, name, role, is_muted, is_video_off, now, now))
+        conn.commit()
+    except Exception as e:
+        print(f"Error joining session: {e}")
+        return jsonify({"error": "Database error joining session"}), 500
+    finally:
+        conn.close()
 
     return jsonify({"status": "joined", "session_id": session_id, "user_id": user_id}), 200
 
@@ -89,9 +83,19 @@ def session_leave():
     if not session_id or not user_id:
         return jsonify({"error": "session_id and user_id are required"}), 400
 
-    with _lock:
-        session = _sessions.get(session_id, {})
-        session.pop(user_id, None)
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            DELETE FROM live_session_participants
+            WHERE session_id = ? AND user_id = ?
+        """, (session_id, user_id))
+        conn.commit()
+    except Exception as e:
+        print(f"Error leaving session: {e}")
+    finally:
+        conn.close()
 
     return jsonify({"status": "left"}), 200
 
@@ -115,24 +119,37 @@ def session_status():
         return jsonify({"error": "session_id and user_id are required"}), 400
 
     now = time.time()
-    with _lock:
-        session = _sessions.get(session_id, {})
-        if user_id in session:
-            session[user_id]["is_muted"]     = is_muted
-            session[user_id]["is_video_off"] = is_video_off
-            session[user_id]["last_seen"]    = now
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        # Check if participant exists
+        cursor.execute("""
+            SELECT joined_at FROM live_session_participants
+            WHERE session_id = ? AND user_id = ?
+        """, (session_id, user_id))
+        row = cursor.fetchone()
+
+        if row:
+            # Update status
+            cursor.execute("""
+                UPDATE live_session_participants
+                SET is_muted = ?, is_video_off = ?, last_seen = ?
+                WHERE session_id = ? AND user_id = ?
+            """, (is_muted, is_video_off, now, session_id, user_id))
         else:
-            # Re-register if somehow dropped
-            session[user_id] = {
-                "user_id":      user_id,
-                "name":         data.get("name", "Unknown"),
-                "role":         data.get("role", "student"),
-                "is_muted":     is_muted,
-                "is_video_off": is_video_off,
-                "is_speaking":  False,
-                "joined_at":    now,
-                "last_seen":    now,
-            }
+            # Re-register if dropped
+            name = data.get("name", "Unknown")
+            role = data.get("role", "student")
+            cursor.execute("""
+                INSERT INTO live_session_participants (session_id, user_id, name, role, is_muted, is_video_off, joined_at, last_seen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (session_id, user_id, name, role, is_muted, is_video_off, now, now))
+        conn.commit()
+    except Exception as e:
+        print(f"Error updating session status: {e}")
+    finally:
+        conn.close()
 
     return jsonify({"status": "updated"}), 200
 
@@ -155,17 +172,39 @@ def session_participants():
     _purge_inactive(session_id)
 
     now = time.time()
-    with _lock:
-        session = _sessions.get(session_id, {})
-
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
         # Refresh heartbeat for caller
-        if caller_id and caller_id in session:
-            session[caller_id]["last_seen"] = now
+        if caller_id:
+            cursor.execute("""
+                UPDATE live_session_participants
+                SET last_seen = ?
+                WHERE session_id = ? AND user_id = ?
+            """, (now, session_id, caller_id))
+            conn.commit()
 
-        participants = [
-            {k: v for k, v in p.items() if k != "last_seen"}
-            for p in session.values()
-        ]
+        # Get all active participants
+        cursor.execute("""
+            SELECT user_id, name, role, is_muted, is_video_off, joined_at
+            FROM live_session_participants
+            WHERE session_id = ?
+        """, (session_id,))
+        rows = cursor.fetchall()
+
+        columns = [desc[0] for desc in cursor.description]
+        participants = []
+        for row in rows:
+            p = dict(zip(columns, row))
+            p["is_muted"] = bool(p["is_muted"])
+            p["is_video_off"] = bool(p["is_video_off"])
+            participants.append(p)
+    except Exception as e:
+        print(f"Error fetching participants: {e}")
+        participants = []
+    finally:
+        conn.close()
 
     # Sort: teacher first, then by joined_at
     participants.sort(key=lambda p: (0 if p["role"] == "teacher" else 1, p.get("joined_at", 0)))
@@ -189,7 +228,48 @@ def session_info():
 
     _purge_inactive(session_id)
 
-    with _lock:
-        count = len(_sessions.get(session_id, {}))
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    count = 0
+    try:
+        cursor.execute("""
+            SELECT COUNT(*) FROM live_session_participants
+            WHERE session_id = ?
+        """, (session_id,))
+        row = cursor.fetchone()
+        count = row[0] if row else 0
+    except Exception as e:
+        print(f"Error fetching session info: {e}")
+    finally:
+        conn.close()
 
     return jsonify({"session_id": session_id, "active_participants": count}), 200
+
+
+# ---------------------------------------------------------------------------
+# GET /active-session
+# ---------------------------------------------------------------------------
+@live_session_bp.route("/active-session", methods=["GET"])
+def active_session():
+    """Get the currently active live session ID from the database."""
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    session_id = None
+    try:
+        # Query for the latest active session
+        cursor.execute("""
+            SELECT session_id FROM live_sessions 
+            WHERE status = 'live' 
+            ORDER BY start_time DESC LIMIT 1
+        """)
+        row = cursor.fetchone()
+        if row:
+            session_id = row[0] if isinstance(row, tuple) else row['session_id']
+    except Exception as e:
+        print(f"Error fetching active session: {e}")
+    finally:
+        conn.close()
+
+    return jsonify({"session_id": session_id}), 200

@@ -122,7 +122,17 @@ export default function LiveClassroom() {
         const data = await res.json();
         if (data.session_id) setSessionId(data.session_id);
       } else {
-        setSessionId('deeplearn-live-room');
+        try {
+          const res = await fetch(`${API_BASE}/active-session`);
+          const data = await res.json();
+          if (data.session_id) {
+            setSessionId(data.session_id);
+          } else {
+            setSessionId('deeplearn-live-room');
+          }
+        } catch {
+          setSessionId('deeplearn-live-room');
+        }
       }
     } catch { setSessionId('deeplearn-live-room'); }
     setIsClassStarted(true);

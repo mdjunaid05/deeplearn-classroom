@@ -194,6 +194,20 @@ CREATE TABLE quiz_scores (
     FOREIGN KEY (recording_id) REFERENCES recordings(recording_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- ── Live Session Participants ────────────────────────────────
+CREATE TABLE live_session_participants (
+    session_id      VARCHAR(64) NOT NULL,
+    user_id         VARCHAR(64) NOT NULL,
+    name            VARCHAR(120) NOT NULL,
+    role            VARCHAR(50) NOT NULL,
+    is_muted        BOOLEAN DEFAULT FALSE,
+    is_video_off    BOOLEAN DEFAULT FALSE,
+    joined_at       DOUBLE NOT NULL,
+    last_seen       DOUBLE NOT NULL,
+    PRIMARY KEY (session_id, user_id),
+    FOREIGN KEY (session_id) REFERENCES live_sessions(session_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
 -- ── Indexes for common queries ────────────────────────────
 CREATE INDEX idx_perf_student       ON performance(student_id);
 CREATE INDEX idx_perf_activity      ON performance(activity_id);

@@ -102,7 +102,8 @@ export function useParticipants({ sessionId, user, isActive, isMuted, isVideoOff
   const fetchParticipants = useCallback(async () => {
     if (!sessionId) return;
     try {
-      const res  = await fetch(`${API_BASE}/session-participants?session_id=${sessionId}`);
+      const userId = user?.user_id || user?.id || '';
+      const res  = await fetch(`${API_BASE}/session-participants?session_id=${sessionId}&user_id=${userId}`);
       const data = await res.json();
       if (data.participants) {
         // Enrich with local avatar color
@@ -117,7 +118,7 @@ export function useParticipants({ sessionId, user, isActive, isMuted, isVideoOff
       // Backend unreachable — keep showing local participant
       setError('Could not reach server. Showing local state.');
     }
-  }, [sessionId]);
+  }, [sessionId, user]);
 
   // ── Lifecycle ─────────────────────────────────────────────────────────
   useEffect(() => {
