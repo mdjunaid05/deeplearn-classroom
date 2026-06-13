@@ -56,6 +56,7 @@ export default function LiveClassroom() {
   const [chatMessages,setChatMessages]= useState([]);
   const [activeAlert, setActiveAlert] = useState(null);
   const [activeTab,   setActiveTab]   = useState('participants'); // 'participants' | 'chat'
+  const [roomName,    setRoomName]    = useState('classroom-1');
 
   // Recording
   const [isRecording,       setIsRecording]       = useState(false);
@@ -221,10 +222,22 @@ export default function LiveClassroom() {
 
         const Peer = (await import('peerjs')).default;
         if (user?.role === 'teacher') {
-          const peer = new Peer('deeplearn-teacher-room', {
+          const peerId = `deeplearn-teacher-room-${roomName || 'default'}`;
+          const peer = new Peer(peerId, {
             config:{ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] }
           });
           peerRef.current = peer;
+          peer.on('error', err => {
+            console.error('[PeerJS Error]', err);
+            let msg = 'Connection error occurred.';
+            if (err.type === 'unavailable-id') {
+              msg = 'This Room ID is already in use. Please enter a different Room ID.';
+            } else if (err.type === 'network') {
+              msg = 'Network error. Please check your internet connection.';
+            }
+            setActiveAlert({ type: 'error', message: msg, duration: 6000 });
+            setIsClassStarted(false);
+          });
           peer.on('call', call => {
             call.answer(streamRef.current);
             callsRef.current.push(call);
@@ -234,8 +247,20 @@ export default function LiveClassroom() {
         } else {
           const peer = new Peer({ config:{ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] } });
           peerRef.current = peer;
+          peer.on('error', err => {
+            console.error('[PeerJS Error]', err);
+            let msg = 'Connection error occurred.';
+            if (err.type === 'peer-unavailable') {
+              msg = 'The classroom has not been started yet by the teacher. Please check the Room ID.';
+            } else if (err.type === 'network') {
+              msg = 'Network error. Please check your internet connection.';
+            }
+            setActiveAlert({ type: 'error', message: msg, duration: 6000 });
+            setIsClassStarted(false);
+          });
           peer.on('open', () => {
-            const call = peer.call('deeplearn-teacher-room', streamRef.current);
+            const peerId = `deeplearn-teacher-room-${roomName || 'default'}`;
+            const call = peer.call(peerId, streamRef.current);
             call.on('stream', ts => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = ts; });
             call.on('close',  () => { setActiveAlert({ type:'error', message:'Teacher ended the class.', duration:5000 }); setIsClassStarted(false); });
           });
@@ -251,7 +276,7 @@ export default function LiveClassroom() {
       }
     })();
     return () => cleanup();
-  }, [isClassStarted, startRecording, user?.role]);
+  }, [isClassStarted, startRecording, user?.role, roomName]);
 
   const handleSendChat = e => {
     e.preventDefault();
@@ -272,10 +297,25 @@ export default function LiveClassroom() {
         <p className="text-slate-500 mb-2 text-sm">
           {user?.role==='teacher' ? 'Start broadcasting to your students.' : 'Join the live class session.'}
         </p>
-        <div className="flex items-center justify-center gap-1.5 text-xs text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-full w-fit mx-auto mb-8">
+        <div className="flex items-center justify-center gap-1.5 text-xs text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-full w-fit mx-auto mb-6">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
           LIVE
         </div>
+
+        <div className="mb-6 text-left">
+          <label htmlFor="live-room-input" className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">
+            Classroom Room ID
+          </label>
+          <input
+            id="live-room-input"
+            type="text"
+            value={roomName}
+            onChange={(e) => setRoomName(e.target.value.replace(/[^a-zA-Z0-9\-]/g, ''))}
+            placeholder="e.g. math-101"
+            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+          />
+        </div>
+
         <button onClick={startLiveClass}
           className="w-full py-4 rounded-xl font-bold text-white text-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-lg shadow-cyan-500/30 transition-all hover:scale-[1.02]">
           {user?.role==='teacher' ? '🎬 Start Live Class' : '🔗 Join Live Class'}
