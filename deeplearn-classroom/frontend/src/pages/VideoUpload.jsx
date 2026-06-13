@@ -99,8 +99,14 @@ export default function VideoUpload() {
       startPolling(data.job_id);
     } catch (err) {
       console.error(err);
+      const isNetworkError = err.message.includes('fetch') || err.message.includes('Failed to fetch') || err.message.includes('NetworkError');
+      const userMessage = isNetworkError
+        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? `Could not reach the local backend. Make sure the Flask server is running:\n  cd backend && python app.py\n\nThen try again.`
+          : `Could not reach the backend API at ${BACKEND_URL}. Ensure that the VITE_API_URL environment variable is configured in the Vercel dashboard and your Render backend service is running.`)
+        : `Full pipeline failed: ${err.message}`;
       setStatus('error');
-      setError(`Full pipeline failed: ${err.message}`);
+      setError(userMessage);
       setUploading(false);
     }
   };
@@ -185,7 +191,9 @@ export default function VideoUpload() {
       // Show a clear, actionable error — never silently show fake captions
       const isNetworkError = err.message.includes('fetch') || err.message.includes('Failed to fetch') || err.message.includes('NetworkError');
       const userMessage = isNetworkError
-        ? `Could not reach the backend. Make sure the Flask server is running:\n  cd backend && python app.py\n\nThen try again.`
+        ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? `Could not reach the local backend. Make sure the Flask server is running:\n  cd backend && python app.py\n\nThen try again.`
+          : `Could not reach the backend API at ${BACKEND_URL}. Ensure that the VITE_API_URL environment variable is configured in the Vercel dashboard and your Render backend service is running.`)
         : `Caption extraction failed: ${err.message}`;
 
       setStatus('error');
