@@ -96,7 +96,9 @@ def _transcribe_with_whisper(audio_path):
     try:
         import whisper
 
-        model = whisper.load_model("base")
+        whisper_model = os.environ.get("WHISPER_MODEL", "tiny")
+        print(f"[STT] Loading Whisper model: {whisper_model}")
+        model = whisper.load_model(whisper_model)
         result = model.transcribe(audio_path, fp16=False)
 
         captions = []
