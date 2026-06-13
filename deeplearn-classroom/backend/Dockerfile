@@ -20,6 +20,5 @@ COPY . .
 # Expose the port the app runs on
 EXPOSE 5000
 
-# Run the application using Gunicorn for production
-# --factory tells Gunicorn to call create_app() as a factory function
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "300", "--workers", "2", "--factory", "app:create_app"]
+# Run the application using Gunicorn for production via wsgi entrypoint
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--timeout", "300", "--workers", "2", "wsgi:app"]

@@ -221,7 +221,7 @@ curl -X POST http://localhost:5000/log-behaviour \
 4. Settings:
    - **Environment:** `Python 3`
    - **Build Command:** `pip install -r requirements.txt && python training/generate_dataset.py && python training/train_adaptive.py && python training/train_behaviour.py && python training/train_engagement.py`
-   - **Start Command:** `gunicorn app:create_app()`
+   - **Start Command:** `gunicorn wsgi:app`
 5. Add Environment Variables:
    - `DB_HOST`, `DB_USER`, `DB_PASS`, `DB_NAME` (If using external MySQL)
    - Or omit them to use the SQLite fallback.
