@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Peer from 'peerjs';
 import {
   Video, Mic, MicOff, VideoOff, Hand, PhoneOff, MessageSquare,
   Users, Activity, Send, Play, Pause, MonitorUp, StopCircle,
@@ -220,11 +221,13 @@ export default function LiveClassroom() {
         origVideoTrackRef.current = ms.getVideoTracks()[0];
         if (localVideoRef.current) localVideoRef.current.srcObject = ms;
 
-        const Peer = (await import('peerjs')).default;
         if (user?.role === 'teacher') {
           const peerId = `deeplearn-teacher-room-${roomName || 'default'}`;
           const peer = new Peer(peerId, {
-            config:{ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] }
+            host: '0.peerjs.com',
+            port: 443,
+            secure: true,
+            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
           });
           peerRef.current = peer;
           peer.on('error', err => {
@@ -245,7 +248,12 @@ export default function LiveClassroom() {
           });
           setTimeout(() => { if (streamRef.current) startRecording(); }, 1000);
         } else {
-          const peer = new Peer({ config:{ iceServers:[{ urls:'stun:stun.l.google.com:19302' }] } });
+          const peer = new Peer({
+            host: '0.peerjs.com',
+            port: 443,
+            secure: true,
+            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+          });
           peerRef.current = peer;
           peer.on('error', err => {
             console.error('[PeerJS Error]', err);
