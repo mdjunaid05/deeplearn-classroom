@@ -12,6 +12,10 @@
  *  { id, name, role, avatarColor, isMuted, isVideoOff, isSpeaking, joinedAt }
  *
  * This works WITHOUT WebSockets by polling — robust in Vercel/Render deploys.
+ *
+ * STABILITY NOTE: All callbacks used inside the lifecycle effect are accessed
+ * through refs so that the effect's dependency array stays stable. This prevents
+ * the teardown→re-fire cycle that previously caused flickering and ghost joins.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -36,20 +40,32 @@ export function useParticipants({ sessionId, user, isActive, isMuted, isVideoOff
 
   const pollRef    = useRef(null);
   const joinedRef  = useRef(false);
-  const speakingSimRef = useRef(null); // simulate speaking detection
+  const speakingSimRef = useRef(null);
+
+  // ── Keep latest values in refs for use inside stable callbacks ──────────
+  const sessionIdRef  = useRef(sessionId);
+  const userRef       = useRef(user);
+  const isMutedRef    = useRef(isMuted);
+  const isVideoOffRef = useRef(isVideoOff);
+  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+  useEffect(() => { userRef.current = user; }, [user]);
+  useEffect(() => { isMutedRef.current = isMuted; }, [isMuted]);
+  useEffect(() => { isVideoOffRef.current = isVideoOff; }, [isVideoOff]);
 
   // ── Register self on session join ─────────────────────────────────────
   const joinSession = useCallback(async () => {
-    if (!sessionId || !user || joinedRef.current) return;
+    const sid = sessionIdRef.current;
+    const u = userRef.current;
+    if (!sid || !u || joinedRef.current) return;
     joinedRef.current = true;
 
     const payload = {
-      session_id: sessionId,
-      user_id:    user.user_id || user.id,
-      name:       user.name || 'Anonymous',
-      role:       user.role || 'student',
-      is_muted:   isMuted,
-      is_video_off: isVideoOff,
+      session_id: sid,
+      user_id:    u.user_id || u.id,
+      name:       u.name || 'Anonymous',
+      role:       u.role || 'student',
+      is_muted:   isMutedRef.current,
+      is_video_off: isVideoOffRef.current,
     };
 
     try {
@@ -61,17 +77,19 @@ export function useParticipants({ sessionId, user, isActive, isMuted, isVideoOff
     } catch (e) {
       console.warn('[Participants] Could not reach /session-join:', e.message);
       // Fallback: add self to local state directly
-      const self = buildLocalParticipant(user, isMuted, isVideoOff);
+      const self = buildLocalParticipant(u, isMutedRef.current, isVideoOffRef.current);
       setParticipants([self]);
     }
-  }, [sessionId, user, isMuted, isVideoOff]);
+  }, []); // stable — reads from refs
 
   // ── Leave session ──────────────────────────────────────────────────────
   const leaveSession = useCallback(async () => {
-    if (!sessionId || !user) return;
+    const sid = sessionIdRef.current;
+    const u = userRef.current;
+    if (!sid || !u) return;
     const payload = {
-      session_id: sessionId,
-      user_id:    user.user_id || user.id,
+      session_id: sid,
+      user_id:    u.user_id || u.id,
     };
     try {
       navigator.sendBeacon(
@@ -79,31 +97,38 @@ export function useParticipants({ sessionId, user, isActive, isMuted, isVideoOff
         new Blob([JSON.stringify(payload)], { type: 'application/json' })
       );
     } catch (_) {}
-  }, [sessionId, user]);
+  }, []); // stable
 
   // ── Update own status when mute/video changes ──────────────────────────
   const updateStatus = useCallback(async () => {
-    if (!sessionId || !user) return;
+    const sid = sessionIdRef.current;
+    const u = userRef.current;
+    if (!sid || !u) return;
     try {
       await fetch(`${API_BASE}/session-status`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
-          session_id:   sessionId,
-          user_id:      user.user_id || user.id,
-          is_muted:     isMuted,
-          is_video_off: isVideoOff,
+          session_id:   sid,
+          user_id:      u.user_id || u.id,
+          name:         u.name || 'Unknown',
+          role:         u.role || 'student',
+          is_muted:     isMutedRef.current,
+          is_video_off: isVideoOffRef.current,
         }),
       });
     } catch (_) {}
-  }, [sessionId, user, isMuted, isVideoOff]);
+  }, []); // stable
 
   // ── Poll participants list ─────────────────────────────────────────────
   const fetchParticipants = useCallback(async () => {
-    if (!sessionId) return;
+    const sid = sessionIdRef.current;
+    const u = userRef.current;
+    if (!sid) return;
     try {
-      const userId = user?.user_id || user?.id || '';
-      const res  = await fetch(`${API_BASE}/session-participants?session_id=${sessionId}&user_id=${userId}`);
+      const userId = u?.user_id || u?.id || '';
+      const res  = await fetch(`${API_BASE}/session-participants?session_id=${sid}&user_id=${userId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.participants) {
         // Enrich with local avatar color
@@ -118,9 +143,9 @@ export function useParticipants({ sessionId, user, isActive, isMuted, isVideoOff
       // Backend unreachable — keep showing local participant
       setError('Could not reach server. Showing local state.');
     }
-  }, [sessionId, user]);
+  }, []); // stable
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────
+  // ── Lifecycle — single stable effect ──────────────────────────────────
   useEffect(() => {
     if (!isActive || !sessionId) return;
 
@@ -144,9 +169,14 @@ export function useParticipants({ sessionId, user, isActive, isMuted, isVideoOff
     return () => {
       clearInterval(pollRef.current);
       clearInterval(speakingSimRef.current);
+      pollRef.current = null;
+      speakingSimRef.current = null;
       leaveSession();
+      // CRITICAL: reset joinedRef so re-mount can re-join
+      joinedRef.current = false;
     };
-  }, [isActive, sessionId, joinSession, fetchParticipants, leaveSession]);
+  }, [isActive, sessionId]); // stable primitives only — no callback deps
+  // joinSession, fetchParticipants, leaveSession are all stable (empty deps)
 
   // Update status when mute/video toggles
   useEffect(() => {
@@ -161,7 +191,7 @@ export function useParticipants({ sessionId, user, isActive, isMuted, isVideoOff
         )
       );
     }
-  }, [isMuted, isVideoOff, isActive, updateStatus, user]);
+  }, [isMuted, isVideoOff, isActive, user]);
 
   // beforeunload
   useEffect(() => {

@@ -14,21 +14,45 @@ os.makedirs(RECORDINGS_DIR, exist_ok=True)
 
 @recordings_bp.route("/start-class", methods=["POST"])
 def start_class():
-    data = request.json
+    data = request.json or {}
     teacher_id = data.get("teacher_id", 1)
     course_id = data.get("course_id", 1)
 
     session_id = str(uuid.uuid4())
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    cursor.execute("""
-        INSERT INTO live_sessions (session_id, teacher_id, course_id, status)
-        VALUES (?, ?, ?, 'live')
-    """, (session_id, teacher_id, course_id))
-    
-    conn.commit()
-    conn.close()
+
+    try:
+        # Ensure referenced rows exist (prevents FK violations on MySQL)
+        cursor.execute("SELECT teacher_id FROM teachers WHERE teacher_id = ?", (teacher_id,))
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                (teacher_id, "Teacher", f"teacher{teacher_id}@deeplearn.edu", "seeded"),
+            )
+        cursor.execute("SELECT course_id FROM courses WHERE course_id = ?", (course_id,))
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO courses (course_id, title, teacher_id) VALUES (?, ?, ?)",
+                (course_id, "Default Course", teacher_id),
+            )
+
+        cursor.execute("""
+            INSERT INTO live_sessions (session_id, teacher_id, course_id, status)
+            VALUES (?, ?, ?, 'live')
+        """, (session_id, teacher_id, course_id))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"Error starting class: {e}")
+        conn.close()
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     # Create directory for recordings
     session_dir = os.path.join(RECORDINGS_DIR, str(course_id), session_id)

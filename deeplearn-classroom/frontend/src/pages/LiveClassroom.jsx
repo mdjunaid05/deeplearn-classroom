@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Peer from 'peerjs';
 import {
@@ -119,14 +119,24 @@ export default function LiveClassroom() {
           method: 'POST', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({ teacher_id: user.user_id||user.id||1, course_id: 1 }),
         });
-        const data = await res.json();
-        if (data.session_id) setSessionId(data.session_id);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.session_id) setSessionId(data.session_id);
+          else setSessionId(`local-${Date.now()}`);
+        } else {
+          console.warn('[LiveClassroom] /start-class returned', res.status);
+          setSessionId(`local-${Date.now()}`);
+        }
       } else {
         try {
           const res = await fetch(`${API_BASE}/active-session`);
-          const data = await res.json();
-          if (data.session_id) {
-            setSessionId(data.session_id);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.session_id) {
+              setSessionId(data.session_id);
+            } else {
+              setSessionId('deeplearn-live-room');
+            }
           } else {
             setSessionId('deeplearn-live-room');
           }
@@ -134,7 +144,7 @@ export default function LiveClassroom() {
           setSessionId('deeplearn-live-room');
         }
       }
-    } catch { setSessionId('deeplearn-live-room'); }
+    } catch { setSessionId(`local-${Date.now()}`); }
     setIsClassStarted(true);
   };
 
@@ -153,17 +163,25 @@ export default function LiveClassroom() {
   };
 
   // ── Recording helpers ───────────────────────────────────────────────────
+  // Use refs for values that change frequently so recording callbacks stay stable
+  const sessionIdRef = useRef(sessionId);
+  const recordingTimeRef = useRef(recordingTime);
+  const participantsLenRef = useRef(participants.length);
+  useEffect(() => { sessionIdRef.current = sessionId; }, [sessionId]);
+  useEffect(() => { recordingTimeRef.current = recordingTime; }, [recordingTime]);
+  useEffect(() => { participantsLenRef.current = participants.length; }, [participants.length]);
+
   const uploadRecording = useCallback(async () => {
     if (!recordedChunksRef.current.length) return;
     setIsUploading(true);
     const blob = new Blob(recordedChunksRef.current, { type:'video/webm' });
     const fd = new FormData();
     fd.append('video', blob, 'recording.webm');
-    fd.append('session_id', sessionId || `local_${Date.now()}`);
+    fd.append('session_id', sessionIdRef.current || `local_${Date.now()}`);
     fd.append('teacher_id', user?.user_id||user?.id||1);
     fd.append('course_id', 1);
-    fd.append('duration', recordingTime);
-    fd.append('participants_count', participants.length);
+    fd.append('duration', recordingTimeRef.current);
+    fd.append('participants_count', participantsLenRef.current);
     fd.append('transcript', JSON.stringify(transcriptRef.current));
     try {
       const res = await fetch(`${API_BASE}/upload-recording`, { method:'POST', body:fd });
@@ -171,7 +189,7 @@ export default function LiveClassroom() {
       else throw new Error();
     } catch { setActiveAlert({ type:'error', message:'Upload failed.', duration:5000 }); }
     setIsUploading(false);
-  }, [sessionId, user, recordingTime, participants.length, transcriptRef]);
+  }, [user, transcriptRef]); // stable — only depends on user identity
 
   const startRecording = useCallback(() => {
     if (!streamRef.current) return;
@@ -179,13 +197,17 @@ export default function LiveClassroom() {
     try {
       const mr = new MediaRecorder(streamRef.current, { mimeType:'video/webm; codecs=vp9,opus' });
       mr.ondataavailable = e => { if (e.data?.size>0) recordedChunksRef.current.push(e.data); };
-      mr.onstop = uploadRecording;
+      mr.onstop = () => uploadRecording();
       mr.start(1000);
       mediaRecorderRef.current = mr;
       setIsRecording(true);
       setIsRecordingPaused(false);
     } catch(e) { console.error(e); }
   }, [uploadRecording]);
+
+  // Stable ref for startRecording so the WebRTC effect never re-fires
+  const startRecordingRef = useRef(startRecording);
+  useEffect(() => { startRecordingRef.current = startRecording; }, [startRecording]);
 
   const pauseRecording  = () => { mediaRecorderRef.current?.pause();  setIsRecordingPaused(true);  };
   const resumeRecording = () => { mediaRecorderRef.current?.resume(); setIsRecordingPaused(false); };
@@ -221,6 +243,7 @@ export default function LiveClassroom() {
   };
 
   // ── WebRTC ──────────────────────────────────────────────────────────────
+  // IMPORTANT: deps must be stable primitives only. startRecording accessed via ref.
   useEffect(() => {
     if (!isClassStarted) return;
     let cleanup = () => {};
@@ -237,7 +260,10 @@ export default function LiveClassroom() {
             host: '0.peerjs.com',
             port: 443,
             secure: true,
-            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+            config: { iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+            ] }
           });
           peerRef.current = peer;
           peer.on('error', err => {
@@ -256,13 +282,17 @@ export default function LiveClassroom() {
             callsRef.current.push(call);
             call.on('close', () => { callsRef.current = callsRef.current.filter(c=>c!==call); });
           });
-          setTimeout(() => { if (streamRef.current) startRecording(); }, 1000);
+          // Use ref so this effect never re-fires due to recording dep changes
+          setTimeout(() => { if (streamRef.current) startRecordingRef.current(); }, 1000);
         } else {
           const peer = new Peer({
             host: '0.peerjs.com',
             port: 443,
             secure: true,
-            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+            config: { iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: 'stun:stun1.l.google.com:19302' },
+            ] }
           });
           peerRef.current = peer;
           peer.on('error', err => {
@@ -279,8 +309,12 @@ export default function LiveClassroom() {
           peer.on('open', () => {
             const peerId = `deeplearn-teacher-room-${roomName || 'default'}`;
             const call = peer.call(peerId, streamRef.current);
-            call.on('stream', ts => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = ts; });
-            call.on('close',  () => { setActiveAlert({ type:'error', message:'Teacher ended the class.', duration:5000 }); setIsClassStarted(false); });
+            if (call) {
+              call.on('stream', ts => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = ts; });
+              call.on('close',  () => { setActiveAlert({ type:'error', message:'Teacher ended the class.', duration:5000 }); setIsClassStarted(false); });
+            } else {
+              setActiveAlert({ type:'error', message:'Could not connect to teacher. Check Room ID.', duration:5000 });
+            }
           });
         }
         cleanup = () => {
@@ -294,7 +328,8 @@ export default function LiveClassroom() {
       }
     })();
     return () => cleanup();
-  }, [isClassStarted, startRecording, user?.role, roomName]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClassStarted, user?.role, roomName]);
 
   const handleSendChat = e => {
     e.preventDefault();
@@ -345,8 +380,7 @@ export default function LiveClassroom() {
   return (
     <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {activeAlert && (
-        <VisualAlertBanner type={activeAlert.type} message={activeAlert.message}
-          duration={activeAlert.duration} onClose={() => setActiveAlert(null)} />
+        <VisualAlertBanner alert={activeAlert} onDismiss={() => setActiveAlert(null)} />
       )}
 
       {/* Header */}
