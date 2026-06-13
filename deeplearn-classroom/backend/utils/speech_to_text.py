@@ -63,14 +63,21 @@ def transcribe_audio(video_path):
         audio_path = extract_audio_from_video(video_path)
         print(f"[STT] Audio extracted to: {audio_path}")
 
-        # Step 2: Transcribe with Whisper
-        captions = _transcribe_with_whisper(audio_path)
-        if captions:
-            print(f"[STT] Whisper produced {len(captions)} segments")
-            return captions
+        # Check if running on memory-constrained Render server to bypass Whisper
+        is_render = os.environ.get("RENDER") == "true"
+        use_whisper = os.environ.get("USE_WHISPER", "false" if is_render else "true") == "true"
+
+        if use_whisper:
+            # Step 2: Transcribe with Whisper
+            captions = _transcribe_with_whisper(audio_path)
+            if captions:
+                print(f"[STT] Whisper produced {len(captions)} segments")
+                return captions
+        else:
+            print("[STT] Whisper is disabled (using SpeechRecognition directly for memory savings)")
 
         # Step 3: Fallback to SpeechRecognition
-        print("[STT] Whisper failed, trying SpeechRecognition fallback...")
+        print("[STT] Running SpeechRecognition transcription...")
         captions = _transcribe_with_speech_recognition(audio_path)
         if captions:
             return captions
@@ -123,17 +130,28 @@ def _transcribe_with_speech_recognition(audio_path):
     """Fallback transcription using SpeechRecognition + Google API."""
     try:
         import speech_recognition as sr
+        import wave
+
+        # Get audio duration to provide valid timestamps
+        duration = 0.0
+        try:
+            with wave.open(audio_path, 'rb') as f:
+                frames = f.getnframes()
+                rate = f.getframerate()
+                duration = frames / float(rate)
+        except Exception as e:
+            print(f"[STT] Failed to read audio duration: {e}")
 
         recognizer = sr.Recognizer()
         with sr.AudioFile(audio_path) as source:
             audio = recognizer.record(source)
 
         text = recognizer.recognize_google(audio)
-        # SpeechRecognition doesn't give timestamps, so return as single segment
+        # Return as single segment matching audio duration
         return [{
             "text": text,
             "start": 0.0,
-            "end": 0.0,
+            "end": round(duration, 2) if duration > 0 else 5.0,
         }]
 
     except ImportError:
