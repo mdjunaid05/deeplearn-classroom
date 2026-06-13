@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+
+<html class="" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumina Academy | Neural Networks</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind Configuration -->
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"on-background": "#131b2e", "secondary-container": "#8fbefe", "inverse-surface": "#283044", "surface-tint": "#3056c2", "secondary-fixed-dim": "#a3c9ff", "error-container": "#ffdad6", error: "#ba1a1a", "surface-container-highest": "#dbe2fd", tertiary: "#5d5f5f", "on-tertiary-fixed": "#1a1c1c", background: "#faf8ff", "on-tertiary-fixed-variant": "#454747", "on-tertiary": "#ffffff", "surface-container-high": "#e2e7ff", "surface-container-low": "#f2f3ff", "on-secondary": "#ffffff", "surface-variant": "#dbe2fd", "on-surface": "#131b2e", "surface-bright": "#faf8ff", "on-error": "#ffffff", "on-primary": "#ffffff", "primary-fixed": "#dce1ff", "on-primary-container": "#2049b6", surface: "#faf8ff", "on-secondary-container": "#104c85", "on-tertiary-container": "#515253", "inverse-primary": "#b5c4ff", "primary-fixed-dim": "#b5c4ff", "inverse-on-surface": "#eef0ff", "tertiary-container": "#c5c6c6", "on-secondary-fixed-variant": "#064880", outline: "#6c7a71", "tertiary-fixed-dim": "#c6c6c7", "on-primary-fixed-variant": "#0a3caa", "primary-container": "#b5c4ff", "outline-variant": "#bbcac0", "tertiary-fixed": "#e2e2e2", "on-surface-variant": "#3c4a42", "surface-container-lowest": "#ffffff", "secondary-fixed": "#d3e3ff", secondary: "#2c609a", "surface-dim": "#d2d9f4", "on-primary-fixed": "#00164e", "surface-container": "#eaedff", "on-secondary-fixed": "#001c39", primary: "#3056c2", "on-error-container": "#93000a"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, spacing: {xs: "4px", gutter: "24px", "margin-mobile": "16px", base: "8px", xl: "80px", sm: "12px", "margin-desktop": "40px", md: "24px", lg: "48px"}, fontFamily: {"caption-bold": ["Inter"], "body-md": ["Inter"], "label-sm": ["Inter"], "body-lg": ["Inter"], "headline-md": ["Inter"], "display-lg": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"caption-bold": ["20px", {lineHeight: "30px", fontWeight: "600"}], "body-md": ["16px", {lineHeight: "24px", fontWeight: "400"}], "label-sm": ["13px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "500"}], "body-lg": ["18px", {lineHeight: "28px", fontWeight: "400"}], "headline-md": ["24px", {lineHeight: "32px", fontWeight: "600"}], "display-lg": ["48px", {lineHeight: "56px", letterSpacing: "-0.02em", fontWeight: "700"}]}}}};</script>
+<style>
+        body {
+            background-color: #0b1326;
+            color: #dbe2fd;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .glass-high {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(24px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .emerald-glow {
+            box-shadow: 0 0 20px rgba(78, 222, 163, 0.2);
+        }
+        .pulse-emerald {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(78, 222, 163, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(78, 222, 163, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(78, 222, 163, 0); }
+        }
+        .interpreter-window {
+            border: 2px solid #6ffbbe;
+            box-shadow: 0 0 15px rgba(111, 251, 190, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen">
+<!-- TopAppBar Shell -->
+<header class="fixed top-0 right-0 left-0 lg:left-64 z-50 flex justify-between items-center px-gutter h-16 bg-surface/50 backdrop-blur-md border-b border-white/10">
+<div class="flex items-center gap-4">
+<span class="font-headline-md text-headline-md font-bold text-primary">Lumina Academy</span>
+<div class="h-6 w-[1px] bg-white/20 hidden md:block"></div>
+<span class="font-body-md text-body-md text-on-surface hidden md:block">Neural Networks: Deep Learning Fundamentals</span>
+</div>
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-2 px-3 py-1 bg-surface-container-highest rounded-full">
+<span class="w-2 h-2 rounded-full bg-primary pulse-emerald"></span>
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">LIVE</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant ml-2">42:15 / 60:00</span>
+</div>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer hover:text-primary transition-colors">notifications</span>
+<div class="w-8 h-8 rounded-full bg-secondary-container flex items-center justify-center text-secondary text-sm font-bold">SP</div>
+</div>
+</div>
+</header>
+<!-- SideNavBar Shell -->
+<aside class="fixed left-0 top-0 h-full z-40 hidden lg:flex flex-col h-screen w-64 border-r border-white/10 bg-surface-container-low/80 backdrop-blur-xl shadow-md">
+<div class="p-6">
+<h1 class="font-display-lg text-display-lg text-primary tracking-tighter">SC</h1>
+<p class="font-label-sm text-label-sm text-on-surface-variant opacity-70">Premium Classroom</p>
+</div>
+<nav class="flex-1 mt-4">
+<a class="flex items-center gap-3 text-on-surface-variant font-body-md px-4 py-3 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">dashboard</span> Dashboard
+            </a>
+<a class="flex items-center gap-3 text-on-surface-variant font-body-md px-4 py-3 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">school</span> My Courses
+            </a>
+<a class="flex items-center gap-3 text-primary font-bold bg-secondary-container/30 border-l-4 border-primary px-4 py-3 scale-[0.98] transition-transform" href="#">
+<span class="material-symbols-outlined">videocam</span> Classroom
+            </a>
+<a class="flex items-center gap-3 text-on-surface-variant font-body-md px-4 py-3 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">analytics</span> Analytics
+            </a>
+<a class="flex items-center gap-3 text-on-surface-variant font-body-md px-4 py-3 hover:bg-white/5 transition-all" href="#">
+<span class="material-symbols-outlined">settings</span> Settings
+            </a>
+</nav>
+<div class="p-6">
+<button class="w-full py-3 bg-secondary-container text-secondary font-bold rounded-xl flex items-center justify-center gap-2 hover:brightness-110 transition-all">
+<span class="material-symbols-outlined">front_hand</span> Raise Hand
+            </button>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="lg:ml-64 pt-16 min-h-screen flex flex-col xl:flex-row">
+<!-- Center Stage -->
+<section class="flex-1 p-gutter flex flex-col gap-gutter">
+<!-- Video Player Stage -->
+<div class="relative w-full aspect-video rounded-3xl overflow-hidden glass emerald-glow group">
+<img class="w-full h-full object-cover grayscale-[20%]" data-alt="A focused male professor with glasses and silver hair lecturing in a futuristic, dark university hall with neon green holographic neural network diagrams floating in the background. The aesthetic is high-tech, professional, and academic with cinematic lighting and a deep navy and emerald color palette." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPbONAYnb9iJA8tNcPbQilfY9TxIGTEilauj5PLh9jAXyo6qRh_t7nJijCF4eX-JKfEX734MCT-R0_bXUDRryI-os3s7_k5sBNxLWtfBAzpB5xJTeE9_XVYhbNPVnH4Jfvc1qLs4_G2pGgJ39GSQiQa25t7dPjIRE-TyRmmLwDnav3fkyYjHqv4wYCMIjmJJy-LXZ8EeeHvrAwjqXC_zBZXnlFJj8XID6zC_CpNUiCFMkZNBcMAlsda-IGaZMQTof0ECV181a0wlxm"/>
+<!-- ASL Interpreter Overlay -->
+<div class="absolute bottom-6 right-6 w-48 h-64 rounded-2xl interpreter-window overflow-hidden z-20">
+<img class="w-full h-full object-cover" data-alt="A professional female sign language interpreter against a plain dark studio background, performing expressive hand gestures with high focus. She is wearing a simple black top to ensure high contrast for visibility, lit with soft, direct lighting that eliminates shadows on her hands." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9DNql6v9QllB5gd-WvglQtKn5kJ9iB2AAM1DFYwvf_OqoAU53KbnJ0WlEZfJqa3is8HpjsnybXAEUnRGTDnkO2qpVjKElFs3n8Qps8k9ofREZIyGrZi7d4q2jOE55i0jnr9QGxE9iDuB7yOt_UjoaG7-grbfT8LGacTfMcqJzS8672NBHU4V9d-XZkLzEHWovndyDvQ5i2Hi2ESlLk8fjisIkINx5TG5GnBl4hhblZJ7e5Sx7iUTHNrM_g-LDVpGkZZZfcC0JxCDd"/>
+<div class="absolute bottom-2 left-2 bg-primary/20 backdrop-blur px-2 py-0.5 rounded text-[10px] text-primary font-bold">ASL LIVE</div>
+</div>
+<!-- Video Controls (Floating) -->
+<div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined cursor-pointer">play_arrow</span>
+<div class="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
+<div class="w-2/3 h-full bg-primary"></div>
+</div>
+<span class="material-symbols-outlined cursor-pointer">volume_up</span>
+<span class="material-symbols-outlined cursor-pointer">fullscreen</span>
+</div>
+</div>
+</div>
+<!-- Live Captioning Area -->
+<div class="w-full p-6 rounded-2xl glass-high bg-surface-container-low/40">
+<p class="font-caption-bold text-caption-bold text-on-surface leading-relaxed">
+<span class="text-primary/70 mr-2">[00:42:08] Professor Sterling:</span>
+                    "The architectural significance of these neural structures lies in their ability to process multi-modal inputs, creating a spatial representation that mimics human cognition while maintaining mathematical purity..."
+                </p>
+</div>
+<!-- Quick Assessment Bento Card -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<div class="glass p-8 rounded-3xl flex flex-col gap-6 md:col-span-2">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-secondary-container/30 rounded-lg text-secondary">
+<span class="material-symbols-outlined">quiz</span>
+</div>
+<h3 class="font-headline-md text-headline-md">Quick Assessment</h3>
+</div>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+                        According to the lecture, which primary factor contributes most to the Glassmorphism depth effect in UI design?
+                    </p>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<button class="flex items-center justify-between p-5 rounded-2xl glass border-primary/20 hover:bg-white/10 transition-all text-left">
+<span class="font-body-md text-body-md">High Saturation Colors</span>
+</button>
+<button class="flex items-center justify-between p-5 rounded-2xl bg-primary-container text-on-primary-container border-2 border-primary transition-all text-left">
+<span class="font-body-md text-body-md font-bold">Backdrop Blur Intensity</span>
+<span class="material-symbols-outlined text-on-primary-container" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</button>
+<button class="flex items-center justify-between p-5 rounded-2xl glass border-white/5 hover:bg-white/10 transition-all text-left">
+<span class="font-body-md text-body-md">Flat Vector Icons</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- Right Sidebar (Engagement & Interaction) -->
+<aside class="w-full xl:w-80 p-gutter border-l border-white/10 flex flex-col gap-gutter bg-surface-container-lowest/50">
+<!-- Engagement Gauge -->
+<div class="glass p-6 rounded-3xl flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Class Engagement</span>
+<span class="text-primary font-bold">88%</span>
+</div>
+<div class="w-full h-3 bg-white/10 rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-secondary to-primary w-[88%]"></div>
+</div>
+<p class="text-[11px] text-on-surface-variant/60 leading-tight">Interaction levels are peaking in the current segment.</p>
+</div>
+<!-- Class Chat -->
+<div class="glass flex-1 min-h-[400px] rounded-3xl flex flex-col overflow-hidden">
+<div class="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+<span class="font-label-sm text-label-sm font-bold uppercase tracking-widest">Class Chat</span>
+<span class="text-[11px] text-primary">24 Active</span>
+</div>
+<div class="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest flex-shrink-0 flex items-center justify-center text-[10px] font-bold">JD</div>
+<div class="flex flex-col">
+<span class="text-[12px] text-on-surface-variant mb-1">Jane Doe</span>
+<p class="text-sm bg-white/5 p-3 rounded-2xl rounded-tl-none">Could you explain the backpropagation role here again?</p>
+</div>
+</div>
+<div class="flex gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary-container/50 flex-shrink-0 flex items-center justify-center text-[10px] font-bold">ME</div>
+<div class="flex flex-col">
+<span class="text-[12px] text-on-surface-variant mb-1">Marcus Ellis</span>
+<p class="text-sm bg-white/5 p-3 rounded-2xl rounded-tl-none">The glassmorphism metaphor in the architecture diagram was super helpful!</p>
+</div>
+</div>
+<!-- Typing Indicator -->
+<div class="flex gap-1 items-center mt-2 px-2">
+<div class="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce"></div>
+<div class="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+<div class="w-1.5 h-1.5 bg-primary/40 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+</div>
+</div>
+<div class="p-4 bg-white/5 border-t border-white/10">
+<div class="relative">
+<input class="w-full bg-surface-container rounded-xl border-0 text-sm focus:ring-1 focus:ring-primary py-3 pr-10" placeholder="Type a message..." type="text"/>
+<span class="material-symbols-outlined absolute right-3 top-2.5 text-primary cursor-pointer">send</span>
+</div>
+</div>
+</div>
+<!-- Contextual Actions -->
+<div class="flex flex-col gap-4">
+<button class="w-full py-4 rounded-2xl bg-gradient-to-br from-secondary-container to-secondary text-on-secondary font-bold flex items-center justify-center gap-3 shadow-lg hover:scale-[1.02] transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">videocam</span>
+                    Use Sign Language Camera Input
+                </button>
+<div class="grid grid-cols-2 gap-3">
+<button class="p-4 rounded-2xl glass hover:bg-primary/10 transition-all flex flex-col items-center gap-2 group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">front_hand</span>
+<span class="text-[12px] font-medium">Raise Hand</span>
+</button>
+<button class="p-4 rounded-2xl glass hover:bg-primary/10 transition-all flex flex-col items-center gap-2 group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary transition-colors">edit_note</span>
+<span class="text-[12px] font-medium">Take Notes</span>
+</button>
+</div>
+</div>
+</aside>
+</main>
+<!-- Micro-interaction Scripts -->
+<script>
+        // Simple chat mock interaction
+        const input = document.querySelector('input');
+        const chatContainer = document.querySelector('.overflow-y-auto');
+
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && input.value.trim() !== '') {
+                const message = document.createElement('div');
+                message.className = 'flex gap-3 justify-end';
+                message.innerHTML = `
+                    <div class="flex flex-col items-end">
+                        <span class="text-[12px] text-on-surface-variant mb-1">Me</span>
+                        <p class="text-sm bg-primary/20 p-3 rounded-2xl rounded-tr-none text-on-primary-container border border-primary/20">${input.value}</p>
+                    </div>
+                `;
+                chatContainer.appendChild(message);
+                input.value = '';
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        });
+
+        // Toggle hand raise effect
+        const raiseHandBtn = document.querySelectorAll('button').forEach(btn => {
+            if(btn.innerText.includes('Raise Hand')) {
+                btn.addEventListener('click', () => {
+                    btn.classList.toggle('bg-primary');
+                    btn.classList.toggle('text-on-primary');
+                    btn.classList.toggle('glass');
+                    if(btn.classList.contains('bg-primary')) {
+                        // Alert-style notification for simulation
+                        console.log("Hand Raised: Instructor notified.");
+                    }
+                });
+            }
+        });
+    </script>
+</body></html>

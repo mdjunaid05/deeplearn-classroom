@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import {
   Brain, Zap, Shield, BarChart3, GraduationCap, Users,
   Monitor, Activity, ArrowRight, Sparkles, Eye, Cpu,
@@ -52,6 +53,8 @@ const stats = [
 ];
 
 export default function Landing() {
+  const { isAuthenticated, user } = useAuth();
+
   return (
     <div className="page-enter">
       {/* Hero Section */}
@@ -91,30 +94,34 @@ export default function Landing() {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-slide-up"
                style={{ animationDelay: '0.2s' }}>
-            <Link
-              to="/student"
-              id="hero-student-btn"
-              className="group flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-white
-                         bg-gradient-to-r from-primary-600 to-purple-600
-                         hover:from-primary-500 hover:to-purple-500
-                         shadow-xl shadow-primary-600/25 hover:shadow-primary-500/40
-                         transition-all duration-300"
-            >
-              <GraduationCap className="w-5 h-5" />
-              Student Dashboard
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </Link>
-            <Link
-              to="/teacher"
-              id="hero-teacher-btn"
-              className="group flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold
-  text-slate-700 hover:text-primary-600 glass hover:bg-white/10
- transition-all duration-300 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400"
-            >
-              <Users className="w-5 h-5" />
-              Teacher Dashboard
-              <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-            </Link>
+            {(!isAuthenticated || user?.role === 'student') && (
+              <Link
+                to="/student"
+                id="hero-student-btn"
+                className="group flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-white
+                           bg-gradient-to-r from-primary-600 to-purple-600
+                           hover:from-primary-500 hover:to-purple-500
+                           shadow-xl shadow-primary-600/25 hover:shadow-primary-500/40
+                           transition-all duration-300"
+              >
+                <GraduationCap className="w-5 h-5" />
+                Student Dashboard
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            )}
+            {(!isAuthenticated || user?.role === 'teacher') && (
+              <Link
+                to="/teacher"
+                id="hero-teacher-btn"
+                className="group flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold
+    text-slate-700 hover:text-primary-600 glass hover:bg-white/10
+   transition-all duration-300 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400"
+              >
+                <Users className="w-5 h-5" />
+                Teacher Dashboard
+                <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+            )}
           </div>
         </div>
       </section>

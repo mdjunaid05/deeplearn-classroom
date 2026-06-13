@@ -41,7 +41,7 @@ export default {
           200: '#1e293b',
           700: '#e2e8f0',
           800: '#f2f4f6',
-          900: '#f7f9fb',
+          900: '#ffffff',
         },
       },
       fontFamily: {

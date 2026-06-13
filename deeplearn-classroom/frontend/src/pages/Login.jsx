@@ -65,6 +65,17 @@ export default function Login() {
     setLoading(false);
   };
 
+  if (isAuthenticated && user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white">
+        <div className="text-center">
+          <Brain className="w-12 h-12 text-primary-500 animate-pulse mx-auto mb-4" />
+          <p className="text-slate-600 font-semibold text-sm">Already signed in. Redirecting to your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page-enter min-h-screen flex items-center justify-center px-4 py-20 relative overflow-hidden">
       {/* Background ambient light */}

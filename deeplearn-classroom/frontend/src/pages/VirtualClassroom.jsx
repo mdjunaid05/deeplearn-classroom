@@ -15,7 +15,7 @@ import {
   Monitor, CheckCircle, XCircle, Clock,
   MessageSquare, Activity, Send, HandMetal, Mic, MicOff,
   Video, Play, Download, Trash2, Search, Calendar, Lock, AlertCircle,
-  Settings, Type, FastForward, Eye, EyeOff, Maximize, Minimize
+  Settings, Type, FastForward, Eye, EyeOff, Maximize, Minimize, Upload
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -284,78 +284,111 @@ export default function VirtualClassroom() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Virtual Classroom">
+    <div className="w-full bg-white min-h-[calc(100vh-4rem)] text-slate-800 transition-colors duration-300">
+      <style>{`
+        .dark-glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 0, 0, 0.06);
+            box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.04);
+        }
+        .dark-glass-high {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.04);
+        }
+        .emerald-glow {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.08);
+        }
+        .interpreter-window {
+            border: 2px solid #06b6d4;
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+        }
+        .badge-active {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+        }
+        .badge-distracted {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+        }
+        .badge-passive {
+            background: rgba(249, 115, 22, 0.1);
+            color: #ea580c;
+        }
+      `}</style>
 
-      {/* Visual Alert Banner */}
-      <div className="mb-6 w-full max-w-3xl mx-auto">
-        <VisualAlertBanner alert={activeAlert} onDismiss={() => setActiveAlert(null)} />
-      </div>
+      <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Virtual Classroom">
 
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
-            <Monitor className="w-8 h-8 text-primary-400" />
-            Virtual Classroom
-          </h1>
-          <p className="text-slate-600 mt-1">{videoTitle} — Session Active</p>
+        {/* Visual Alert Banner */}
+        <div className="mb-6 w-full max-w-3xl mx-auto">
+          <VisualAlertBanner alert={activeAlert} onDismiss={() => setActiveAlert(null)} />
         </div>
-        <div className="flex gap-3 items-center">
-          {/* Caption/mic status indicator */}
-          {isListening && !usingSimulation ? (
-            <span className="flex items-center gap-1.5 text-xs text-emerald-400 animate-pulse">
-              <Mic className="w-4 h-4" /> Live Mic
-            </span>
-          ) : usingSimulation ? (
-            <span className="flex items-center gap-1.5 text-xs text-purple-400 animate-pulse">
-              <Mic className="w-4 h-4" /> Auto Captions
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5 text-xs text-slate-500">
-              <MicOff className="w-4 h-4" /> Captions off
-            </span>
-          )}
-          <a
-            href="/video-upload"
-            className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold transition-colors text-sm"
-            aria-label="Upload Class Video"
-          >
-            <Monitor className="w-4 h-4" aria-hidden="true" />
-            Upload Video
-          </a>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <Clock className="w-4 h-4 text-primary-400" />
-            <span className="text-sm font-mono text-white">{formatTime(sessionTime)}</span>
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
+              <Monitor className="w-8 h-8 text-primary-500" />
+              Virtual Classroom
+            </h1>
+            <p className="text-slate-500 mt-1 text-sm">{videoTitle} — Live Interactive Session</p>
+          </div>
+          <div className="flex gap-4 items-center">
+            {/* Caption/mic status indicator */}
+            {isListening && !usingSimulation ? (
+              <span className="flex items-center gap-1.5 text-xs text-emerald-600 animate-pulse">
+                <Mic className="w-4 h-4" /> Live Mic
+              </span>
+            ) : usingSimulation ? (
+              <span className="flex items-center gap-1.5 text-xs text-purple-600 animate-pulse">
+                <Mic className="w-4 h-4" /> Auto Captions
+              </span>
+            ) : (
+              <span className="flex items-center gap-1.5 text-xs text-slate-400">
+                <MicOff className="w-4 h-4" /> Captions off
+              </span>
+            )}
+
+            {/* Live indicator block */}
+            <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+              <span className="text-[10px] font-bold text-emerald-600 tracking-wider uppercase">LIVE</span>
+              <span className="text-[10px] text-slate-500 ml-2 font-mono">{formatTime(sessionTime)}</span>
+            </div>
+
+            {/* Upload video button (for teachers) */}
+            {user?.role === 'teacher' && (
+              <a
+                href="/video-upload"
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-semibold transition-colors text-sm shadow-lg shadow-purple-600/20"
+                aria-label="Upload Class Video"
+              >
+                <Upload className="w-4 h-4" aria-hidden="true" />
+                Upload Video
+              </a>
+            )}
           </div>
         </div>
-      </div>
 
-      {/* ── Main grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* ── Main grid ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
-        {/* Left / Main — 3 cols */}
-        <div className="lg:col-span-3 space-y-4">
+          {/* Left / Main — 3 cols */}
+          <div className="lg:col-span-3 space-y-4">
 
-          {/* ── Video + Avatar row ── */}
-          <div className="flex flex-col xl:flex-row gap-4 items-start">
-
-            {/* Video Player */}
+            {/* ── Video Player stage ── */}
             <div
               ref={videoContainerRef}
-              className={`flex-1 rounded-2xl glass overflow-hidden shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300 ${isFullscreen ? 'fullscreen-video-container' : ''}`}
+              className={`relative w-full aspect-video rounded-3xl overflow-hidden dark-glass emerald-glow group transition-all duration-300 ${isFullscreen ? 'fullscreen-video-container' : ''}`}
             >
-              <div className={`bg-black relative group ${isFullscreen ? 'h-full' : 'aspect-video'}`}>
-              {/* 
-                BUGFIX: Always render <video> so videoRef.current is populated
-                immediately on mount. Previously wrapped in {isVideoLoaded && ...}
-                which caused videoRef.current to be null when useVideoTranscript's
-                useEffect ran, so NO listeners were ever attached.
-                Now: always render the element, just conditionally set src/poster.
-              */}
               <video
                 ref={videoRef}
                 src={isVideoLoaded ? videoSrc : ''}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain bg-slate-950"
                 controls
                 onPlay={() => { setIsPlaying(true); setVideoEnded(false); }}
                 onPause={() => setIsPlaying(false)}
@@ -368,497 +401,551 @@ export default function VirtualClassroom() {
                 }
               />
 
-                {/* Title overlay on hover */}
-                <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                  <h3 className="text-lg font-bold text-white">{videoTitle}</h3>
-                  <p className="text-xs text-slate-300">
-                    {videoTitle === 'Deep Learning Fundamentals'
-                      ? 'Lecture 5: Neural Network Architectures'
-                      : 'Custom Uploaded Content'}
-                  </p>
+              {/* Video-ended overlay */}
+              {videoEnded && (
+                <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center pointer-events-none z-10">
+                  <CheckCircle className="w-16 h-16 text-emerald-400 mb-3" />
+                  <p className="text-white font-semibold text-lg">Video Complete</p>
+                  <p className="text-slate-400 text-sm mt-1">Quiz generated below</p>
                 </div>
+              )}
 
-                {/* Video-ended overlay */}
-                {videoEnded && (
-                  <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center pointer-events-none">
-                    <CheckCircle className="w-16 h-16 text-emerald-400 mb-3" />
-                    <p className="text-white font-semibold text-lg">Video Complete</p>
-                    <p className="text-slate-400 text-sm mt-1">Quiz generated below</p>
-                  </div>
-                )}
-
-                {/* ── Caption overlay — only visible in fullscreen ── */}
-                {captionsEnabled && isFullscreen && (
-                  <div className="absolute left-0 right-0 bottom-16 z-10 pointer-events-none px-4">
-                    <CaptionOverlay
-                      transcript={transcript}
-                      currentCaption={currentCaption}
+              {/* ASL Interpreter Overlay - placed INSIDE video player */}
+              {signLangEnabled && (
+                <div className="absolute bottom-6 right-6 z-20 sign-panel-enter">
+                  <div className="interpreter-window rounded-2xl overflow-hidden">
+                    <SignAvatarOverlay
+                      currentSign={currentSign}
                       isActive={isPlaying}
-                      usingSimulation={usingSimulation}
-                      captionSize={isFullscreen ? 'large' : captionSize}
+                      signQueue={signQueue}
+                      isProcessing={signProcessing}
+                      signCount={signCount}
                     />
                   </div>
-                )}
+                </div>
+              )}
 
-                {/* Custom fullscreen toggle button */}
-                <button
-                  onClick={toggleFullscreen}
-                  className="absolute top-3 right-3 z-20 p-2 rounded-lg bg-black/60 hover:bg-black/80 text-white opacity-70 hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
-                  aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                  title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen with captions'}
-                >
-                  {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
-                </button>
-              </div>
-
-              {/* ── Captions — below video in normal mode ── */}
-              {captionsEnabled && !isFullscreen && (
-                <div className="p-3 border-t border-white/5">
+              {/* Caption overlay — only visible in fullscreen */}
+              {captionsEnabled && isFullscreen && (
+                <div className="absolute left-0 right-0 bottom-16 z-10 pointer-events-none px-4">
                   <CaptionOverlay
                     transcript={transcript}
                     currentCaption={currentCaption}
                     isActive={isPlaying}
                     usingSimulation={usingSimulation}
-                    captionSize={captionSize}
+                    captionSize={isFullscreen ? 'large' : captionSize}
                   />
-                  {!isPlaying && transcript.length === 0 && (
-                    <p className="text-xs text-slate-600 italic text-center py-2">
-                      Captions will appear here when the video plays.
-                    </p>
-                  )}
                 </div>
               )}
-            </div>
 
-            {/* ── Sign Language Avatar — right of video ── */}
-            {signLangEnabled && (
-              <div className="flex-shrink-0 sign-panel-enter">
-                <SignAvatarOverlay
-                  currentSign={currentSign}
-                  isActive={isPlaying}
-                  signQueue={signQueue}
-                  isProcessing={signProcessing}
-                  signCount={signCount}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* ── Accessibility Controls ── */}
-          <div className="p-4 rounded-2xl glass flex flex-wrap items-center gap-4 shadow-lg border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <div className="flex items-center gap-2">
-              <Settings className="w-5 h-5 text-primary-500" />
-              <span className="text-sm font-semibold text-slate-700">Accessibility</span>
-            </div>
-            <div className="w-px h-6 bg-slate-200/50 mx-2"></div>
-            
-            <button 
-              onClick={() => setCaptionsEnabled(!captionsEnabled)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${captionsEnabled ? 'bg-primary-500/10 text-primary-600 border border-primary-500/20' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-            >
-              {captionsEnabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-              Captions
-            </button>
-            
-            <button 
-              id="toggle-sign-language"
-              onClick={() => setSignLangEnabled(!signLangEnabled)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${
-                signLangEnabled
-                  ? 'bg-cyan-500/10 text-cyan-600 border border-cyan-500/30 shadow-sm shadow-cyan-500/10'
-                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-              }`}
-              aria-pressed={signLangEnabled}
-              aria-label="Toggle sign language interpreter"
-            >
-              <HandMetal className="w-4 h-4" />
-              Sign Language
-              {signLangEnabled && signCount > 0 && (
-                <span className="ml-1 text-[10px] font-bold bg-cyan-500/20 text-cyan-600 px-1.5 py-0.5 rounded-full">
-                  {signCount}
-                </span>
-              )}
-            </button>
-            
-            <div className="flex items-center gap-2 ml-auto">
-              <Type className="w-4 h-4 text-slate-500" />
-              <select 
-                value={captionSize} 
-                onChange={(e) => setCaptionSize(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 p-1.5 outline-none font-medium"
-                style={{ color: 'white', backgroundColor: '#1e293b' }}
-              >
-                <option value="small">Small text</option>
-                <option value="normal">Normal text</option>
-                <option value="large">Large text</option>
-              </select>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <FastForward className="w-4 h-4 text-slate-500" />
-              <select 
-                value={playbackSpeed} 
-                onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
-                className="bg-slate-800 border border-slate-700 text-white text-sm rounded-lg focus:ring-primary-500 focus:border-primary-500 p-1.5 outline-none font-medium"
-                style={{ color: 'white', backgroundColor: '#1e293b' }}
-              >
-                <option value="0.5">0.5x</option>
-                <option value="0.75">0.75x</option>
-                <option value="1.0">1.0x (Normal)</option>
-                <option value="1.25">1.25x</option>
-                <option value="1.5">1.5x</option>
-                <option value="2.0">2.0x</option>
-              </select>
-            </div>
-          </div>
-
-          {/* ── Quiz Section ── */}
-          <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <h3 className="text-sm font-semibold text-slate-500 mb-1 flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-400" />
-              Quick Assessment
-            </h3>
-            <p className="text-xs text-slate-500 mb-5">
-              {quizQuestions
-                ? 'Questions generated from the video transcript.'
-                : videoEnded
-                  ? 'Using fallback questions (no speech detected).'
-                  : 'Quiz will be generated automatically when the video ends.'}
-            </p>
-
-            {/* Quiz not ready yet */}
-            {!quizReady && !videoEnded && (
-              <div className="text-center py-8 text-slate-500">
-                <Activity className="w-8 h-8 mx-auto mb-2 opacity-40 animate-pulse" />
-                <p className="text-sm">Finish watching the video to unlock the quiz.</p>
-              </div>
-            )}
-
-            {/* Quiz questions */}
-            {(quizReady || videoEnded) && !showResults && (
-              <div className="space-y-6">
-                {activeQuiz.map((q, qIdx) => (
-                  <div key={q.id} className="p-4 rounded-xl glass-light shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-                    <p className="text-sm font-medium text-white mb-3">
-                      {qIdx + 1}. {q.question}
-                    </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {q.options.map((opt, optIdx) => (
-                        <button
-                          key={optIdx}
-                          id={`quiz-q${qIdx}-opt${optIdx}`}
-                          onClick={() => handleAnswer(qIdx, optIdx)}
-                          className={`text-left px-4 py-2.5 rounded-lg text-sm transition-all
-                            ${answers[qIdx] === optIdx
-                              ? 'bg-primary-600/30 border border-primary-500/50 text-primary-200'
-                              : 'bg-white/[0.03] border border-white/5 text-slate-500 hover:bg-white/[0.06] hover:border-white/10'
-                            }`}
-                        >
-                          {opt}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-
-                <button
-                  id="quiz-submit-btn"
-                  onClick={handleSubmitQuiz}
-                  disabled={Object.keys(answers).length < activeQuiz.length}
-                  className="w-full py-3 rounded-xl bg-gradient-to-r from-primary-600 to-purple-600
-                             text-white font-semibold text-sm
-                             hover:from-primary-500 hover:to-purple-500
-                             disabled:opacity-40 disabled:cursor-not-allowed
-                             transition-all shadow-lg shadow-primary-600/20"
-                >
-                  Submit Answers
-                </button>
-              </div>
-            )}
-
-            {/* Results screen */}
-            {showResults && (
-              <div className="text-center py-8">
-                <div className={`text-5xl font-display font-bold mb-2 ${
-                  score === activeQuiz.length ? 'text-emerald-400' :
-                  score >= activeQuiz.length / 2 ? 'text-amber-400' : 'text-red-400'
-                }`}>
-                  {score}/{activeQuiz.length}
-                </div>
-                <p className="text-slate-600 text-sm mb-4">
-                  {score === activeQuiz.length
-                    ? 'Perfect score! Excellent work!'
-                    : score >= activeQuiz.length / 2
-                      ? 'Good job! Review the material to improve.'
-                      : "Keep studying — you'll improve!"}
-                </p>
-
-                <div className="space-y-2 text-left mt-6">
-                  {activeQuiz.map((q, qIdx) => (
-                    <div key={q.id} className="flex items-start gap-2 p-2 rounded-lg glass-light shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-                      {answers[qIdx] === q.correct
-                        ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />
-                        : <XCircle    className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />}
-                      <span className="text-xs text-slate-500">{q.question}</span>
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  id="quiz-retry-btn"
-                  onClick={() => { setShowResults(false); setAnswers({}); }}
-                  className="mt-4 px-6 py-2 rounded-lg glass text-sm text-white hover:bg-white/10 transition shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300"
-                >
-                  Retry Quiz
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ── Sidebar — 1 col ── */}
-        <div className="space-y-4">
-
-          {/* Live Engagement */}
-          <div className="p-5 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
-              Live Engagement
-            </h3>
-            <div className="flex items-center gap-2 mb-2">
-              <div className={`w-3 h-3 rounded-full shadow-lg animate-pulse ${
-                engagement === 'High'   ? 'bg-emerald-400 shadow-emerald-400/50' :
-                engagement === 'Low'    ? 'bg-red-400 shadow-red-400/50'         :
-                'bg-amber-400 shadow-amber-400/50'
-              }`} />
-              <span className={`badge badge-${engagement.toLowerCase()}`}>{engagement}</span>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">Updates every 8 seconds</p>
-          </div>
-
-          {/* Behaviour Status */}
-          <div className="p-5 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
-              Behaviour Status
-            </h3>
-            <div className="flex items-center gap-2 mb-2">
-              <Activity className={`w-4 h-4 ${
-                behaviour === 'Active'     ? 'text-emerald-400' :
-                behaviour === 'Distracted' ? 'text-red-400'     : 'text-amber-400'
-              }`} />
-              <span className={`badge badge-${behaviour.toLowerCase()}`}>{behaviour}</span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {[['Click Rate', '—'], ['Response', '—'], ['Idle Time', '—']].map(([k, v]) => (
-                <div key={k} className="flex justify-between text-xs">
-                  <span className="text-slate-500">{k}</span>
-                  <span className="text-slate-500">{v}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Session Info */}
-          <div className="p-5 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
-              Session Info
-            </h3>
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Course</span>
-                <span className="text-slate-500 truncate max-w-[100px] text-right">{videoTitle}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Captions</span>
-                <span className="text-slate-500">{transcript.length} segments</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Duration</span>
-                <span className="text-slate-500 font-mono">{formatTime(sessionTime)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Transcript preview */}
-          {transcript.length > 0 && (
-            <div className="p-5 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-              <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3">
-                Transcript ({transcript.length})
-              </h3>
-              <div className="space-y-1 max-h-36 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
-                {transcript.slice(-8).map((item, idx) => (
-                  <p key={idx} className="text-[10px] text-slate-600 leading-snug">
-                    <span className="text-slate-600 font-mono mr-1">{formatTime(Math.floor(item.timestamp))}</span>
-                    {item.text}
-                  </p>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Text Chat */}
-          <div className="p-5 rounded-2xl glass flex flex-col h-64 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2">
-              <MessageSquare className="w-3.5 h-3.5" />
-              Class Chat
-            </h3>
-            <div className="flex-1 space-y-2 overflow-y-auto mb-3 pr-1" role="log" aria-label="Chat messages">
-              {chatMessages.map((c, idx) => (
-                <div key={idx} className="p-2 rounded-lg glass-light shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-                  <div className="flex items-center justify-between mb-0.5">
-                    <span className="text-xs font-semibold text-primary-300">{c.user}</span>
-                    <span className="text-[10px] text-slate-500">{c.time}</span>
-                  </div>
-                  <p className="text-xs text-slate-600">{c.msg}</p>
-                </div>
-              ))}
-            </div>
-            <form onSubmit={handleSendChat} className="flex gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                className="flex-1 px-3 py-1.5 rounded-lg bg-surface-800 border border-white/10 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300"
-                placeholder="Type a message…"
-                aria-label="Chat message input"
-              />
+              {/* Custom fullscreen toggle button */}
               <button
-                type="submit"
-                className="p-1.5 rounded-lg bg-primary-600 hover:bg-primary-500 text-true-white transition-colors hover:shadow-[0_0_15px_rgba(34,211,238,0.4)] transition-all duration-300"
-                aria-label="Send message"
+                onClick={toggleFullscreen}
+                className="absolute top-3 right-3 z-20 p-2 rounded-lg bg-black/60 hover:bg-black/80 text-white opacity-70 hover:opacity-100 transition-all duration-200 backdrop-blur-sm"
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                title={isFullscreen ? 'Exit fullscreen (Esc)' : 'Fullscreen with captions'}
               >
-                <Send className="w-4 h-4" />
+                {isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
               </button>
-            </form>
-          </div>
+            </div>
 
-          {/* Sign Language Input button */}
-          <button
-            onClick={() => setActiveAlert({ type: 'info', message: 'Sign Language Input mode started.', flash: false, duration: 3000 })}
-            className="w-full p-4 rounded-2xl glass hover:bg-emerald-500/10 border border-emerald-500/20 transition-colors flex items-center justify-center gap-3 text-emerald-400 group shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300"
-            aria-label="Open sign language input"
-          >
-            <HandMetal className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            <span className="font-semibold text-sm">Use Sign Language</span>
-          </button>
-        </div>
-      </div>
+            {/* ── Captions — below video in normal mode ── */}
+            {captionsEnabled && !isFullscreen && (
+              <div className="w-full p-6 rounded-2xl dark-glass-high">
+                <CaptionOverlay
+                  transcript={transcript}
+                  currentCaption={currentCaption}
+                  isActive={isPlaying}
+                  usingSimulation={usingSimulation}
+                  captionSize={captionSize}
+                />
+                {!isPlaying && transcript.length === 0 && (
+                  <p className="text-xs text-slate-500 italic text-center py-2">
+                    Captions will appear here when the video plays.
+                  </p>
+                )}
+              </div>
+            )}
 
-      {/* ── Recorded Classes Section ── */}
-      <div className="mt-12 w-full">
-        <h2 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3 mb-6">
-          <Video className="w-8 h-8 text-primary-500" />
-          Recorded Classes
-        </h2>
-        
-        {loadingRecordings ? (
-          <div className="flex justify-center py-10">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-          </div>
-        ) : recordings.length === 0 ? (
-          <div className="text-center py-12 glass rounded-2xl shadow-lg border border-slate-200/60">
-            <Video className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-lg font-bold text-slate-700">No recordings found</h3>
-            <p className="text-slate-500 text-sm">Class recordings will appear here.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {recordings.map(recording => (
-              <div 
-                key={recording.recording_id} 
-                className={`glass rounded-2xl overflow-hidden shadow-lg border border-slate-200/60 transition-all duration-300 flex flex-col group ${
-                  recording.is_locked ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-xl hover:border-primary-400 cursor-pointer'
-                }`}
-                onClick={() => {
-                  if (recording.is_locked) return;
-                  setVideoSrc(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`);
-                  setVideoTitle(recording.class_title || "Virtual Class Session");
-                  setActiveRecording(recording);
-                  setVideoEnded(false);
-                  setQuizReady(false);
-                  setShowResults(false);
-                  setAnswers({});
-                  setSavedCaptions([]); // CLEAR CAPTIONS FOR NEW VIDEO
-                  
-                  // Fetch captions.json if it exists
-                  fetch(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/captions.json`)
-                    .then(res => {
-                      if (res.ok) return res.json();
-                      throw new Error('No captions');
-                    })
-                    .then(data => {
-                      if (data && data.length > 0) {
-                        setSavedCaptions(data);
-                      }
-                    })
-                    .catch(() => console.log('No captions.json found for this recording.'));
-
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
+            {/* ── Accessibility Controls ── */}
+            <div className="p-4 rounded-2xl dark-glass flex flex-wrap items-center gap-4 shadow-lg border border-slate-200 transition-all duration-300">
+              <div className="flex items-center gap-2">
+                <Settings className="w-5 h-5 text-primary-500" />
+                <span className="text-sm font-semibold text-slate-700">Accessibility Controls</span>
+              </div>
+              <div className="w-px h-6 bg-slate-200 mx-2"></div>
+              
+              <button 
+                onClick={() => setCaptionsEnabled(!captionsEnabled)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${captionsEnabled ? 'bg-primary-500/10 text-primary-600 border border-primary-500/20' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
               >
-                <div className="relative aspect-video bg-slate-900 group">
-                  {recording.thumbnail_path ? (
-                    <img 
-                      src={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
-                      alt="Thumbnail" 
-                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                       <Video className="w-12 h-12 text-slate-600" />
-                    </div>
-                  )}
-                  
-                  {recording.is_locked ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm">
-                      <Lock className="w-8 h-8 text-white/80 mb-2" />
-                      <span className="text-white/90 text-xs font-semibold px-4 text-center">{recording.locked_reason}</span>
-                    </div>
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-                      <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
-                        <Play className="w-5 h-5 ml-1" />
+                {captionsEnabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                Captions
+              </button>
+              
+              <button 
+                id="toggle-sign-language"
+                onClick={() => setSignLangEnabled(!signLangEnabled)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${
+                  signLangEnabled
+                    ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20 shadow-sm shadow-purple-500/5'
+                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                }`}
+                aria-pressed={signLangEnabled}
+                aria-label="Toggle sign language interpreter"
+              >
+                <HandMetal className="w-4 h-4" />
+                ASL Interpreter Overlay
+                {signLangEnabled && signCount > 0 && (
+                  <span className="ml-1 text-[10px] font-bold bg-purple-500/20 text-purple-600 px-1.5 py-0.5 rounded-full">
+                    {signCount}
+                  </span>
+                )}
+              </button>
+              
+              <div className="flex items-center gap-2 ml-auto">
+                <Type className="w-4 h-4 text-slate-500" />
+                <select 
+                  value={captionSize} 
+                  onChange={(e) => setCaptionSize(e.target.value)}
+                  className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-1.5 outline-none font-medium focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="small">Small text</option>
+                  <option value="normal">Normal text</option>
+                  <option value="large">Large text</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <FastForward className="w-4 h-4 text-slate-500" />
+                <select 
+                  value={playbackSpeed} 
+                  onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
+                  className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-1.5 outline-none font-medium focus:ring-1 focus:ring-primary-500"
+                >
+                  <option value="0.5">0.5x</option>
+                  <option value="0.75">0.75x</option>
+                  <option value="1.0">1.0x (Normal)</option>
+                  <option value="1.25">1.25x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="2.0">2.0x</option>
+                </select>
+              </div>
+            </div>
+
+            {/* ── Quiz Section (Bento Card Style) ── */}
+            <div className="p-8 rounded-3xl dark-glass flex flex-col gap-6 border border-slate-200 transition-all duration-300">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-purple-500/10 rounded-lg text-purple-600">
+                  <CheckCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Quick Assessment</h3>
+                  <p className="text-xs text-slate-500">
+                    {quizQuestions
+                      ? 'Questions generated dynamically from the video transcript.'
+                      : videoEnded
+                        ? 'Using fallback questions (no speech detected).'
+                        : 'Quiz will be generated automatically when the video ends.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Quiz not ready yet */}
+              {!quizReady && !videoEnded && (
+                <div className="text-center py-8 text-slate-400">
+                  <Activity className="w-8 h-8 mx-auto mb-2 opacity-40 animate-pulse text-primary-500" />
+                  <p className="text-sm">Finish watching the video to unlock the quiz.</p>
+                </div>
+              )}
+
+              {/* Quiz questions */}
+              {(quizReady || videoEnded) && !showResults && (
+                <div className="space-y-6">
+                  {activeQuiz.map((q, qIdx) => (
+                    <div key={q.id} className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100 hover:border-primary-500/30 transition-all duration-300">
+                      <p className="text-sm font-semibold text-slate-800 mb-4">
+                        {qIdx + 1}. {q.question}
+                      </p>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {q.options.map((opt, optIdx) => {
+                          const isSelected = answers[qIdx] === optIdx;
+                          return (
+                            <button
+                              key={optIdx}
+                              id={`quiz-q${qIdx}-opt${optIdx}`}
+                              onClick={() => handleAnswer(qIdx, optIdx)}
+                              className={`flex items-center justify-between p-5 rounded-2xl text-left text-sm transition-all duration-200
+                                ${isSelected
+                                  ? 'bg-primary-50 border-2 border-primary-500 text-primary-900 font-semibold'
+                                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                                }`}
+                            >
+                              <span>{opt}</span>
+                              {isSelected && (
+                                <CheckCircle className="w-4 h-4 text-primary-600 shrink-0 ml-2" />
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
-                  )}
+                  ))}
 
-                  <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 text-white text-[10px] font-mono backdrop-blur-sm">
-                    {Math.floor(recording.duration / 60)}:{(Math.floor(recording.duration % 60)).toString().padStart(2, '0')}
-                  </div>
+                  <button
+                    id="quiz-submit-btn"
+                    onClick={handleSubmitQuiz}
+                    disabled={Object.keys(answers).length < activeQuiz.length}
+                    className="w-full py-4 rounded-2xl bg-gradient-to-r from-primary-600 to-purple-600
+                               text-white font-bold text-sm hover:brightness-110
+                               disabled:opacity-40 disabled:cursor-not-allowed
+                               transition-all shadow-lg shadow-primary-600/10"
+                  >
+                    Submit Answers
+                  </button>
                 </div>
-                
-                <div className="p-4 flex flex-col flex-1">
-                  <h3 className="font-bold text-slate-800 text-sm mb-1 truncate" title={recording.class_title || "Virtual Class Session"}>
-                    {recording.class_title || "Virtual Class Session"}
-                  </h3>
-                  
-                  <div className="space-y-1 mt-auto">
-                    <p className="text-[10px] text-slate-500 flex items-center gap-1.5">
-                      <Calendar className="w-3 h-3" />
-                      {new Date(recording.recording_timestamp).toLocaleDateString()}
-                    </p>
+              )}
+
+              {/* Results screen */}
+              {showResults && (
+                <div className="text-center py-8">
+                  <div className={`text-5xl font-display font-bold mb-2 ${
+                    score === activeQuiz.length ? 'text-emerald-600' :
+                    score >= activeQuiz.length / 2 ? 'text-yellow-600' : 'text-red-500'
+                  }`}>
+                    {score}/{activeQuiz.length}
+                  </div>
+                  <p className="text-slate-500 text-sm mb-6">
+                    {score === activeQuiz.length
+                      ? 'Perfect score! Excellent work!'
+                      : score >= activeQuiz.length / 2
+                        ? 'Good job! Review the material to improve.'
+                        : "Keep studying — you'll improve!"}
+                  </p>
+
+                  <div className="space-y-3 text-left mt-6 max-w-xl mx-auto">
+                    {activeQuiz.map((q, qIdx) => (
+                      <div key={q.id} className="flex items-start gap-3 p-4 rounded-xl bg-white border border-slate-100">
+                        {answers[qIdx] === q.correct
+                          ? <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                          : <XCircle    className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
+                        <div>
+                          <span className="text-xs text-slate-400 block mb-1">Question {qIdx + 1}</span>
+                          <span className="text-sm text-slate-700">{q.question}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
 
-                  <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
-                    <a 
-                      href={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
-                      download
-                      onClick={(e) => e.stopPropagation()}
-                      className={`flex items-center gap-1.5 text-[10px] font-semibold transition-colors ${
-                        recording.is_locked 
-                          ? 'text-slate-400 cursor-not-allowed pointer-events-none' 
-                          : 'text-primary-600 hover:text-primary-700'
-                      }`}
-                    >
-                      <Download className="w-3 h-3" /> Download
-                    </a>
+                  <button
+                    id="quiz-retry-btn"
+                    onClick={() => { setShowResults(false); setAnswers({}); }}
+                    className="mt-8 px-6 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-sm transition-all border border-slate-200"
+                  >
+                    Retry Quiz
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Sidebar — 1 col ── */}
+          <div className="space-y-4">
+
+            {/* Live Engagement */}
+            <div className="p-6 rounded-3xl dark-glass flex flex-col gap-4 border border-slate-200">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Class Engagement
+                </span>
+                <span className={`text-sm font-bold ${
+                  engagement === 'High' ? 'text-emerald-600' :
+                  engagement === 'Low' ? 'text-red-500' : 'text-amber-500'
+                }`}>
+                  {engagement === 'High' ? '88%' : engagement === 'Medium' ? '65%' : '38%'}
+                </span>
+              </div>
+              <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-gradient-to-r from-purple-500 to-primary-500 transition-all duration-1000"
+                  style={{
+                    width: engagement === 'High' ? '88%' : engagement === 'Medium' ? '65%' : '38%'
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-500 leading-tight">
+                {engagement === 'High' ? 'Interaction levels are peaking in the current segment.' :
+                 engagement === 'Medium' ? 'Classroom attention is steady.' :
+                 'Attention levels are low. Consider triggering a stretch break.'}
+              </p>
+            </div>
+
+            {/* Behaviour Status */}
+            <div className="p-6 rounded-3xl dark-glass flex flex-col gap-4 border border-slate-200">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Behaviour Status
+              </h3>
+              <div className="flex items-center gap-2">
+                <Activity className={`w-4 h-4 ${
+                  behaviour === 'Active'     ? 'text-emerald-500' :
+                  behaviour === 'Distracted' ? 'text-red-500'     : 'text-amber-500'
+                }`} />
+                <span className={`badge ${
+                  behaviour === 'Active' ? 'badge-active' :
+                  behaviour === 'Distracted' ? 'badge-distracted' : 'badge-passive'
+                }`}>{behaviour}</span>
+              </div>
+              <div className="space-y-2 border-t border-slate-100 pt-3">
+                {[['Click Rate', 'Steady'], ['Response', 'Good'], ['Idle Time', 'Low']].map(([k, v]) => (
+                  <div key={k} className="flex justify-between text-xs">
+                    <span className="text-slate-400">{k}</span>
+                    <span className="text-slate-700 font-medium">{v}</span>
                   </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Session Info */}
+            <div className="p-6 rounded-3xl dark-glass flex flex-col gap-3 border border-slate-200">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Session Info
+              </h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Course</span>
+                  <span className="text-slate-700 font-medium truncate max-w-[150px] text-right" title={videoTitle}>{videoTitle}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Captions</span>
+                  <span className="text-slate-700 font-medium">{transcript.length} segments</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Duration</span>
+                  <span className="text-slate-700 font-mono">{formatTime(sessionTime)}</span>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            </div>
 
+            {/* Transcript preview */}
+            {transcript.length > 0 && (
+              <div className="p-6 rounded-3xl dark-glass flex flex-col gap-3 border border-slate-200">
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Transcript ({transcript.length})
+                </h3>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
+                  {transcript.slice(-8).map((item, idx) => (
+                    <p key={idx} className="text-[10px] text-slate-600 leading-snug">
+                      <span className="text-slate-400 font-mono mr-1">{formatTime(Math.floor(item.timestamp))}</span>
+                      {item.text}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Text Chat */}
+            <div className="p-6 rounded-3xl dark-glass flex flex-col h-[400px] border border-slate-200">
+              <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-purple-500" />
+                  Class Chat
+                </span>
+                <span className="text-[10px] text-emerald-600 font-medium">24 Active</span>
+              </div>
+              <div className="flex-1 space-y-3 overflow-y-auto my-3 pr-1" role="log" aria-label="Chat messages">
+                {chatMessages.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-400">
+                    <MessageSquare className="w-8 h-8 opacity-20 mb-2" />
+                    <p className="text-xs">No messages yet. Say hello!</p>
+                  </div>
+                ) : (
+                  chatMessages.map((c, idx) => (
+                    <div key={idx} className="flex gap-2">
+                      <div className="w-7 h-7 rounded-full bg-slate-200 text-[10px] font-bold text-slate-700 flex items-center justify-center shrink-0">
+                        {c.user === 'You' ? 'ME' : c.user.split(' ').map(n=>n[0]).join('').toUpperCase()}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[11px] font-semibold text-slate-700">{c.user}</span>
+                          <span className="text-[9px] text-slate-400">{c.time}</span>
+                        </div>
+                        <p className="text-xs bg-slate-50 border border-slate-100 p-2 rounded-2xl rounded-tl-none text-slate-700 leading-relaxed">{c.msg}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <form onSubmit={handleSendChat} className="flex gap-2 pt-2 border-t border-slate-100">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:bg-white"
+                  placeholder="Type a message…"
+                  aria-label="Chat message input"
+                  style={{ color: '#1e293b', backgroundColor: '#f8fafc' }}
+                />
+                <button
+                  type="submit"
+                  className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition-colors"
+                  aria-label="Send message"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
+            </div>
+
+            {/* Sign Language Input & Actions */}
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={() => setActiveAlert({ type: 'info', message: 'Sign Language Input mode started.', flash: false, duration: 3000 })}
+                className="w-full py-4 rounded-2xl bg-gradient-to-br from-purple-500 to-primary-500 text-white font-bold flex items-center justify-center gap-3 shadow-lg hover:scale-[1.02] transition-transform"
+                aria-label="Open sign language input"
+              >
+                <HandMetal className="w-5 h-5" />
+                <span className="text-sm">Use Sign Language Camera</span>
+              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => {
+                    setActiveAlert({ type: 'success', message: 'Hand raised. Teacher has been notified.', flash: true, duration: 3000 });
+                  }}
+                  className="p-4 rounded-2xl dark-glass hover:bg-slate-100 border border-slate-100 transition-all flex flex-col items-center gap-2 group"
+                >
+                  <HandMetal className="w-5 h-5 text-slate-400 group-hover:text-primary-500 transition-colors" />
+                  <span className="text-xs font-medium text-slate-600">Raise Hand</span>
+                </button>
+                <button 
+                  onClick={() => {
+                    setActiveAlert({ type: 'info', message: 'Notes panel opened.', flash: false, duration: 2000 });
+                  }}
+                  className="p-4 rounded-2xl dark-glass hover:bg-slate-100 border border-slate-100 transition-all flex flex-col items-center gap-2 group"
+                >
+                  <Settings className="w-5 h-5 text-slate-400 group-hover:text-primary-500 transition-colors" />
+                  <span className="text-xs font-medium text-slate-600">Take Notes</span>
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ── Recorded Classes Section ── */}
+        <div className="mt-16 border-t border-slate-200 pt-12">
+          <h2 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3 mb-8">
+            <Video className="w-7 h-7 text-primary-500" />
+            Recorded Class Catalog
+          </h2>
+          
+          {loadingRecordings ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+            </div>
+          ) : recordings.length === 0 ? (
+            <div className="text-center py-16 dark-glass rounded-3xl border border-slate-200">
+              <Video className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-slate-700">No recordings found</h3>
+              <p className="text-slate-500 text-sm">Class recordings will appear here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {recordings.map(recording => (
+                <div 
+                  key={recording.recording_id} 
+                  className={`dark-glass rounded-2xl overflow-hidden border border-slate-100 transition-all duration-300 flex flex-col group ${
+                    recording.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary-500/40 cursor-pointer hover:shadow-lg'
+                  }`}
+                  onClick={() => {
+                    if (recording.is_locked) return;
+                    setVideoSrc(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`);
+                    setVideoTitle(recording.class_title || "Virtual Class Session");
+                    setActiveRecording(recording);
+                    setVideoEnded(false);
+                    setQuizReady(false);
+                    setShowResults(false);
+                    setAnswers({});
+                    setSavedCaptions([]);
+                    
+                    fetch(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/captions.json`)
+                      .then(res => {
+                        if (res.ok) return res.json();
+                        throw new Error('No captions');
+                      })
+                      .then(data => {
+                        if (data && data.length > 0) {
+                          setSavedCaptions(data);
+                        }
+                      })
+                      .catch(() => console.log('No captions.json found for this recording.'));
+
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                >
+                  <div className="relative aspect-video bg-slate-950 group">
+                    {recording.thumbnail_path ? (
+                      <img 
+                        src={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
+                        alt="Thumbnail" 
+                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                         <Video className="w-10 h-10 text-slate-500" />
+                      </div>
+                    )}
+                    
+                    {recording.is_locked ? (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
+                        <Lock className="w-6 h-6 text-white/60 mb-2" />
+                        <span className="text-white/80 text-[10px] font-semibold px-4 text-center">{recording.locked_reason}</span>
+                      </div>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
+                        <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                          <Play className="w-5 h-5 fill-white ml-0.5" />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 text-white text-[10px] font-mono backdrop-blur-xs">
+                      {Math.floor(recording.duration / 60)}:{(Math.floor(recording.duration % 60)).toString().padStart(2, '0')}
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 flex flex-col flex-1">
+                    <h3 className="font-bold text-slate-700 text-sm mb-1 truncate" title={recording.class_title || "Virtual Class Session"}>
+                      {recording.class_title || "Virtual Class Session"}
+                    </h3>
+                    
+                    <div className="space-y-1 mt-auto">
+                      <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                        <Calendar className="w-3 h-3" />
+                        {new Date(recording.recording_timestamp).toLocaleDateString()}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                      <a 
+                        href={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
+                        download
+                        onClick={(e) => e.stopPropagation()}
+                        className={`flex items-center gap-1.5 text-[10px] font-semibold transition-colors ${
+                          recording.is_locked 
+                            ? 'text-slate-400 cursor-not-allowed pointer-events-none' 
+                            : 'text-primary-600 hover:text-primary-700'
+                        }`}
+                      >
+                        <Download className="w-3 h-3" /> Download
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
+
