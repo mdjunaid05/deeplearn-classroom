@@ -155,6 +155,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 url = upload_file(output_path, output_r2_key, content_type="video/mp4")
                 if is_r2_url(url):
                     video_url = url
+                    print(f"[R2_UPLOAD_SUCCESS] key={output_r2_key} url={video_url}", flush=True)
                     # Delete local processed file — it's in R2 now
                     try:
                         os.remove(output_path)
@@ -175,17 +176,19 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
         # ── Step 5: Save to Database ──────────────────────────────
         if video_id:
             from database.db import get_db_connection
+            print("[DATABASE_SAVE_STARTED]", flush=True)
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 
-                # Update status, url and transcript
+                # Update status, url, r2_url and transcript
                 full_transcript = " ".join([cap["text"] for cap in captions])
+                from utils.storage import is_r2_url
                 cursor.execute("""
                     UPDATE videos 
-                    SET status = 'done', processed_url = ?, transcript = ?, processed_at = CURRENT_TIMESTAMP
+                    SET status = 'done', processed_url = ?, r2_url = ?, transcript = ?, processed_at = CURRENT_TIMESTAMP
                     WHERE video_id = ?
-                """, (video_url, full_transcript, video_id))
+                """, (video_url, video_url if is_r2_url(video_url) else None, full_transcript, video_id))
                 
                 # Delete any old captions for this video_id
                 cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
@@ -200,6 +203,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                     print(f"[TRANSCRIPT_SEGMENT_SAVED] video_id={video_id} start={cap['start']} end={cap['end']} text=\"{cap['text']}\"")
                 
                 conn.commit()
+                print("[DATABASE_SAVE_SUCCESS]", flush=True)
                 print(f"[CAPTION_SAVED] video_id={video_id} count={len(captions)}")
                 print(f"[Pipeline] Successfully saved {len(captions)} captions to DB for video_id {video_id}")
             except Exception as db_err:

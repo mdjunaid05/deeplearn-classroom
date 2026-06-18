@@ -59,6 +59,21 @@ export default function StudentDashboard() {
     }
   };
 
+  const [videos, setVideos] = useState([]);
+
+  const fetchVideos = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/videos`);
+      if (res.ok) {
+        const json = await res.json();
+        setVideos(json.videos || []);
+        console.log('[VIDEO_LIST_FETCHED] count=' + (json.videos?.length || 0));
+      }
+    } catch (err) {
+      console.error('Failed to fetch videos:', err);
+    }
+  };
+
   const fetchRecordings = async (id) => {
     try {
       const res = await fetch(`${API_BASE}/recordings?student_id=${id}`);
@@ -74,12 +89,14 @@ export default function StudentDashboard() {
   useEffect(() => {
     fetchData(studentId);
     fetchRecordings(studentId);
+    fetchVideos();
   }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
     fetchData(studentId);
     fetchRecordings(studentId);
+    fetchVideos();
   };
 
   if (loading) {
@@ -268,83 +285,137 @@ export default function StudentDashboard() {
 
       {/* Signed Videos Section */}
       <div className="mt-8 p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-        <h2 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+        <h2 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-emerald-400" aria-hidden="true" />
-          Signed Class Videos
+          Classroom Video Catalog
         </h2>
-        {recordings.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center bg-surface-800/30 rounded-xl border border-white/5 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
-            <BookOpen className="w-10 h-10 text-slate-500 mb-3" aria-hidden="true" />
-            <p className="text-slate-600 text-sm">No signed class videos are currently available.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {recordings.map(recording => (
-              <div 
-                key={recording.recording_id} 
-                className={`glass rounded-2xl overflow-hidden shadow-lg border border-slate-200/60 transition-all duration-300 flex flex-col group ${
-                  recording.is_locked ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-xl hover:border-primary-400 cursor-pointer'
-                }`}
-                onClick={() => {
-                  if (!recording.is_locked) {
-                    window.location.href = '/classroom';
-                  }
-                }}
-              >
-                <div className="relative aspect-video bg-slate-900 group">
-                  {recording.thumbnail_path ? (
-                    <img 
-                      src={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
-                      alt="Thumbnail" 
-                      className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                    />
-                  ) : (
+
+        <div className="mb-8">
+          <h3 className="text-sm font-semibold text-slate-600 mb-4 flex items-center gap-2">
+            <Video className="w-4 h-4 text-purple-400" />
+            Classroom Lesson Videos
+          </h3>
+          {videos.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center bg-surface-800/30 rounded-xl border border-white/5">
+              <p className="text-slate-600 text-sm">No lesson videos are currently available.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {videos.map(video => (
+                <div 
+                  key={video.video_id} 
+                  className="glass rounded-2xl overflow-hidden shadow-lg border border-slate-200/60 hover:shadow-xl hover:border-primary-400 cursor-pointer transition-all duration-300 flex flex-col group"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (video.video_id) params.append('video_id', video.video_id);
+                    if (video.filename) params.append('filename', video.filename);
+                    window.location.href = `/classroom?${params.toString()}`;
+                  }}
+                >
+                  <div className="relative aspect-video bg-slate-900 group">
                     <div className="w-full h-full flex items-center justify-center">
                        <Video className="w-12 h-12 text-slate-600" />
                     </div>
-                  )}
-                  
-                  {!recording.is_locked && (
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
                       <div className="w-12 h-12 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
                         <Play className="w-6 h-6 ml-1" />
                       </div>
                     </div>
-                  )}
-
-                  {recording.is_locked && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
-                      <div className="text-center p-4">
-                        <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-2 shadow-lg border border-slate-700">
-                          <Lock className="w-5 h-5" />
-                        </div>
-                        <p className="text-xs font-semibold text-slate-300">Complete previous quiz to continue</p>
-                      </div>
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="text-sm font-bold text-slate-800 line-clamp-1 mb-1 group-hover:text-primary-600 transition-colors">
+                      {video.title || "Lesson Video"}
+                    </h3>
+                    <div className="mt-auto pt-3 space-y-1 text-xs text-slate-500">
+                      <p>Uploader: {video.uploader}</p>
+                      <p>Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}</p>
+                      <p>Captions: <span className="text-emerald-500 font-semibold">{video.captions_status}</span></p>
                     </div>
-                  )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-                  <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 text-white text-xs font-mono backdrop-blur-sm">
-                    {Math.floor(recording.duration / 60)}:{(Math.floor(recording.duration % 60)).toString().padStart(2, '0')}
+        <div>
+          <h3 className="text-sm font-semibold text-slate-600 mb-4 flex items-center gap-2">
+            <Video className="w-4 h-4 text-emerald-400" />
+            Recorded Live Sessions
+          </h3>
+          {recordings.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-6 text-center bg-surface-800/30 rounded-xl border border-white/5">
+              <p className="text-slate-600 text-sm">No live session recordings are currently available.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {recordings.map(recording => (
+                <div 
+                  key={recording.recording_id} 
+                  className={`glass rounded-2xl overflow-hidden shadow-lg border border-slate-200/60 transition-all duration-300 flex flex-col group ${
+                    recording.is_locked ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-xl hover:border-primary-400 cursor-pointer'
+                  }`}
+                  onClick={() => {
+                    if (!recording.is_locked) {
+                      window.location.href = '/classroom';
+                    }
+                  }}
+                >
+                  <div className="relative aspect-video bg-slate-900 group">
+                    {recording.thumbnail_path ? (
+                      <img 
+                        src={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
+                        alt="Thumbnail" 
+                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                         <Video className="w-12 h-12 text-slate-600" />
+                      </div>
+                    )}
+                    
+                    {!recording.is_locked && (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+                        <div className="w-12 h-12 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                          <Play className="w-6 h-6 ml-1" />
+                        </div>
+                      </div>
+                    )}
+
+                    {recording.is_locked && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
+                        <div className="text-center p-4">
+                          <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-2 shadow-lg border border-slate-700">
+                            <Lock className="w-5 h-5" />
+                          </div>
+                          <p className="text-xs font-semibold text-slate-300">Complete previous quiz to continue</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 text-white text-xs font-mono backdrop-blur-sm">
+                      {Math.floor(recording.duration / 60)}:{(Math.floor(recording.duration % 60)).toString().padStart(2, '0')}
+                    </div>
+                  </div>
+                  <div className="p-4 flex-1 flex flex-col">
+                    <h3 className="text-sm font-bold text-slate-800 line-clamp-1 mb-1 group-hover:text-primary-600 transition-colors">
+                      {recording.class_title || "Virtual Class Session"}
+                    </h3>
+                    <div className="mt-auto pt-3 flex items-center justify-between">
+                      <span className="text-xs text-slate-500">
+                        {new Date(recording.recording_timestamp).toLocaleDateString()}
+                      </span>
+                      <span className="text-xs font-medium text-primary-500 flex items-center gap-1">
+                        <Users className="w-3 h-3" />
+                        {recording.participants_count}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <div className="p-4 flex-1 flex flex-col">
-                  <h3 className="text-sm font-bold text-slate-800 line-clamp-1 mb-1 group-hover:text-primary-600 transition-colors">
-                    {recording.class_title || "Virtual Class Session"}
-                  </h3>
-                  <div className="mt-auto pt-3 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">
-                      {new Date(recording.recording_timestamp).toLocaleDateString()}
-                    </span>
-                    <span className="text-xs font-medium text-primary-500 flex items-center gap-1">
-                      <Users className="w-3 h-3" />
-                      {recording.participants_count}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -87,6 +87,8 @@ export default function VideoUpload() {
       formData.append('video_file', file);
       formData.append('teacher_id', user?.id || 1);
       formData.append('course_id', 1);
+      formData.append('title', file.name);
+      formData.append('filename', file.name);
 
       const res = await fetch(`${BACKEND_URL}/upload-video`, {
         method: 'POST',
@@ -143,6 +145,8 @@ export default function VideoUpload() {
       formData.append('video_file', file);
       formData.append('teacher_id', user?.id || 1);
       formData.append('course_id', 1);
+      formData.append('title', file.name);
+      formData.append('filename', file.name);
 
       setProgress(30);
       setStep('Step 2/4: Extracting audio track from video...');
@@ -442,6 +446,7 @@ export default function VideoUpload() {
                    src={`${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}`}
                    controls
                    className="absolute inset-0 w-full h-full object-contain"
+                   onLoadedMetadata={() => console.log('[VIDEO_RENDERED] src=' + (videoRef.current?.src || ''))}
                    onError={() => {
                      // If video can't load, show placeholder
                      if (videoRef.current) videoRef.current.style.display = 'none';

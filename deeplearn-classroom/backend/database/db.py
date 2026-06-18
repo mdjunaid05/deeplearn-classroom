@@ -63,12 +63,40 @@ class MySQLConnectionWrapper:
         return getattr(self._conn, name)
 
 
+_mysql_initialized = False
+
+
+def _init_mysql(conn):
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SHOW TABLES LIKE 'videos'")
+        if cursor.fetchone():
+            cursor.execute("DESCRIBE videos")
+            cols = [row[0] for row in cursor.fetchall()]
+            altered = False
+            if "title" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN title VARCHAR(255)")
+                altered = True
+            if "filename" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN filename VARCHAR(255)")
+                altered = True
+            if "r2_url" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN r2_url VARCHAR(512)")
+                altered = True
+            if altered:
+                conn.commit()
+                print("[Database] MySQL columns migrated successfully.")
+    except Exception as e:
+        print(f"[Database] MySQL schema migration failed: {e}")
+
+
 def get_db_connection():
     """
     Return a database connection.
     Tries MySQL first (if DB_HOST env var is set), otherwise falls back to a
     local SQLite database for easy demo/testing.
     """
+    global _mysql_initialized
     db_host = os.environ.get("DB_HOST")
 
     if db_host:
@@ -80,7 +108,11 @@ def get_db_connection():
             password=os.environ.get("DB_PASS", ""),
             database=os.environ.get("DB_NAME", "deeplearn_classroom"),
         )
-        return MySQLConnectionWrapper(conn)
+        wrapped_conn = MySQLConnectionWrapper(conn)
+        if not _mysql_initialized:
+            _init_mysql(wrapped_conn)
+            _mysql_initialized = True
+        return wrapped_conn
 
     # ── SQLite fallback for local development / demo ──
     db_dir = os.path.join(os.path.dirname(__file__), "..", "data")
@@ -208,6 +240,9 @@ def _init_sqlite(conn):
             video_id       INTEGER PRIMARY KEY AUTOINCREMENT,
             teacher_id     INTEGER NOT NULL,
             course_id      INTEGER NOT NULL,
+            title          TEXT,
+            filename       TEXT,
+            r2_url         TEXT,
             original_url   TEXT,
             processed_url  TEXT,
             transcript     TEXT,
@@ -299,6 +334,27 @@ def _init_sqlite(conn):
     """)
 
     conn.commit()
+
+    # Dynamic SQLite migration for existing database files
+    try:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(videos)")
+        cols = [col[1] for col in cursor.fetchall()]
+        altered = False
+        if "title" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN title TEXT")
+            altered = True
+        if "filename" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN filename TEXT")
+            altered = True
+        if "r2_url" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN r2_url TEXT")
+            altered = True
+        if altered:
+            conn.commit()
+            print("[Database] SQLite columns migrated successfully.")
+    except Exception as e:
+        print(f"[Database] SQLite schema migration failed: {e}")
 
 
 def query_db(query, args=(), one=False):

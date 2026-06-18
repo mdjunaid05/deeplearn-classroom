@@ -27,6 +27,21 @@ export default function TeacherDashboard() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState('average_score');
 
+  const [videos, setVideos] = useState([]);
+
+  const fetchVideos = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/videos`);
+      if (res.ok) {
+        const json = await res.json();
+        setVideos(json.videos || []);
+        console.log('[VIDEO_LIST_FETCHED] count=' + (json.videos?.length || 0));
+      }
+    } catch (err) {
+      console.error('Failed to fetch videos:', err);
+    }
+  };
+
   useEffect(() => {
     const loadingTimer = setTimeout(() => {
       setLoadingText('Server is waking up (this may take up to 50s on free tiers)...');
@@ -46,6 +61,7 @@ export default function TeacherDashboard() {
       }
     };
     fetchData();
+    fetchVideos();
 
     return () => clearTimeout(loadingTimer);
   }, []);
@@ -338,9 +354,58 @@ export default function TeacherDashboard() {
           </div>
         </div>
 
-        <div className="flex flex-col items-center justify-center py-8 text-center bg-surface-800/30 rounded-xl border border-white/5 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
-          <p className="text-slate-600 text-sm">No videos currently in processing queue.</p>
-        </div>
+        {videos.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center bg-surface-800/30 rounded-xl border border-white/5 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
+            <p className="text-slate-600 text-sm">No videos currently in processing queue.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {videos.map(video => (
+              <div key={video.video_id} className="glass rounded-2xl overflow-hidden shadow-lg border border-slate-200/60 p-5 flex flex-col justify-between hover:border-primary-400 transition-all duration-200">
+                <div>
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="font-bold text-slate-800 text-sm truncate max-w-[180px]" title={video.title}>
+                      {video.title}
+                    </h4>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                      video.status === 'done' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' :
+                      video.status === 'error' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
+                      'bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse'
+                    }`}>
+                      {video.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 truncate mb-1">File: {video.filename}</p>
+                  <p className="text-[10px] text-slate-500 mb-1">Uploaded: {new Date(video.uploaded_at).toLocaleString()}</p>
+                </div>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  {video.status === 'done' ? (
+                    <>
+                      <a 
+                        href={`/classroom?video_id=${video.video_id}&filename=${encodeURIComponent(video.filename)}`} 
+                        className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+                      >
+                        Watch Video
+                      </a>
+                      {video.r2_url && (
+                        <a 
+                          href={video.r2_url} 
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                        >
+                          View R2 URL
+                        </a>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-[10px] text-slate-400">Processing pipeline running...</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

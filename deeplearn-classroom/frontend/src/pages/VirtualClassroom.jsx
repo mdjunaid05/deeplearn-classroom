@@ -120,13 +120,14 @@ export default function VirtualClassroom() {
   useEffect(() => {
     const fetchData = async () => {
       const params = new URLSearchParams(window.location.search);
+      const videoId = params.get('video_id');
       const jobId = params.get('job_id');
       const filename = params.get('filename');
 
       let loadedVideo = false;
 
-      // 1. If we have jobId/filename in query params, try fetching direct video URL from backend
-      if (jobId || filename) {
+      // 1. If we have videoId/jobId/filename in query params, try fetching direct video URL from backend
+      if (videoId || jobId || filename) {
         try {
           const urlRes = await fetch(`${API_BASE}/video-url?${params.toString()}`);
           if (urlRes.ok) {
@@ -173,9 +174,9 @@ export default function VirtualClassroom() {
         if (window.uploadedDemoCaptions && window.uploadedDemoCaptions.length > 0) {
           console.log('[Classroom] Loaded captions from window:', window.uploadedDemoCaptions.length, 'segments');
           setSavedCaptions(window.uploadedDemoCaptions);
-        } else if (jobId || filename) {
+        } else if (videoId || jobId || filename) {
           // Fetch captions from backend
-          const capUrl = `${API_BASE}/video-captions?${jobId ? `job_id=${jobId}` : `filename=${filename}`}&format=json`;
+          const capUrl = `${API_BASE}/video-captions?${videoId ? `video_id=${videoId}` : jobId ? `job_id=${jobId}` : `filename=${filename}`}&format=json`;
           const capRes = await fetch(capUrl);
           if (capRes.ok) {
             const capData = await capRes.json();
@@ -206,6 +207,25 @@ export default function VirtualClassroom() {
   }, [videoEnded, transcript, generateQuiz]);
 
   // ── Fetch Recordings ──────────────────────────────────────────────────────
+  const [videos, setVideos] = useState([]);
+  const [loadingVideos, setLoadingVideos] = useState(true);
+
+  const fetchVideos = async () => {
+    try {
+      setLoadingVideos(true);
+      const res = await fetch(`${API_BASE}/videos`);
+      if (res.ok) {
+        const data = await res.json();
+        setVideos(data.videos || []);
+        console.log('[VIDEO_LIST_FETCHED] count=' + (data.videos?.length || 0));
+      }
+    } catch (err) {
+      console.error('Error fetching videos:', err);
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
   const fetchRecordings = async () => {
     try {
       setLoadingRecordings(true);
@@ -226,7 +246,10 @@ export default function VirtualClassroom() {
   };
 
   useEffect(() => {
-    if (user) fetchRecordings();
+    if (user) {
+      fetchRecordings();
+      fetchVideos();
+    }
   }, [user]);
 
   // ── Playback Speed ────────────────────────────────────────────────────────
@@ -434,6 +457,7 @@ export default function VirtualClassroom() {
                 onPause={() => setIsPlaying(false)}
                 onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
                 onEnded={() => { setIsPlaying(false); setVideoEnded(true); }}
+                onLoadedMetadata={() => console.log('[VIDEO_RENDERED] src=' + videoSrc)}
                 poster={
                   isVideoLoaded && videoSrc.includes('Sintel')
                     ? 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg'
@@ -874,115 +898,202 @@ export default function VirtualClassroom() {
         <div className="mt-16 border-t border-slate-200 pt-12">
           <h2 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3 mb-8">
             <Video className="w-7 h-7 text-primary-500" />
-            Recorded Class Catalog
+            Classroom Video Catalog
           </h2>
-          
-          {loadingRecordings ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
-            </div>
-          ) : recordings.length === 0 ? (
-            <div className="text-center py-16 dark-glass rounded-3xl border border-slate-200">
-              <Video className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-slate-700">No recordings found</h3>
-              <p className="text-slate-500 text-sm">Class recordings will appear here.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {recordings.map(recording => (
-                <div 
-                  key={recording.recording_id} 
-                  className={`dark-glass rounded-2xl overflow-hidden border border-slate-100 transition-all duration-300 flex flex-col group ${
-                    recording.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary-500/40 cursor-pointer hover:shadow-lg'
-                  }`}
-                  onClick={() => {
-                    if (recording.is_locked) return;
-                    setVideoSrc(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`);
-                    setVideoTitle(recording.class_title || "Virtual Class Session");
-                    setActiveRecording(recording);
-                    setVideoEnded(false);
-                    setQuizReady(false);
-                    setShowResults(false);
-                    setAnswers({});
-                    setSavedCaptions([]);
-                    
-                    fetch(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/captions.json`)
-                      .then(res => {
-                        if (res.ok) return res.json();
-                        throw new Error('No captions');
-                      })
-                      .then(data => {
-                        if (data && data.length > 0) {
-                          setSavedCaptions(data);
-                        }
-                      })
-                      .catch(() => console.log('No captions.json found for this recording.'));
 
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                >
-                  <div className="relative aspect-video bg-slate-950 group">
-                    {recording.thumbnail_path ? (
-                      <img 
-                        src={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
-                        alt="Thumbnail" 
-                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
-                      />
-                    ) : (
+          <div className="mb-12">
+            <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+              <Video className="w-5 h-5 text-purple-400" />
+              Classroom Lesson Videos
+            </h3>
+            {loadingVideos ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500"></div>
+              </div>
+            ) : videos.length === 0 ? (
+              <div className="text-center py-8 bg-surface-800/30 rounded-xl border border-white/5 mb-8">
+                <p className="text-slate-500 text-sm">No uploaded lesson videos available yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {videos.map(video => (
+                  <div 
+                    key={video.video_id} 
+                    className="dark-glass rounded-2xl overflow-hidden border border-slate-100 transition-all duration-300 flex flex-col group cursor-pointer hover:border-primary-500/40 hover:shadow-lg"
+                    onClick={() => {
+                      const rawUrl = video.r2_url || video.processed_url || video.original_url || '';
+                      const videoUrl = rawUrl && rawUrl.startsWith('http') 
+                        ? rawUrl 
+                        : rawUrl ? `${API_BASE}${rawUrl}` : '';
+                      setVideoSrc(videoUrl);
+                      setVideoTitle(video.title || "Uploaded Video");
+                      setActiveRecording(null);
+                      setVideoEnded(false);
+                      setQuizReady(false);
+                      setShowResults(false);
+                      setAnswers({});
+                      setSavedCaptions([]);
+                      
+                      fetch(`${API_BASE}/video-captions?video_id=${video.video_id}&format=json`)
+                        .then(res => {
+                          if (res.ok) return res.json();
+                          throw new Error('No captions');
+                        })
+                        .then(data => {
+                          if (data.captions && data.captions.length > 0) {
+                            setSavedCaptions(data.captions);
+                          }
+                        })
+                        .catch(() => console.log('No captions found for this video.'));
+
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    <div className="relative aspect-video bg-slate-950 group">
                       <div className="w-full h-full flex items-center justify-center bg-slate-900">
                          <Video className="w-10 h-10 text-slate-500" />
                       </div>
-                    )}
-                    
-                    {recording.is_locked ? (
-                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
-                        <Lock className="w-6 h-6 text-white/60 mb-2" />
-                        <span className="text-white/80 text-[10px] font-semibold px-4 text-center">{recording.locked_reason}</span>
-                      </div>
-                    ) : (
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
                         <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
                           <Play className="w-5 h-5 fill-white ml-0.5" />
                         </div>
                       </div>
-                    )}
-
-                    <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 text-white text-[10px] font-mono backdrop-blur-xs">
-                      {Math.floor(recording.duration / 60)}:{(Math.floor(recording.duration % 60)).toString().padStart(2, '0')}
                     </div>
-                  </div>
-                  
-                  <div className="p-4 flex flex-col flex-1">
-                    <h3 className="font-bold text-slate-700 text-sm mb-1 truncate" title={recording.class_title || "Virtual Class Session"}>
-                      {recording.class_title || "Virtual Class Session"}
-                    </h3>
                     
-                    <div className="space-y-1 mt-auto">
-                      <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(recording.recording_timestamp).toLocaleDateString()}
-                      </p>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
-                      <a 
-                        href={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
-                        download
-                        onClick={(e) => e.stopPropagation()}
-                        className={`flex items-center gap-1.5 text-[10px] font-semibold transition-colors ${
-                          recording.is_locked 
-                            ? 'text-slate-400 cursor-not-allowed pointer-events-none' 
-                            : 'text-primary-600 hover:text-primary-700'
-                        }`}
-                      >
-                        <Download className="w-3 h-3" /> Download
-                      </a>
+                    <div className="p-4 flex flex-col flex-1">
+                      <h3 className="font-bold text-slate-700 text-sm mb-1 truncate" title={video.title}>
+                        {video.title}
+                      </h3>
+                      <div className="space-y-1 mt-auto">
+                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                          Uploader: {video.uploader}
+                        </p>
+                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                          Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}
+                        </p>
+                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                          Captions: <span className={video.status === 'done' ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>{video.captions_status}</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+              <Video className="w-5 h-5 text-emerald-400" />
+              Recorded Live Sessions
+            </h3>
+            {loadingRecordings ? (
+              <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+              </div>
+            ) : recordings.length === 0 ? (
+              <div className="text-center py-16 dark-glass rounded-3xl border border-slate-200">
+                <Video className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-slate-700">No recordings found</h3>
+                <p className="text-slate-500 text-sm">Class recordings will appear here.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {recordings.map(recording => (
+                  <div 
+                    key={recording.recording_id} 
+                    className={`dark-glass rounded-2xl overflow-hidden border border-slate-100 transition-all duration-300 flex flex-col group ${
+                      recording.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary-500/40 cursor-pointer hover:shadow-lg'
+                    }`}
+                    onClick={() => {
+                      if (recording.is_locked) return;
+                      setVideoSrc(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`);
+                      setVideoTitle(recording.class_title || "Virtual Class Session");
+                      setActiveRecording(recording);
+                      setVideoEnded(false);
+                      setQuizReady(false);
+                      setShowResults(false);
+                      setAnswers({});
+                      setSavedCaptions([]);
+                      
+                      fetch(`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/captions.json`)
+                        .then(res => {
+                          if (res.ok) return res.json();
+                          throw new Error('No captions');
+                        })
+                        .then(data => {
+                          if (data && data.length > 0) {
+                            setSavedCaptions(data);
+                          }
+                        })
+                        .catch(() => console.log('No captions.json found for this recording.'));
+
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                  >
+                    <div className="relative aspect-video bg-slate-950 group">
+                      {recording.thumbnail_path ? (
+                        <img 
+                          src={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.thumbnail_path}`} 
+                          alt="Thumbnail" 
+                          className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity duration-300"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                           <Video className="w-10 h-10 text-slate-500" />
+                        </div>
+                      )}
+                      
+                      {recording.is_locked ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
+                          <Lock className="w-6 h-6 text-white/60 mb-2" />
+                          <span className="text-white/80 text-[10px] font-semibold px-4 text-center">{recording.locked_reason}</span>
+                        </div>
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
+                          <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                            <Play className="w-5 h-5 fill-white ml-0.5" />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-2 right-2 px-2 py-1 rounded bg-black/70 text-white text-[10px] font-mono backdrop-blur-xs">
+                        {Math.floor(recording.duration / 60)}:{(Math.floor(recording.duration % 60)).toString().padStart(2, '0')}
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 flex flex-col flex-1">
+                      <h3 className="font-bold text-slate-700 text-sm mb-1 truncate" title={recording.class_title || "Virtual Class Session"}>
+                        {recording.class_title || "Virtual Class Session"}
+                      </h3>
+                      
+                      <div className="space-y-1 mt-auto">
+                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(recording.recording_timestamp).toLocaleDateString()}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                        <a 
+                          href={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
+                          download
+                          onClick={(e) => e.stopPropagation()}
+                          className={`flex items-center gap-1.5 text-[10px] font-semibold transition-colors ${
+                            recording.is_locked 
+                              ? 'text-slate-400 cursor-not-allowed pointer-events-none' 
+                              : 'text-primary-600 hover:text-primary-700'
+                          }`}
+                        >
+                          <Download className="w-3 h-3" /> Download
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
