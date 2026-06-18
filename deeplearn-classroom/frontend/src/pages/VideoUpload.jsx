@@ -286,13 +286,13 @@ export default function VideoUpload() {
             {file ? (
               <>
                 <Video className="w-12 h-12 text-primary-400 mb-4" aria-hidden="true" />
-                <p className="text-lg font-semibold text-white">{file.name}</p>
+                 <p className="text-lg font-semibold text-slate-800">{file.name}</p>
                 <p className="text-sm text-slate-600 mt-2">{(file.size / (1024*1024)).toFixed(2)} MB</p>
               </>
             ) : (
               <>
                 <UploadCloud className="w-12 h-12 text-slate-500 mb-4" aria-hidden="true" />
-                <p className="text-lg font-semibold text-white">Drag & drop video here</p>
+                 <p className="text-lg font-semibold text-slate-800">Drag & drop video here</p>
                 <p className="text-sm text-slate-600 mt-2">MP4, AVI, or MOV up to 500MB</p>
               </>
             )}
@@ -326,10 +326,10 @@ export default function VideoUpload() {
           {status === 'processing' && (
             <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300" aria-live="polite">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-semibold text-primary-300">Processing Video Pipeline...</span>
-                <span className="text-sm font-mono text-white">{progress}%</span>
-              </div>
-              <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                 <span className="text-sm font-semibold text-primary-700">Processing Video Pipeline...</span>
+                 <span className="text-sm font-mono text-slate-800">{progress}%</span>
+               </div>
+               <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
                 <div 
                   className="h-full bg-gradient-to-r from-primary-500 to-emerald-500 transition-all duration-500"
                   style={{ width: `${progress}%` }}
@@ -345,10 +345,10 @@ export default function VideoUpload() {
           {status === 'error' && (
             <div className="p-6 rounded-2xl bg-red-500/10 border border-red-500/20 text-center" aria-live="polite">
               <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-3" aria-hidden="true" />
-              <h3 className="text-lg font-bold text-red-300 text-slate-800">Processing Failed</h3>
-              <p className="text-sm text-red-400/80 mt-1">{error}</p>
-              <button 
-                className="mt-4 px-6 py-2 rounded-lg glass text-sm text-white hover:bg-white/10 transition shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300"
+               <h3 className="text-lg font-bold text-red-700">Processing Failed</h3>
+               <p className="text-sm text-red-400/80 mt-1">{error}</p>
+               <button 
+                 className="mt-4 px-6 py-2 rounded-lg glass text-sm text-slate-700 hover:bg-slate-100/50 transition shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300"
                 onClick={() => { resetState(); setUploading(false); }}
               >
                 Try Again
@@ -360,7 +360,7 @@ export default function VideoUpload() {
           {status === 'done' && (
             <div className="p-6 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-center" aria-live="polite">
               <CheckCircle className="w-12 h-12 text-emerald-400 mx-auto mb-3" aria-hidden="true" />
-              <h3 className="text-lg font-bold text-emerald-300 text-slate-800">Processing Complete!</h3>
+               <h3 className="text-lg font-bold text-emerald-700">Processing Complete!</h3>
               <p className="text-sm text-emerald-400/80 mt-1">
                 Video has captions and sign language overlay. Ready for download.
               </p>
@@ -437,15 +437,15 @@ export default function VideoUpload() {
                         Segment {idx + 1}
                       </span>
                     </div>
-                    <p className="text-sm text-white mb-2">{cap.text}</p>
+                     <p className="text-sm text-slate-800 mb-2">{cap.text}</p>
                     <div className="flex flex-wrap gap-1">
                       {(cap.gestures || cap.text.split(' ')).map((gesture, i) => (
                         <span 
                           key={i} 
                           className={`text-[10px] px-2 py-0.5 rounded border ${
-                            typeof gesture === 'string' && gesture.startsWith('FS:')
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                              : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                             typeof gesture === 'string' && gesture.startsWith('FS:')
+                               ? 'bg-amber-500/20 text-amber-800 border-amber-500/30'
+                               : 'bg-emerald-500/20 text-emerald-800 border-emerald-500/30'
                           }`}
                         >
                           {typeof gesture === 'string' ? gesture.toUpperCase() : gesture}

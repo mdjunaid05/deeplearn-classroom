@@ -7,10 +7,13 @@ scikit-learn>=1.3.0
 matplotlib>=3.7.0
 mysql-connector-python>=8.1.0
 gunicorn>=21.2.0
+# gthread worker class is built into gunicorn — no extra package needed
 mediapipe==0.10.9
 opencv-python-headless>=4.8.0
-moviepy
+moviepy>=1.0.3
 openai-whisper
-SpeechRecognition
-Pillow
-ffmpeg-python
+SpeechRecognition>=3.10.0
+Pillow>=10.0.0
+ffmpeg-python>=0.2.0
+# requests used for health-check probes and future integrations
+requests>=2.31.0

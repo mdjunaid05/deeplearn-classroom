@@ -12,8 +12,17 @@ def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "deeplearn-dev-key-2024")
 
-    # Enable CORS for frontend
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    # Allow video uploads up to 512 MB
+    app.config["MAX_CONTENT_LENGTH"] = 512 * 1024 * 1024
+
+    # ── CORS ──
+    # Allow any origin (required for Vercel frontend → Render backend cross-domain requests).
+    # If you add cookie-based auth later, restrict origins to your Vercel domain.
+    allowed_origins = os.environ.get(
+        "CORS_ORIGINS",
+        "*",  # default: allow all (overridable via env var)
+    )
+    CORS(app, resources={r"/*": {"origins": allowed_origins}})
 
     # ── Register blueprints ──
     from routes.auth import auth_bp
@@ -98,10 +107,19 @@ def create_app():
             },
         })
 
+    # ── Handle 413 Request Entity Too Large ──
+    @app.errorhandler(413)
+    def request_entity_too_large(error):
+        return jsonify({
+            "error": "File too large. Maximum upload size is 512 MB."
+        }), 413
+
     return app
 
 
 if __name__ == "__main__":
     app = create_app()
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    # Use threaded=True so that background pipeline threads don't block
+    # the main process from handling status-polling requests.
+    app.run(host="0.0.0.0", port=port, debug=True, threaded=True)

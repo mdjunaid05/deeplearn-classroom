@@ -1,0 +1,61 @@
+##############################################################################
+# render.yaml — Render.com deployment configuration
+# Deploy this repo to Render and it will automatically read this file.
+##############################################################################
+
+services:
+  - type: web
+    name: deeplearn-classroom-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+
+    # ── Environment Variables ─────────────────────────────────────────────────
+    envVars:
+      # SECRET_KEY: Generate a strong random value in the Render dashboard
+      # and set it as a Secret File or Environment Variable.
+      - key: SECRET_KEY
+        generateValue: true   # Render generates a random secret on first deploy
+
+      # If using MySQL (PlanetScale, Railway, etc.), set these via Render dashboard secrets:
+      # - key: DB_HOST
+      #   sync: false
+      # - key: DB_USER
+      #   sync: false
+      # - key: DB_PASS
+      #   sync: false
+      # - key: DB_NAME
+      #   sync: false
+
+      # Whisper model size: 'tiny' uses ~1GB RAM, 'base' ~1.5GB, 'small' ~2.5GB
+      # Render free tier has 512MB RAM — use 'tiny' or disable Whisper entirely.
+      - key: WHISPER_MODEL
+        value: tiny
+
+      # Set RENDER=true to automatically disable Whisper on free-tier Render
+      # (falls back to Google SpeechRecognition which doesn't load a local model)
+      - key: RENDER
+        value: "true"
+
+      # USE_WHISPER: set to "true" to enable Whisper even on Render.
+      # Requires at least the Starter plan (512MB+ RAM).
+      - key: USE_WHISPER
+        value: "false"
+
+      # CORS_ORIGINS: Set to your Vercel frontend URL in production.
+      # Example: https://deeplearn-classroom.vercel.app
+      # Use * to allow all origins (current default).
+      - key: CORS_ORIGINS
+        value: "*"
+
+    # ── Persistent Disk ───────────────────────────────────────────────────────
+    # Mount a persistent volume so uploaded/processed videos survive deploys.
+    # Note: Persistent disk is only available on paid Render plans.
+    # On the free tier, files are ephemeral and lost on each deploy/restart.
+    disk:
+      name: deeplearn-data
+      mountPath: /app/uploads
+      sizeGB: 5
+
+    # ── Health Check ──────────────────────────────────────────────────────────
+    healthCheckPath: /

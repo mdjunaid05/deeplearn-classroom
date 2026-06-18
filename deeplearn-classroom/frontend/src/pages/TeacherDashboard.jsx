@@ -118,7 +118,7 @@ export default function TeacherDashboard() {
               {Object.entries(card.data).map(([key, val]) => (
                 <div key={key} className="flex items-center justify-between">
                   <span className="text-sm text-slate-500">{key}</span>
-                  <span className={`text-sm font-bold ${card.colors[key] || 'text-white'}`}>{val}</span>
+                  <span className={`text-sm font-bold ${card.colors[key] || 'text-slate-700'}`}>{val}</span>
                 </div>
               ))}
             </div>
@@ -260,15 +260,15 @@ export default function TeacherDashboard() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by ID..."
-                className="pl-9 pr-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white
-                           placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary-500/50 w-40"
+                className="pl-9 pr-3 py-2 rounded-lg bg-white/60 border border-slate-300 text-sm text-slate-800
+                           placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 w-40"
                 id="teacher-search"
               />
             </div>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm text-white
+              className="px-3 py-2 rounded-lg bg-white/60 border border-slate-300 text-sm text-slate-800
                          focus:outline-none focus:ring-2 focus:ring-primary-500/50"
               id="teacher-sort"
             >
@@ -295,7 +295,7 @@ export default function TeacherDashboard() {
             <tbody>
               {filteredStudents.map((student, idx) => (
                 <tr key={idx} className="border-b border-white/[0.03] hover:bg-white/[0.02] transition-colors">
-                  <td className="py-3 px-3 font-medium text-white">#{student.student_id}</td>
+                  <td className="py-3 px-3 font-medium text-slate-800">#{student.student_id}</td>
                   <td className="py-3 px-3 text-slate-500">{student.average_score}%</td>
                   <td className="py-3 px-3">
                     <span className={`badge badge-${student.latest_engagement.toLowerCase()}`}>

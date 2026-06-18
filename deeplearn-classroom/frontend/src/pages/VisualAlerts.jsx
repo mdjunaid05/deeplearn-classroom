@@ -33,7 +33,7 @@ export default function VisualAlerts() {
               aria-label="Trigger info alert"
               tabIndex={0}
             >
-              <span className="font-semibold text-blue-300">Info (Blue)</span>
+              <span className="font-semibold text-blue-700">Info (Blue)</span>
               <Play className="w-4 h-4 text-blue-400" aria-hidden="true" />
             </button>
             
@@ -43,7 +43,7 @@ export default function VisualAlerts() {
               aria-label="Trigger success alert"
               tabIndex={0}
             >
-              <span className="font-semibold text-emerald-300">Success (Green)</span>
+              <span className="font-semibold text-emerald-700">Success (Green)</span>
               <Play className="w-4 h-4 text-emerald-400" aria-hidden="true" />
             </button>
             
@@ -53,7 +53,7 @@ export default function VisualAlerts() {
               aria-label="Trigger warning alert"
               tabIndex={0}
             >
-              <span className="font-semibold text-yellow-300 flex items-center gap-2">
+              <span className="font-semibold text-amber-800 flex items-center gap-2">
                 Warning (Yellow)
                 <span className="text-[10px] uppercase tracking-wider bg-yellow-500/20 px-2 py-0.5 rounded text-yellow-400">Flashes</span>
               </span>
@@ -66,7 +66,7 @@ export default function VisualAlerts() {
               aria-label="Trigger critical alert"
               tabIndex={0}
             >
-              <span className="font-semibold text-red-300 flex items-center gap-2">
+              <span className="font-semibold text-red-700 flex items-center gap-2">
                 Critical (Red)
                 <span className="text-[10px] uppercase tracking-wider bg-red-500/20 px-2 py-0.5 rounded text-red-400">Flashes + Manual Dismiss</span>
               </span>

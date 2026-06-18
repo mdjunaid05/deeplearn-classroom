@@ -5,6 +5,18 @@
 CREATE DATABASE IF NOT EXISTS deeplearn_classroom;
 USE deeplearn_classroom;
 
+-- ── Users ──────────────────────────────────────────────────
+CREATE TABLE users (
+    user_id         INT AUTO_INCREMENT PRIMARY KEY,
+    name            VARCHAR(120)  NOT NULL,
+    email           VARCHAR(255)  NOT NULL UNIQUE,
+    password_hash   VARCHAR(255)  NOT NULL,
+    role            ENUM('student', 'teacher') NOT NULL,
+    avatar_url      VARCHAR(255)  DEFAULT NULL,
+    created_at      DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    last_login      DATETIME      DEFAULT NULL
+) ENGINE=InnoDB;
+
 -- ── Students ──────────────────────────────────────────────
 CREATE TABLE students (
     student_id          INT AUTO_INCREMENT PRIMARY KEY,

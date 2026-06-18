@@ -9,11 +9,22 @@ from utils.video_pipeline import start_pipeline, get_job_status
 
 video_bp = Blueprint("video", __name__)
 
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "..", "uploads")
-PROCESSED_FOLDER = os.path.join(os.path.dirname(__file__), "..", "processed_videos")
+# Resolve paths relative to the backend root directory (two levels up from routes/)
+BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+UPLOAD_FOLDER = os.path.join(BACKEND_DIR, "uploads")
+PROCESSED_FOLDER = os.path.join(BACKEND_DIR, "processed_videos")
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(PROCESSED_FOLDER, exist_ok=True)
+
+ALLOWED_EXTENSIONS = {".mp4", ".avi", ".mov", ".webm", ".mkv"}
+MAX_UPLOAD_BYTES = 512 * 1024 * 1024  # 512 MB (matches Flask app config)
+
+
+def _allowed_file(filename):
+    ext = os.path.splitext(filename)[1].lower()
+    return ext in ALLOWED_EXTENSIONS
+
 
 @video_bp.route("/upload-video", methods=["POST"])
 def upload_video():
@@ -24,12 +35,19 @@ def upload_video():
     if file.filename == "":
         return jsonify({"error": "No selected file"}), 400
 
+    if not _allowed_file(file.filename):
+        return jsonify({"error": f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+
     filename = secure_filename(file.filename)
     input_path = os.path.join(UPLOAD_FOLDER, filename)
     output_filename = f"signed_{filename}"
     output_path = os.path.join(PROCESSED_FOLDER, output_filename)
     
     file.save(input_path)
+
+    # Verify the file was saved and is non-empty
+    if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
+        return jsonify({"error": "Upload failed: file is empty or could not be saved"}), 500
     
     job_id = start_pipeline(input_path, output_path)
     
@@ -68,15 +86,30 @@ def extract_captions():
         return jsonify({"error": "No video_file provided"}), 400
         
     file = request.files["video_file"]
+    if file.filename == "":
+        return jsonify({"error": "No selected file"}), 400
+
+    if not _allowed_file(file.filename):
+        return jsonify({"error": f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+
     filename = secure_filename(file.filename)
     input_path = os.path.join(UPLOAD_FOLDER, f"temp_{filename}")
     file.save(input_path)
+
+    if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
+        return jsonify({"error": "Upload failed: file is empty or could not be saved"}), 500
     
     from utils.speech_to_text import transcribe_audio
-    captions = transcribe_audio(input_path)
-    
-    # Clean up temp file
-    if os.path.exists(input_path):
-        os.remove(input_path)
+    try:
+        captions = transcribe_audio(input_path)
+    except Exception as e:
+        return jsonify({"error": f"Transcription failed: {str(e)}"}), 500
+    finally:
+        # Always clean up the temp file
+        if os.path.exists(input_path):
+            try:
+                os.remove(input_path)
+            except OSError:
+                pass
         
     return jsonify({"captions": captions})

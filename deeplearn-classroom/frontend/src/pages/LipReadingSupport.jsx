@@ -76,7 +76,7 @@ export default function LipReadingSupport() {
              </h2>
              
              <div className="flex flex-col items-center justify-center p-8 bg-surface-800/50 rounded-xl border border-white/5 min-h-[200px] shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300" aria-live="polite">
-               <span className={`text-4xl font-display font-bold mb-4 ${isActive ? 'text-white' : 'text-slate-500'}`}>
+               <span className={`text-4xl font-display font-bold mb-4 ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
                  {lipState}
                </span>
                <div className="flex items-center gap-4 w-full max-w-xs">

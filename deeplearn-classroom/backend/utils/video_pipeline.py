@@ -9,22 +9,93 @@ Orchestrates the full video processing pipeline:
   6. Output processed video with sign overlay + captions
 """
 import os
+import json
+import time
 import threading
 import uuid
 
-_JOBS = {}
+# ────────────────────────────────────────────────────────────
+# Job State ─ file-based persistence so all Gunicorn workers share state.
+# In development (single-process), the in-memory fallback is identical.
+# ────────────────────────────────────────────────────────────
+
+# Directory where job state JSON files are stored
+_JOBS_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "_jobs")
+os.makedirs(_JOBS_DIR, exist_ok=True)
+
+# In-memory fallback (used when file I/O fails or in single-process dev mode)
+_JOBS_MEMORY: dict = {}
+_JOBS_LOCK = threading.Lock()
+
+
+def _job_path(job_id: str) -> str:
+    """Return the file path for a job's state file."""
+    return os.path.join(_JOBS_DIR, f"{job_id}.json")
+
+
+def _write_job(job_id: str, state: dict) -> None:
+    """Persist job state to disk (atomic write via temp file + rename)."""
+    state["_ts"] = time.time()  # timestamp for cleanup
+    path = _job_path(job_id)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, path)  # atomic on POSIX and Windows
+    except OSError as e:
+        print(f"[Pipeline] Warning: could not persist job {job_id} to disk: {e}")
+    # Always keep in-memory as well (for same-worker fast reads)
+    with _JOBS_LOCK:
+        _JOBS_MEMORY[job_id] = state
+
+
+def _read_job(job_id: str) -> dict:
+    """Read job state. Prefer disk (cross-worker), fall back to memory."""
+    path = _job_path(job_id)
+    try:
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        pass
+    with _JOBS_LOCK:
+        return _JOBS_MEMORY.get(job_id, {})
+
+
+def _cleanup_old_jobs(max_age_seconds: int = 3600) -> None:
+    """Delete job state files older than max_age_seconds."""
+    now = time.time()
+    try:
+        for fname in os.listdir(_JOBS_DIR):
+            if not fname.endswith(".json"):
+                continue
+            fpath = os.path.join(_JOBS_DIR, fname)
+            try:
+                mtime = os.path.getmtime(fpath)
+                if now - mtime > max_age_seconds:
+                    os.remove(fpath)
+            except OSError:
+                pass
+    except OSError:
+        pass
+    with _JOBS_LOCK:
+        stale = [jid for jid, s in _JOBS_MEMORY.items()
+                 if now - s.get("_ts", now) > max_age_seconds]
+        for jid in stale:
+            del _JOBS_MEMORY[jid]
 
 
 def process_video_pipeline(job_id, input_path, output_path):
     """
     Background worker that runs the full pipeline.
-    Updates _JOBS[job_id] with progress and status.
+    Writes job state to disk for cross-worker visibility.
     """
-    _JOBS[job_id] = {"status": "processing", "progress": 0, "step": "Initializing..."}
+    _write_job(job_id, {"status": "processing", "progress": 0, "step": "Initializing..."})
 
     try:
         # ── Step 1: Transcribe audio ──────────────────────────────
-        _JOBS[job_id].update({"progress": 5, "step": "Extracting audio & transcribing..."})
+        _write_job(job_id, {"progress": 5, "step": "Extracting audio & transcribing...",
+                             "status": "processing"})
 
         from utils.speech_to_text import transcribe_audio
         captions = transcribe_audio(input_path)
@@ -32,19 +103,24 @@ def process_video_pipeline(job_id, input_path, output_path):
         if not captions:
             captions = [{"text": "No speech detected in video.", "start": 0.0, "end": 2.0}]
 
-        _JOBS[job_id].update({"progress": 30, "step": f"Transcription complete — {len(captions)} segments"})
+        _write_job(job_id, {"progress": 30,
+                             "step": f"Transcription complete — {len(captions)} segments",
+                             "status": "processing"})
 
         # ── Step 2: Map text to sign gestures ─────────────────────
-        _JOBS[job_id].update({"progress": 35, "step": "Mapping text to sign gestures..."})
+        _write_job(job_id, {"progress": 35, "step": "Mapping text to sign gestures...",
+                             "status": "processing"})
 
         from utils.sign_injector import text_to_gesture_sequence, get_gesture_duration
         for cap in captions:
             cap["gestures"] = text_to_gesture_sequence(cap["text"])
 
-        _JOBS[job_id].update({"progress": 40, "step": "Gesture mapping complete"})
+        _write_job(job_id, {"progress": 40, "step": "Gesture mapping complete",
+                             "status": "processing"})
 
         # ── Step 3: Render avatar overlay + captions on video ─────
-        _JOBS[job_id].update({"progress": 45, "step": "Rendering sign overlay on video frames..."})
+        _write_job(job_id, {"progress": 45, "step": "Rendering sign overlay on video frames...",
+                             "status": "processing"})
 
         _render_video_with_overlay(input_path, output_path, captions, job_id)
 
@@ -58,17 +134,18 @@ def process_video_pipeline(job_id, input_path, output_path):
                 "gestures": cap.get("gestures", []),
             })
 
-        _JOBS[job_id] = {
+        _write_job(job_id, {
             "status": "done",
             "progress": 100,
             "step": "Complete",
             "captions": formatted_captions,
-        }
+        })
         print(f"[Pipeline] Job {job_id} completed successfully")
+        _cleanup_old_jobs()  # Opportunistic cleanup
 
     except Exception as e:
         print(f"[Pipeline] Job {job_id} failed: {e}")
-        _JOBS[job_id] = {"status": "error", "error": str(e)}
+        _write_job(job_id, {"status": "error", "error": str(e)})
 
 
 def _render_video_with_overlay(input_path, output_path, captions, job_id):
@@ -129,10 +206,11 @@ def _render_video_with_overlay(input_path, output_path, captions, job_id):
         writer.write(frame)
         frame_idx += 1
 
-        # Update progress (45% → 95%)
+        # Update progress (45% → 95%) — only every 5% to reduce disk I/O
         if total_frames > 0 and frame_idx % max(1, total_frames // 20) == 0:
             render_progress = 45 + int((frame_idx / total_frames) * 50)
-            _JOBS[job_id].update({
+            _write_job(job_id, {
+                "status": "processing",
                 "progress": min(render_progress, 95),
                 "step": f"Rendering frame {frame_idx}/{total_frames}"
             })
@@ -143,7 +221,7 @@ def _render_video_with_overlay(input_path, output_path, captions, job_id):
     # Try to merge audio back using ffmpeg
     _merge_audio(input_path, output_path)
 
-    _JOBS[job_id].update({"progress": 98, "step": "Finalizing..."})
+    _write_job(job_id, {"status": "processing", "progress": 98, "step": "Finalizing..."})
 
 
 def _burn_caption(frame, text, width, height):
@@ -244,4 +322,8 @@ def start_pipeline(input_path, output_path):
 
 def get_job_status(job_id):
     """Get the current status of a processing job."""
-    return _JOBS.get(job_id, {"status": "unknown"})
+    state = _read_job(job_id)
+    if not state:
+        return {"status": "unknown"}
+    # Strip internal metadata before returning to client
+    return {k: v for k, v in state.items() if not k.startswith("_")}

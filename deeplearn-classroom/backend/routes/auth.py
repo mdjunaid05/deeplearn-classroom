@@ -149,11 +149,42 @@ def _seed_demo_accounts():
 
     for name, email, pwd_hash, role in demo_users:
         cursor.execute("SELECT user_id FROM users WHERE email = ?", (email,))
-        if not cursor.fetchone():
+        row = cursor.fetchone()
+        if not row:
             cursor.execute(
                 "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
                 (name, email, pwd_hash, role),
             )
+            user_id = cursor.lastrowid
+            if role == "student":
+                cursor.execute(
+                    "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                    (user_id, name, email, pwd_hash),
+                )
+            elif role == "teacher":
+                cursor.execute(
+                    "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                    (user_id, name, email, pwd_hash),
+                )
+        else:
+            if hasattr(row, "keys"):
+                user_id = row["user_id"]
+            else:
+                user_id = row[0]
+            if role == "student":
+                cursor.execute("SELECT student_id FROM students WHERE student_id = ?", (user_id,))
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                        (user_id, name, email, pwd_hash),
+                    )
+            elif role == "teacher":
+                cursor.execute("SELECT teacher_id FROM teachers WHERE teacher_id = ?", (user_id,))
+                if not cursor.fetchone():
+                    cursor.execute(
+                        "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                        (user_id, name, email, pwd_hash),
+                    )
 
     conn.commit()
     conn.close()
@@ -210,8 +241,20 @@ def register():
         "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
         (name, email, pwd_hash, role),
     )
-    conn.commit()
     user_id = cursor.lastrowid
+    
+    if role == "student":
+        cursor.execute(
+            "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+            (user_id, name, email, pwd_hash),
+        )
+    elif role == "teacher":
+        cursor.execute(
+            "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+            (user_id, name, email, pwd_hash),
+        )
+        
+    conn.commit()
     conn.close()
 
     # Generate token

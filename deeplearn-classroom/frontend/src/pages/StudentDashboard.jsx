@@ -135,7 +135,7 @@ export default function StudentDashboard() {
             type="number"
             value={studentId}
             onChange={(e) => setStudentId(Number(e.target.value))}
-            className="w-32 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm
+            className="w-32 px-3 py-2 rounded-lg bg-white/60 border border-slate-300 text-slate-800 text-sm
                        focus:outline-none focus:ring-2 focus:ring-primary-500/50"
             placeholder="Student ID"
             id="student-id-input"
@@ -191,7 +191,7 @@ export default function StudentDashboard() {
             {card.badge ? (
               <span className={`badge ${card.badge} text-base`}>{card.value}</span>
             ) : (
-              <p className="text-2xl font-display font-bold text-white">{card.value}</p>
+              <p className="text-2xl font-display font-bold text-slate-800">{card.value}</p>
             )}
           </div>
         ))}
@@ -222,7 +222,7 @@ export default function StudentDashboard() {
           </h3>
           <div className="p-4 rounded-xl bg-primary-600/10 border border-primary-500/20">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-semibold text-white">Suggested Difficulty:</span>
+              <span className="text-sm font-semibold text-slate-700">Suggested Difficulty:</span>
               <span className={`badge badge-${(data.recommendation?.suggested_difficulty || 'medium').toLowerCase()}`}>
                 {data.recommendation?.suggested_difficulty}
               </span>

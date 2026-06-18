@@ -7,6 +7,62 @@ import os
 import sqlite3
 
 
+class MySQLCursorWrapper:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    def execute(self, query, params=None):
+        if params is not None:
+            # Replace SQLite '?' with MySQL '%s' placeholders
+            query = query.replace("?", "%s")
+        return self._cursor.execute(query, params)
+
+    def executemany(self, query, seq_of_params):
+        query = query.replace("?", "%s")
+        return self._cursor.executemany(query, seq_of_params)
+
+    def fetchone(self):
+        return self._cursor.fetchone()
+
+    def fetchall(self):
+        return self._cursor.fetchall()
+
+    @property
+    def lastrowid(self):
+        return self._cursor.lastrowid
+
+    @property
+    def description(self):
+        return self._cursor.description
+
+    def close(self):
+        self._cursor.close()
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+
+class MySQLConnectionWrapper:
+    def __init__(self, conn):
+        self._conn = conn
+
+    def cursor(self, *args, **kwargs):
+        cursor = self._conn.cursor(*args, **kwargs)
+        return MySQLCursorWrapper(cursor)
+
+    def commit(self):
+        return self._conn.commit()
+
+    def rollback(self):
+        return self._conn.rollback()
+
+    def close(self):
+        return self._conn.close()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
 def get_db_connection():
     """
     Return a database connection.
@@ -17,13 +73,14 @@ def get_db_connection():
 
     if db_host:
         import mysql.connector
-        return mysql.connector.connect(
+        conn = mysql.connector.connect(
             host=db_host,
             port=int(os.environ.get("DB_PORT", 3306)),
             user=os.environ.get("DB_USER", "root"),
             password=os.environ.get("DB_PASS", ""),
             database=os.environ.get("DB_NAME", "deeplearn_classroom"),
         )
+        return MySQLConnectionWrapper(conn)
 
     # ── SQLite fallback for local development / demo ──
     db_dir = os.path.join(os.path.dirname(__file__), "..", "data")

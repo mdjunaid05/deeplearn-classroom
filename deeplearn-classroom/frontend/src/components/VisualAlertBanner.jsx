@@ -22,10 +22,10 @@ export default function VisualAlertBanner({ alert, onDismiss }) {
   if (!visible || !alert) return null;
 
   const colorMap = {
-    info: { bg: 'bg-blue-500/20', border: 'border-blue-500/50', text: 'text-blue-200', icon: Info, iconColor: 'text-blue-400' },
-    warning: { bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', text: 'text-yellow-200', icon: AlertTriangle, iconColor: 'text-yellow-400' },
-    critical: { bg: 'bg-red-500/20', border: 'border-red-500/50', text: 'text-red-200', icon: AlertCircle, iconColor: 'text-red-400' },
-    success: { bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', text: 'text-emerald-200', icon: CheckCircle, iconColor: 'text-emerald-400' },
+    info: { bg: 'bg-blue-500/20', border: 'border-blue-500/50', text: 'text-blue-800', icon: Info, iconColor: 'text-blue-600' },
+    warning: { bg: 'bg-yellow-500/20', border: 'border-yellow-500/50', text: 'text-yellow-900', icon: AlertTriangle, iconColor: 'text-yellow-700' },
+    critical: { bg: 'bg-red-500/20', border: 'border-red-500/50', text: 'text-red-800', icon: AlertCircle, iconColor: 'text-red-600' },
+    success: { bg: 'bg-emerald-500/20', border: 'border-emerald-500/50', text: 'text-emerald-800', icon: CheckCircle, iconColor: 'text-emerald-600' },
   };
 
   const scheme = colorMap[alert.type] || colorMap.info;

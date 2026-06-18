@@ -48,12 +48,12 @@ export default function SignLanguageInput() {
           <div className="p-6 rounded-2xl glass h-full flex flex-col shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
             <div className="flex items-center justify-between mb-4">
                <h2 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
-                 <Activity className="w-5 h-5 text-primary-400" aria-hidden="true" />
+                 <Activity className="w-5 h-5 text-indigo-600" aria-hidden="true" />
                  Recognized Transcript
                </h2>
                <button
                  onClick={() => setRecognizedText("")}
-                 className="text-sm text-slate-600 hover:text-white"
+                 className="text-sm text-slate-600 hover:text-red-600 font-medium"
                  aria-label="Clear transcript"
                  tabIndex={0}
                >
@@ -66,14 +66,14 @@ export default function SignLanguageInput() {
               aria-atomic="false"
             >
               {recognizedText ? (
-                <p className="text-lg text-white leading-relaxed">{recognizedText}</p>
+                <p className="text-lg text-slate-800 leading-relaxed">{recognizedText}</p>
               ) : (
                 <p className="text-slate-500 italic">Signs will appear here as they are recognized...</p>
               )}
             </div>
             
             <div className="mt-4 p-4 rounded-xl bg-primary-500/10 border border-primary-500/20">
-              <h3 className="text-sm font-semibold text-primary-300 flex items-center gap-2 mb-2 text-slate-800">
+              <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-2 mb-2">
                 <Settings className="w-4 h-4" aria-hidden="true" />
                 Supported Gestures
               </h3>
