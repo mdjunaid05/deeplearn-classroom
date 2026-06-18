@@ -85,7 +85,7 @@ def _cleanup_old_jobs(max_age_seconds: int = 3600) -> None:
             del _JOBS_MEMORY[jid]
 
 
-def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None):
+def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, video_id=None):
     """
     Background worker that runs the full pipeline.
     Writes job state to disk for cross-worker visibility.
@@ -96,11 +96,15 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None):
 
     try:
         # ── Step 1: Transcribe audio ──────────────────────────────
-        _write_job(job_id, {"progress": 5, "step": "Extracting audio & transcribing...",
-                             "status": "processing"})
+        def my_callback(step_name, progress_val):
+            _write_job(job_id, {
+                "progress": progress_val,
+                "step": step_name,
+                "status": "processing"
+            })
 
         from utils.speech_to_text import transcribe_audio
-        captions = transcribe_audio(input_path)
+        captions = transcribe_audio(input_path, progress_callback=my_callback)
 
         if not captions:
             captions = [{"text": "No speech detected in video.", "start": 0.0, "end": 2.0}]
@@ -131,6 +135,8 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None):
         for cap in captions:
             formatted_captions.append({
                 "text": cap["text"],
+                "start": cap["start"],
+                "end": cap["end"],
                 "start_time": _format_time(cap["start"]),
                 "end_time": _format_time(cap["end"]),
                 "gestures": cap.get("gestures", []),
@@ -166,6 +172,42 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None):
         except OSError:
             pass
 
+        # ── Step 5: Save to Database ──────────────────────────────
+        if video_id:
+            from database.db import get_db_connection
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Update status, url and transcript
+                full_transcript = " ".join([cap["text"] for cap in captions])
+                cursor.execute("""
+                    UPDATE videos 
+                    SET status = 'done', processed_url = ?, transcript = ?, processed_at = CURRENT_TIMESTAMP
+                    WHERE video_id = ?
+                """, (video_url, full_transcript, video_id))
+                
+                # Delete any old captions for this video_id
+                cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
+                
+                # Insert new captions
+                for cap in captions:
+                    sign_sequence_json = json.dumps(cap.get("gestures", []))
+                    cursor.execute("""
+                        INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
+                
+                conn.commit()
+                print(f"[Pipeline] Successfully saved {len(captions)} captions to DB for video_id {video_id}")
+            except Exception as db_err:
+                if 'conn' in locals():
+                    conn.rollback()
+                print(f"[Pipeline] Database update failed for video_id {video_id}: {db_err}")
+            finally:
+                if 'conn' in locals():
+                    conn.close()
+
         _write_job(job_id, {
             "status": "done",
             "progress": 100,
@@ -179,6 +221,16 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None):
     except Exception as e:
         print(f"[Pipeline] Job {job_id} failed: {e}")
         _write_job(job_id, {"status": "error", "error": str(e)})
+        if video_id:
+            from database.db import get_db_connection
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE videos SET status = 'error' WHERE video_id = ?", (video_id,))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
 
 
 def _render_video_with_overlay(input_path, output_path, captions, job_id):
@@ -203,6 +255,9 @@ def _render_video_with_overlay(input_path, output_path, captions, job_id):
     writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     frame_idx = 0
+    caption_idx = 0
+    num_captions = len(captions)
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -210,15 +265,19 @@ def _render_video_with_overlay(input_path, output_path, captions, job_id):
 
         current_time = frame_idx / fps
 
-        # Find the active caption for this timestamp
+        # Find the active caption for this timestamp (optimized O(1) lookup)
         active_caption = None
         active_gesture = None
-        for c in captions:
+        
+        while caption_idx < num_captions and current_time > captions[caption_idx]["end"]:
+            caption_idx += 1
+            
+        if caption_idx < num_captions:
+            c = captions[caption_idx]
             if c["start"] <= current_time <= c["end"]:
                 active_caption = c["text"]
                 gestures = c.get("gestures", [])
                 if gestures:
-                    # Calculate which gesture word to show based on time within segment
                     segment_duration = max(c["end"] - c["start"], 0.1)
                     elapsed = current_time - c["start"]
                     gesture_idx = min(
@@ -226,7 +285,6 @@ def _render_video_with_overlay(input_path, output_path, captions, job_id):
                         len(gestures) - 1
                     )
                     active_gesture = gestures[gesture_idx]
-                break
 
         # Render sign avatar overlay
         if active_gesture:
@@ -338,7 +396,7 @@ def _format_time(seconds):
     return f"{m}:{s:02d}"
 
 
-def start_pipeline(input_path, output_path, output_r2_key=None):
+def start_pipeline(input_path, output_path, output_r2_key=None, video_id=None):
     """
     Start the video processing pipeline in a background thread.
 
@@ -347,6 +405,7 @@ def start_pipeline(input_path, output_path, output_r2_key=None):
         output_path:    Local path for the processed video output.
         output_r2_key:  R2 object key to upload the processed video to.
                         If None, the processed video stays on local disk.
+        video_id:       Optional video_id database primary key.
     Returns:
         str: Unique job_id for polling via /video-status.
     """
@@ -354,7 +413,7 @@ def start_pipeline(input_path, output_path, output_r2_key=None):
     thread = threading.Thread(
         target=process_video_pipeline,
         args=(job_id, input_path, output_path),
-        kwargs={"output_r2_key": output_r2_key},
+        kwargs={"output_r2_key": output_r2_key, "video_id": video_id},
     )
     thread.daemon = True
     thread.start()

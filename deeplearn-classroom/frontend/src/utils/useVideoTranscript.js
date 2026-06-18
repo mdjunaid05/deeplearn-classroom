@@ -24,14 +24,34 @@ import { useState, useEffect } from 'react';
  *   usingSimulation – boolean (always false now)
  */
 
+const parseTimeToSeconds = (val) => {
+  if (typeof val === 'number') return val;
+  if (!val || typeof val !== 'string') return 0;
+  
+  const parts = val.split(':').map(Number);
+  if (parts.some(isNaN)) return 0;
+  
+  if (parts.length === 2) {
+    // MM:SS
+    return parts[0] * 60 + parts[1];
+  } else if (parts.length === 3) {
+    // HH:MM:SS
+    return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  }
+  return Number(val) || 0;
+};
+
 export function useVideoTranscript(videoRef, savedCaptions = []) {
   const [currentCaption, setCurrentCaption] = useState('');
 
   // Convert the backend Whisper/STT format to the frontend transcript format
-  const transcript = savedCaptions.map(c => ({
-    text: c.text,
-    timestamp: c.start ?? c.start_time ?? 0
-  }));
+  const transcript = savedCaptions.map(c => {
+    const timeVal = c.start ?? c.start_time ?? 0;
+    return {
+      text: c.text,
+      timestamp: parseTimeToSeconds(timeVal)
+    };
+  });
 
   useEffect(() => {
     let rafId = null;
@@ -49,8 +69,10 @@ export function useVideoTranscript(videoRef, savedCaptions = []) {
         const currentTime = video.currentTime;
         // Find the matching caption segment
         const activeCaption = savedCaptions.find(c => {
-          const start = c.start ?? c.start_time ?? 0;
-          const end = c.end ?? c.end_time ?? 0;
+          const startVal = c.start ?? c.start_time ?? 0;
+          const endVal = c.end ?? c.end_time ?? 0;
+          const start = parseTimeToSeconds(startVal);
+          const end = parseTimeToSeconds(endVal);
           return currentTime >= start && currentTime <= end;
         });
 

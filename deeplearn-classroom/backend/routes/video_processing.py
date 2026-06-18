@@ -12,6 +12,7 @@ Storage Strategy:
     → No code changes needed — storage.py handles the fallback transparently.
 """
 import os
+import json
 from flask import Blueprint, request, jsonify, send_file, redirect
 from werkzeug.utils import secure_filename
 from utils.video_pipeline import start_pipeline, get_job_status
@@ -59,6 +60,7 @@ def upload_video():
         {
           "status": "processing",
           "job_id": "<uuid>",
+          "video_id": 1,
           "filename": "signed_<original>.mp4"
         }
     """
@@ -85,17 +87,58 @@ def upload_video():
     if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
         return jsonify({"error": "Upload failed: file is empty or could not be saved"}), 500
 
+    # ── Save to database ──────────────────────────────────────────────────────
+    teacher_id = request.form.get("teacher_id", 1, type=int)
+    course_id = request.form.get("course_id", 1, type=int)
+
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    video_id = None
+    try:
+        # Ensure referenced rows exist (prevents FK violations on MySQL)
+        cursor.execute("SELECT teacher_id FROM teachers WHERE teacher_id = ?", (teacher_id,))
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                (teacher_id, "Teacher", f"teacher{teacher_id}@deeplearn.edu", "seeded"),
+            )
+        cursor.execute("SELECT course_id FROM courses WHERE course_id = ?", (course_id,))
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO courses (course_id, title, teacher_id) VALUES (?, ?, ?)",
+                (course_id, "Default Course", teacher_id),
+            )
+
+        cursor.execute("""
+            INSERT INTO videos (teacher_id, course_id, original_url, processed_url, status)
+            VALUES (?, ?, ?, ?, 'processing')
+        """, (teacher_id, course_id, input_path, output_path))
+        video_id = cursor.lastrowid
+        conn.commit()
+    except Exception as db_err:
+        conn.rollback()
+        print(f"[Upload] Database insertion failed: {db_err}")
+    finally:
+        conn.close()
+
     # ── Upload original to R2 (non-blocking — happens before pipeline) ────────
     r2_input_key = make_r2_key("uploads", filename)
     upload_file(input_path, r2_input_key)
     # Note: we keep the local copy for the pipeline — pipeline will clean up.
 
     # ── Start processing pipeline in background ───────────────────────────────
-    job_id = start_pipeline(input_path, output_path, output_r2_key=make_r2_key("processed", output_filename))
+    job_id = start_pipeline(
+        input_path, 
+        output_path, 
+        output_r2_key=make_r2_key("processed", output_filename),
+        video_id=video_id
+    )
 
     return jsonify({
         "status":   "processing",
         "job_id":   job_id,
+        "video_id": video_id,
         "filename": output_filename,
     })
 
@@ -235,3 +278,139 @@ def extract_captions():
         _cleanup_local(input_path)  # always remove temp file
 
     return jsonify({"captions": captions})
+
+
+# ── SRT/VTT Format Helpers ──────────────────────────────────────────────────
+
+def format_srt_time(seconds):
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    ms = int((seconds % 1) * 1000)
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+def format_vtt_time(seconds):
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    ms = int((seconds % 1) * 1000)
+    return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
+
+def generate_srt(captions):
+    lines = []
+    for idx, cap in enumerate(captions):
+        lines.append(str(idx + 1))
+        start_str = format_srt_time(cap["start"])
+        end_str = format_srt_time(cap["end"])
+        lines.append(f"{start_str} --> {end_str}")
+        lines.append(cap["text"])
+        lines.append("")
+    return "\n".join(lines)
+
+def generate_vtt(captions):
+    lines = ["WEBVTT", ""]
+    for idx, cap in enumerate(captions):
+        start_str = format_vtt_time(cap["start"])
+        end_str = format_vtt_time(cap["end"])
+        lines.append(f"{idx + 1}")
+        lines.append(f"{start_str} --> {end_str}")
+        lines.append(cap["text"])
+        lines.append("")
+    return "\n".join(lines)
+
+
+# ── GET /video-captions ───────────────────────────────────────────────────────
+
+@video_bp.route("/video-captions", methods=["GET"])
+def get_video_captions():
+    """
+    Get captions for a video by video_id or job_id.
+    Query params:
+        video_id - ID in the videos database table
+        job_id   - UUID from active job state
+        format   - 'json' (default), 'srt', or 'vtt'
+    """
+    video_id = request.args.get("video_id", type=int)
+    job_id = request.args.get("job_id")
+    fmt = request.args.get("format", "json").lower()
+    
+    if not video_id and not job_id:
+        return jsonify({"error": "Missing video_id or job_id"}), 400
+        
+    captions = []
+    
+    # 1. Fetch from database if video_id is provided
+    if video_id:
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT video_id, status FROM videos WHERE video_id = ?", (video_id,))
+            video_row = cursor.fetchone()
+            if not video_row:
+                return jsonify({"error": "Video not found"}), 404
+                
+            cursor.execute("""
+                SELECT start_time, end_time, text 
+                FROM video_captions 
+                WHERE video_id = ? 
+                ORDER BY start_time ASC
+            """, (video_id,))
+            rows = cursor.fetchall()
+            for row in rows:
+                captions.append({
+                    "start": float(row[0]) if row[0] is not None else 0.0,
+                    "end": float(row[1]) if row[1] is not None else 0.0,
+                    "text": row[2]
+                })
+        except Exception as e:
+            return jsonify({"error": f"Database error: {str(e)}"}), 500
+        finally:
+            conn.close()
+            
+    # 2. Otherwise fetch from active job_id
+    elif job_id:
+        state = get_job_status(job_id)
+        if not state or state.get("status") == "unknown":
+            return jsonify({"error": "Job not found"}), 404
+        if state.get("status") != "done":
+            return jsonify({"error": f"Job is in '{state.get('status')}' state"}), 400
+            
+        formatted_caps = state.get("captions", [])
+        for c in formatted_caps:
+            start = c.get("start")
+            end = c.get("end")
+            if start is None:
+                try:
+                    parts = c.get("start_time", "0:00").split(":")
+                    start = int(parts[0]) * 60 + float(parts[1])
+                except Exception:
+                    start = 0.0
+            if end is None:
+                try:
+                    parts = c.get("end_time", "0:00").split(":")
+                    end = int(parts[0]) * 60 + float(parts[1])
+                except Exception:
+                    end = start + 2.0
+            captions.append({
+                "start": start,
+                "end": end,
+                "text": c.get("text", "")
+            })
+            
+    if fmt == "srt":
+        srt_content = generate_srt(captions)
+        name = f"captions_{video_id or job_id}.srt"
+        return srt_content, 200, {
+            "Content-Type": "text/plain; charset=utf-8",
+            "Content-Disposition": f"attachment; filename={name}"
+        }
+    elif fmt == "vtt":
+        vtt_content = generate_vtt(captions)
+        name = f"captions_{video_id or job_id}.vtt"
+        return vtt_content, 200, {
+            "Content-Type": "text/vtt; charset=utf-8",
+            "Content-Disposition": f"attachment; filename={name}"
+        }
+    else:
+        return jsonify({"video_id": video_id, "job_id": job_id, "captions": captions})

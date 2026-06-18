@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UploadCloud, CheckCircle, Video, Download, AlertCircle, Loader2, MonitorPlay } from 'lucide-react';
+import { UploadCloud, CheckCircle, Video, Download, AlertCircle, Loader2, MonitorPlay, FileText } from 'lucide-react';
 import SignAvatarOverlay from '../components/SignAvatarOverlay';
+import { useAuth } from '../contexts/AuthContext';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function VideoUpload() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -82,6 +84,8 @@ export default function VideoUpload() {
     try {
       const formData = new FormData();
       formData.append('video_file', file);
+      formData.append('teacher_id', user?.id || 1);
+      formData.append('course_id', 1);
 
       const res = await fetch(`${BACKEND_URL}/upload-video`, {
         method: 'POST',
@@ -138,6 +142,8 @@ export default function VideoUpload() {
 
       const formData = new FormData();
       formData.append('video_file', file);
+      formData.append('teacher_id', user?.id || 1);
+      formData.append('course_id', 1);
 
       setProgress(30);
       setStep('Step 2/4: Extracting audio track from video...');
@@ -204,6 +210,7 @@ export default function VideoUpload() {
 
   const startPolling = (id) => {
     if (pollRef.current) clearInterval(pollRef.current);
+    let consecutiveFailures = 0;
 
     pollRef.current = setInterval(async () => {
       try {
@@ -211,6 +218,7 @@ export default function VideoUpload() {
         if (!res.ok) throw new Error('Status check failed');
 
         const data = await res.json();
+        consecutiveFailures = 0; // Reset failures counter
 
         if (data.progress) setProgress(data.progress);
         if (data.step) setStep(data.step);
@@ -238,7 +246,15 @@ export default function VideoUpload() {
           setUploading(false);
         }
       } catch (err) {
-        console.error('Polling error:', err);
+        consecutiveFailures++;
+        console.error(`Polling error (attempt ${consecutiveFailures}/5):`, err);
+        if (consecutiveFailures >= 5) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+          setStatus('error');
+          setError('Lost connection to backend server. Polling aborted.');
+          setUploading(false);
+        }
       }
     }, 2000);
   };
@@ -374,6 +390,29 @@ export default function VideoUpload() {
                   Download Processed Video
                 </button>
                 
+                {jobId && (
+                  <div className="flex gap-2 w-full">
+                    <a 
+                      href={`${API_BASE}/video-captions?job_id=${jobId}&format=srt`}
+                      download
+                      className="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-white/10"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <FileText className="w-4 h-4" /> Download SRT
+                    </a>
+                    <a 
+                      href={`${API_BASE}/video-captions?job_id=${jobId}&format=vtt`}
+                      download
+                      className="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-white/10"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <FileText className="w-4 h-4" /> Download VTT
+                    </a>
+                  </div>
+                )}
+
                 <button 
                   className="w-full py-2.5 rounded-lg bg-gradient-to-r from-primary-600 to-purple-600 hover:from-primary-500 hover:to-purple-500 text-white font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary-600/20"
                   onClick={() => navigate('/classroom')}

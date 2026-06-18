@@ -50,7 +50,7 @@ def extract_audio_from_video(video_path):
     return audio_path
 
 
-def transcribe_audio(video_path):
+def transcribe_audio(video_path, progress_callback=None):
     """
     Transcribe audio from a video file.
     Pipeline: video → extract audio → Whisper STT → caption segments.
@@ -59,6 +59,8 @@ def transcribe_audio(video_path):
     audio_path = None
     try:
         # Step 1: Extract audio from video
+        if progress_callback:
+            progress_callback("Extracting audio from video file...", 10)
         print(f"[STT] Extracting audio from: {video_path}")
         audio_path = extract_audio_from_video(video_path)
         print(f"[STT] Audio extracted to: {audio_path}")
@@ -69,7 +71,9 @@ def transcribe_audio(video_path):
 
         if use_whisper:
             # Step 2: Transcribe with Whisper
-            captions = _transcribe_with_whisper(audio_path)
+            if progress_callback:
+                progress_callback("Loading Whisper speech-to-text model...", 15)
+            captions = _transcribe_with_whisper(audio_path, progress_callback)
             if captions:
                 print(f"[STT] Whisper produced {len(captions)} segments")
                 return captions
@@ -77,6 +81,8 @@ def transcribe_audio(video_path):
             print("[STT] Whisper is disabled (using SpeechRecognition directly for memory savings)")
 
         # Step 3: Fallback to SpeechRecognition
+        if progress_callback:
+            progress_callback("Running fallback speech recognition...", 25)
         print("[STT] Running SpeechRecognition transcription...")
         captions = _transcribe_with_speech_recognition(audio_path)
         if captions:
@@ -98,15 +104,41 @@ def transcribe_audio(video_path):
                 pass
 
 
-def _transcribe_with_whisper(audio_path):
+def _transcribe_with_whisper(audio_path, progress_callback=None):
     """Transcribe using OpenAI Whisper."""
+    import time
     try:
         import whisper
 
         whisper_model = os.environ.get("WHISPER_MODEL", "tiny")
-        print(f"[STT] Loading Whisper model: {whisper_model}")
-        model = whisper.load_model(whisper_model)
-        result = model.transcribe(audio_path, fp16=False)
+        model = None
+        
+        # Retry model loading up to 3 times
+        for attempt in range(3):
+            try:
+                print(f"[STT] Loading Whisper model: {whisper_model} (attempt {attempt + 1})")
+                if progress_callback:
+                    progress_callback(f"Loading Whisper model '{whisper_model}' (attempt {attempt + 1}/3)...", 15 + attempt * 2)
+                model = whisper.load_model(whisper_model)
+                break
+            except Exception as e:
+                print(f"[STT] Model load attempt {attempt + 1} failed: {e}")
+                if attempt < 2:
+                    time.sleep(2)
+        
+        if not model:
+            raise RuntimeError("Failed to load Whisper model after 3 attempts")
+
+        if progress_callback:
+            progress_callback("Transcribing audio segments with Whisper...", 22)
+            
+        # Guided transcription via technical vocabulary in initial prompt
+        tech_prompt = (
+            "React, Python, HTML, CSS, JavaScript, database, SQL, AWS, deployment, "
+            "Git, GitHub, programming, software engineering, variables, objects, functions, "
+            "loops, array, classroom, lecture, learning, virtual classroom."
+        )
+        result = model.transcribe(audio_path, fp16=False, initial_prompt=tech_prompt)
 
         captions = []
         for segment in result.get("segments", []):
@@ -147,12 +179,53 @@ def _transcribe_with_speech_recognition(audio_path):
             audio = recognizer.record(source)
 
         text = recognizer.recognize_google(audio)
-        # Return as single segment matching audio duration
-        return [{
-            "text": text,
-            "start": 0.0,
-            "end": round(duration, 2) if duration > 0 else 5.0,
-        }]
+        if not text:
+            return None
+
+        # Segment the text block proportionally rather than returning a single giant segment
+        words = text.split()
+        if not words:
+            return None
+            
+        words_per_segment = 10
+        total_words = len(words)
+        num_segments = max(1, round(total_words / words_per_segment))
+        
+        # Guard against 0 duration
+        actual_duration = duration if duration > 0 else 5.0
+        segment_duration = actual_duration / num_segments
+        
+        captions = []
+        for i in range(num_segments):
+            start_idx = i * words_per_segment
+            end_idx = min(start_idx + words_per_segment, total_words)
+            
+            # last segment contains any trailing words
+            if i == num_segments - 1:
+                end_idx = total_words
+                
+            segment_words = words[start_idx:end_idx]
+            if not segment_words:
+                continue
+                
+            segment_text = " ".join(segment_words).strip()
+            
+            # Capitalize first letter and add a period if not present
+            if segment_text:
+                segment_text = segment_text[0].upper() + segment_text[1:]
+                if segment_text[-1] not in {'.', '?', '!'}:
+                    segment_text += '.'
+                    
+            start_time = round(i * segment_duration, 2)
+            end_time = round(min((i + 1) * segment_duration, actual_duration), 2)
+            
+            captions.append({
+                "text": segment_text,
+                "start": start_time,
+                "end": end_time
+            })
+            
+        return captions if captions else None
 
     except ImportError:
         print("[STT] SpeechRecognition not installed")
