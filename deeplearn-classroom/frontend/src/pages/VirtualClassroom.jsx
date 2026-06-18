@@ -116,34 +116,74 @@ export default function VirtualClassroom() {
   // ── Active quiz (transcript-generated OR fallback) ────────────────────────
   const activeQuiz = quizQuestions || FALLBACK_QUIZ;
 
-  // ── Load video + captions from IndexedDB on mount ────────────────────────
+  // ── Load video + captions from backend OR IndexedDB on mount ─────────────
   useEffect(() => {
     const fetchData = async () => {
-      // 1. Load video
-      let loaded = false;
-      try {
-        const { file, name } = await loadVideo();
-        if (file) {
-          setVideoSrc(URL.createObjectURL(file));
-          setVideoTitle(name);
-          loaded = true;
-          console.log('[Classroom] Loaded video from IndexedDB:', name);
+      const params = new URLSearchParams(window.location.search);
+      const jobId = params.get('job_id');
+      const filename = params.get('filename');
+
+      let loadedVideo = false;
+
+      // 1. If we have jobId/filename in query params, try fetching direct video URL from backend
+      if (jobId || filename) {
+        try {
+          const urlRes = await fetch(`${API_BASE}/video-url?${params.toString()}`);
+          if (urlRes.ok) {
+            const urlData = await urlRes.json();
+            if (urlData.video_url) {
+              const fullUrl = urlData.video_url.startsWith('http') 
+                ? urlData.video_url 
+                : `${API_BASE}${urlData.video_url}`;
+              setVideoSrc(fullUrl);
+              setVideoTitle(filename || 'Uploaded Video');
+              loadedVideo = true;
+              console.log('[Classroom] Loaded video from backend URL:', fullUrl);
+            }
+          }
+        } catch (err) {
+          console.warn('[Classroom] Failed to fetch video URL from backend:', err);
         }
-      } catch (err) {
-        console.error('[Classroom] Failed to load video from IndexedDB:', err);
       }
-      if (!loaded && window.uploadedDemoVideo) {
+
+      // 2. Fallback to IndexedDB / Window state if backend video URL lookup wasn't performed or failed
+      if (!loadedVideo) {
+        try {
+          const { file, name } = await loadVideo();
+          if (file) {
+            setVideoSrc(URL.createObjectURL(file));
+            setVideoTitle(name);
+            loadedVideo = true;
+            console.log('[Classroom] Loaded video from IndexedDB:', name);
+          }
+        } catch (err) {
+          console.error('[Classroom] Failed to load video from IndexedDB:', err);
+        }
+      }
+
+      if (!loadedVideo && window.uploadedDemoVideo) {
         setVideoSrc(window.uploadedDemoVideo);
         setVideoTitle(window.uploadedDemoTitle || 'Uploaded Video');
+        loadedVideo = true;
       }
       setIsVideoLoaded(true);
 
-      // 2. Load saved captions produced by VideoUpload
+      // 3. Load saved captions (Window → Backend → IndexedDB)
       try {
-        // Try window first (same-session navigation, no DB latency)
         if (window.uploadedDemoCaptions && window.uploadedDemoCaptions.length > 0) {
           console.log('[Classroom] Loaded captions from window:', window.uploadedDemoCaptions.length, 'segments');
           setSavedCaptions(window.uploadedDemoCaptions);
+        } else if (jobId || filename) {
+          // Fetch captions from backend
+          const capUrl = `${API_BASE}/video-captions?${jobId ? `job_id=${jobId}` : `filename=${filename}`}&format=json`;
+          const capRes = await fetch(capUrl);
+          if (capRes.ok) {
+            const capData = await capRes.json();
+            if (capData.captions) {
+              console.log('[Classroom] Loaded captions from backend:', capData.captions.length, 'segments');
+              setSavedCaptions(capData.captions);
+            }
+          }
         } else {
           const caps = await loadCaptions();
           if (caps && caps.length > 0) {

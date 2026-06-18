@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { UploadCloud, CheckCircle, Video, Download, AlertCircle, Loader2, MonitorPlay, FileText } from 'lucide-react';
 import SignAvatarOverlay from '../components/SignAvatarOverlay';
 import { useAuth } from '../contexts/AuthContext';
+import { saveVideo, saveCaptions } from '../utils/db';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -133,9 +134,7 @@ export default function VideoUpload() {
 
     try {
       // Clear previous IndexedDB and window states
-      import('../utils/db').then(({ saveCaptions, saveVideo }) => {
-        saveCaptions([]).catch(console.error);
-      });
+      saveCaptions([]).catch(console.error);
       window.uploadedDemoVideo = null;
       window.uploadedDemoTitle = null;
       window.uploadedDemoCaptions = [];
@@ -177,10 +176,8 @@ export default function VideoUpload() {
       );
 
       // Save real captions + video to IndexedDB
-      import('../utils/db').then(({ saveVideo, saveCaptions }) => {
-        saveVideo(file).catch(console.error);
-        saveCaptions(realCaptions).catch(console.error);
-      });
+      saveVideo(file).catch(console.error);
+      saveCaptions(realCaptions).catch(console.error);
       window.uploadedDemoVideo    = URL.createObjectURL(file);
       window.uploadedDemoTitle    = file.name;
       window.uploadedDemoCaptions = realCaptions;
@@ -234,9 +231,7 @@ export default function VideoUpload() {
           if (data.captions) {
             setCaptions(data.captions);
             // Save real API captions to IndexedDB
-            import('../utils/db').then(({ saveCaptions }) => {
-              saveCaptions(data.captions).catch(console.error);
-            });
+            saveCaptions(data.captions).catch(console.error);
           }
         } else if (data.status === 'error') {
           clearInterval(pollRef.current);
@@ -415,7 +410,17 @@ export default function VideoUpload() {
 
                 <button 
                   className="w-full py-2.5 rounded-lg bg-gradient-to-r from-primary-600 to-purple-600 hover:from-primary-500 hover:to-purple-500 text-white font-semibold flex items-center justify-center gap-2 transition-all shadow-lg shadow-primary-600/20"
-                  onClick={() => navigate('/classroom')}
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    if (jobId) params.append('job_id', jobId);
+                    if (filename) params.append('filename', filename);
+                    if (captions && captions.length > 0) {
+                      window.uploadedDemoCaptions = captions;
+                      window.uploadedDemoVideo = `${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}${jobId ? `&job_id=${jobId}` : ''}`;
+                      window.uploadedDemoTitle = file?.name || 'Uploaded Video';
+                    }
+                    navigate(`/classroom?${params.toString()}`);
+                  }}
                 >
                   <MonitorPlay className="w-5 h-5" aria-hidden="true" />
                   Watch in Virtual Classroom
