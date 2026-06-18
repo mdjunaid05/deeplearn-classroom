@@ -21,13 +21,27 @@ import os
 import threading
 import time
 
+# Load .env file in development (ignored in production where env vars are set directly)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed — env vars must be set externally
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-R2_ACCOUNT_ID       = os.environ.get("R2_ACCOUNT_ID", "")
-R2_ACCESS_KEY_ID    = os.environ.get("R2_ACCESS_KEY_ID", "")
-R2_SECRET_ACCESS_KEY= os.environ.get("R2_SECRET_ACCESS_KEY", "")
-R2_BUCKET_NAME      = os.environ.get("R2_BUCKET_NAME", "deeplearn-videos")
-R2_PUBLIC_URL       = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
+R2_ACCOUNT_ID        = os.environ.get("R2_ACCOUNT_ID", "")
+R2_ACCESS_KEY_ID     = os.environ.get("R2_ACCESS_KEY_ID", "")
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "")
+R2_BUCKET_NAME       = os.environ.get("R2_BUCKET_NAME", "deeplearn-videos")
+R2_PUBLIC_URL        = os.environ.get("R2_PUBLIC_URL", "").rstrip("/")
+
+# Support full endpoint URL directly (e.g. https://<account>.r2.cloudflarestorage.com)
+# If not set, it is constructed from R2_ACCOUNT_ID automatically.
+_R2_ENDPOINT = os.environ.get(
+    "R2_ENDPOINT_URL",
+    f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com" if R2_ACCOUNT_ID else "",
+)
 
 # Determines whether R2 is available (all required vars present)
 def _r2_enabled() -> bool:
@@ -51,11 +65,12 @@ def _get_client():
         import boto3
         _s3_client = boto3.client(
             "s3",
-            endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+            endpoint_url=_R2_ENDPOINT,
             aws_access_key_id=R2_ACCESS_KEY_ID,
             aws_secret_access_key=R2_SECRET_ACCESS_KEY,
             region_name="auto",  # R2 uses "auto" region
         )
+        print(f"[Storage] R2 client initialized → {_R2_ENDPOINT} / {R2_BUCKET_NAME}")
         return _s3_client
 
 
