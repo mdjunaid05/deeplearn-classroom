@@ -46,7 +46,30 @@ services:
       - key: PYTHONDONTWRITEBYTECODE
         value: "1"
 
-    # ── Health Check ──────────────────────────────────────────────────────────
+      # ── Cloudflare R2 Video Storage ─────────────────────────────────────────
+      # Get these from: Cloudflare Dashboard → R2 → Manage R2 API Tokens
+      # Leave blank to use local disk storage (not recommended for production).
+      #
+      # Step 1: Create bucket named "deeplearn-videos" in R2
+      # Step 2: Enable "Public Access" on the bucket
+      # Step 3: Create API Token with "Object Read & Write" on the bucket
+      # Step 4: Paste values below (use Render's "Secret" type for keys)
+      - key: R2_ACCOUNT_ID
+        sync: false   # Set manually in Render dashboard (Cloudflare Account ID)
+
+      - key: R2_ACCESS_KEY_ID
+        sync: false   # Set manually in Render dashboard (R2 API Token Key ID)
+
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false   # Set manually in Render dashboard (R2 API Token Secret)
+
+      - key: R2_BUCKET_NAME
+        value: "deeplearn-videos"
+
+      # R2_PUBLIC_URL: from Cloudflare R2 bucket → Settings → Public URL
+      # Looks like: https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev
+      - key: R2_PUBLIC_URL
+        sync: false   # Set manually in Render dashboard
     # Render polls this path every 30s. Must return HTTP 200 to stay live.
     healthCheckPath: /
 

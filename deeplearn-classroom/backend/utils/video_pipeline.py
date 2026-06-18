@@ -85,10 +85,12 @@ def _cleanup_old_jobs(max_age_seconds: int = 3600) -> None:
             del _JOBS_MEMORY[jid]
 
 
-def process_video_pipeline(job_id, input_path, output_path):
+def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None):
     """
     Background worker that runs the full pipeline.
     Writes job state to disk for cross-worker visibility.
+    When output_r2_key is provided, uploads the processed video to R2
+    and stores the public URL in job state.
     """
     _write_job(job_id, {"status": "processing", "progress": 0, "step": "Initializing..."})
 
@@ -134,11 +136,42 @@ def process_video_pipeline(job_id, input_path, output_path):
                 "gestures": cap.get("gestures", []),
             })
 
+        # ── Step 4: Upload to Cloudflare R2 (if configured) ──────
+        video_url = output_path  # default: local path
+        if output_r2_key:
+            try:
+                _write_job(job_id, {
+                    "status": "processing",
+                    "progress": 98,
+                    "step": "Uploading to Cloudflare R2...",
+                })
+                from utils.storage import upload_file, is_r2_url
+                url = upload_file(output_path, output_r2_key, content_type="video/mp4")
+                if is_r2_url(url):
+                    video_url = url
+                    # Delete local processed file — it's in R2 now
+                    try:
+                        os.remove(output_path)
+                        print(f"[Pipeline] Cleaned up local processed file: {output_path}")
+                    except OSError:
+                        pass
+                print(f"[Pipeline] Video available at: {video_url}")
+            except Exception as r2_err:
+                print(f"[Pipeline] R2 upload failed (keeping local): {r2_err}")
+
+        # ── Clean up original input file (already in R2 from upload route) ──
+        try:
+            if os.path.exists(input_path):
+                os.remove(input_path)
+        except OSError:
+            pass
+
         _write_job(job_id, {
             "status": "done",
             "progress": 100,
             "step": "Complete",
             "captions": formatted_captions,
+            "video_url": video_url,
         })
         print(f"[Pipeline] Job {job_id} completed successfully")
         _cleanup_old_jobs()  # Opportunistic cleanup
@@ -305,15 +338,23 @@ def _format_time(seconds):
     return f"{m}:{s:02d}"
 
 
-def start_pipeline(input_path, output_path):
+def start_pipeline(input_path, output_path, output_r2_key=None):
     """
     Start the video processing pipeline in a background thread.
-    Returns a unique job_id.
+
+    Args:
+        input_path:     Local path to the input video.
+        output_path:    Local path for the processed video output.
+        output_r2_key:  R2 object key to upload the processed video to.
+                        If None, the processed video stays on local disk.
+    Returns:
+        str: Unique job_id for polling via /video-status.
     """
     job_id = str(uuid.uuid4())
     thread = threading.Thread(
         target=process_video_pipeline,
-        args=(job_id, input_path, output_path)
+        args=(job_id, input_path, output_path),
+        kwargs={"output_r2_key": output_r2_key},
     )
     thread.daemon = True
     thread.start()
