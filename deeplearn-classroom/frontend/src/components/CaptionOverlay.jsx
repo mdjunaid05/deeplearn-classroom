@@ -37,8 +37,10 @@ export default function CaptionOverlay({
   // Do not render when the video is paused and there is nothing to show
   if (!isActive && transcript.length === 0) return null;
 
-  // Show only the last 4 historical segments
-  const recentHistory = transcript.slice(-4);
+  // Show only the last 4 historical segments, excluding the current active one if it is shown live
+  const recentHistory = (isActive && currentCaption && transcript.length > 0 && transcript[transcript.length - 1].text === currentCaption)
+    ? transcript.slice(0, -1).slice(-4)
+    : transcript.slice(-4);
   
   // Size mapping
   const sizeClass = {

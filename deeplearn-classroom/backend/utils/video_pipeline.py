@@ -199,6 +199,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                     """, (video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
                 
                 conn.commit()
+                print(f"[CAPTION_SAVED] video_id={video_id} count={len(captions)}")
                 print(f"[Pipeline] Successfully saved {len(captions)} captions to DB for video_id {video_id}")
             except Exception as db_err:
                 if 'conn' in locals():

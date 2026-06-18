@@ -41,6 +41,7 @@ def extract_audio_from_video(video_path):
         
     file_size = os.path.getsize(audio_path)
     print(f"[STT] Audio file size: {file_size} bytes")
+    print(f"[AUDIO_EXTRACTED] audio_path={audio_path} size={file_size}")
     
     if file_size == 0:
         if os.path.exists(audio_path):
@@ -73,8 +74,10 @@ def transcribe_audio(video_path, progress_callback=None):
             # Step 2: Transcribe with Whisper
             if progress_callback:
                 progress_callback("Loading Whisper speech-to-text model...", 15)
+            print(f"[TRANSCRIPTION_STARTED] method=whisper model={os.environ.get('WHISPER_MODEL', 'tiny')}")
             captions = _transcribe_with_whisper(audio_path, progress_callback)
             if captions:
+                print(f"[TRANSCRIPTION_COMPLETED] method=whisper segments={len(captions)}")
                 print(f"[STT] Whisper produced {len(captions)} segments")
                 return captions
         else:
@@ -83,9 +86,11 @@ def transcribe_audio(video_path, progress_callback=None):
         # Step 3: Fallback to SpeechRecognition
         if progress_callback:
             progress_callback("Running fallback speech recognition...", 25)
+        print("[TRANSCRIPTION_STARTED] method=speech_recognition")
         print("[STT] Running SpeechRecognition transcription...")
         captions = _transcribe_with_speech_recognition(audio_path)
         if captions:
+            print(f"[TRANSCRIPTION_COMPLETED] method=speech_recognition segments={len(captions)}")
             return captions
 
         # Final fallback: return empty

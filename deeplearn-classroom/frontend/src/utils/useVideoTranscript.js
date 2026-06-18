@@ -43,18 +43,26 @@ const parseTimeToSeconds = (val) => {
 
 export function useVideoTranscript(videoRef, savedCaptions = []) {
   const [currentCaption, setCurrentCaption] = useState('');
+  const [currentTime, setCurrentTime] = useState(0);
 
-  // Convert the backend Whisper/STT format to the frontend transcript format
-  const transcript = savedCaptions.map(c => {
-    const timeVal = c.start ?? c.start_time ?? 0;
-    return {
-      text: c.text,
-      timestamp: parseTimeToSeconds(timeVal)
-    };
-  });
+  // Convert the backend Whisper/STT format to the frontend transcript format,
+  // dynamically filtering to segments that have already started.
+  const transcript = savedCaptions
+    .filter(c => {
+      const start = parseTimeToSeconds(c.start ?? c.start_time ?? 0);
+      return currentTime >= start;
+    })
+    .map(c => {
+      const timeVal = c.start ?? c.start_time ?? 0;
+      return {
+        text: c.text,
+        timestamp: parseTimeToSeconds(timeVal)
+      };
+    });
 
   useEffect(() => {
     let rafId = null;
+    const lastCaptionRef = { current: '' };
 
     const attach = () => {
       const video = videoRef.current;
@@ -66,19 +74,29 @@ export function useVideoTranscript(videoRef, savedCaptions = []) {
       console.log('[Caption] ✓ Attached to <video>. Syncing saved captions...');
 
       const onTimeUpdate = () => {
-        const currentTime = video.currentTime;
+        const time = video.currentTime;
+        setCurrentTime(time);
+        
         // Find the matching caption segment
         const activeCaption = savedCaptions.find(c => {
           const startVal = c.start ?? c.start_time ?? 0;
           const endVal = c.end ?? c.end_time ?? 0;
           const start = parseTimeToSeconds(startVal);
           const end = parseTimeToSeconds(endVal);
-          return currentTime >= start && currentTime <= end;
+          return time >= start && time <= end;
         });
 
         if (activeCaption) {
+          if (activeCaption.text !== lastCaptionRef.current) {
+            console.log(`[CAPTION_RENDERED] activeCaption="${activeCaption.text}"`);
+            lastCaptionRef.current = activeCaption.text;
+          }
           setCurrentCaption(activeCaption.text);
         } else {
+          if (lastCaptionRef.current !== '') {
+            console.log('[CAPTION_RENDERED] activeCaption=""');
+            lastCaptionRef.current = '';
+          }
           setCurrentCaption('');
         }
       };
