@@ -88,13 +88,13 @@ export function useVideoTranscript(videoRef, savedCaptions = []) {
 
         if (activeCaption) {
           if (activeCaption.text !== lastCaptionRef.current) {
-            console.log(`[CAPTION_RENDERED] activeCaption="${activeCaption.text}"`);
+            console.log(`[TRANSCRIPT_SEGMENT_RENDERED] activeCaption="${activeCaption.text}"`);
             lastCaptionRef.current = activeCaption.text;
           }
           setCurrentCaption(activeCaption.text);
         } else {
           if (lastCaptionRef.current !== '') {
-            console.log('[CAPTION_RENDERED] activeCaption=""');
+            console.log('[TRANSCRIPT_SEGMENT_RENDERED] activeCaption=""');
             lastCaptionRef.current = '';
           }
           setCurrentCaption('');

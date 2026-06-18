@@ -29,6 +29,20 @@ def extract_audio_from_video(video_path):
     ]
     
     try:
+        # Check if the video file has an audio track
+        ffprobe_cmd = [
+            "ffprobe", "-v", "error",
+            "-select_streams", "a",
+            "-show_entries", "stream=codec_type",
+            "-of", "csv=p=0",
+            video_path
+        ]
+        probe_res = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if "audio" in probe_res.stdout:
+            print(f"[AUDIO_TRACK_DETECTED] video_path={video_path}")
+        else:
+            print(f"[STT] Warning: No audio stream detected in {video_path}")
+
         subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as e:
         if os.path.exists(audio_path):
@@ -143,7 +157,9 @@ def _transcribe_with_whisper(audio_path, progress_callback=None):
             "Git, GitHub, programming, software engineering, variables, objects, functions, "
             "loops, array, classroom, lecture, learning, virtual classroom."
         )
+        print(f"[TRANSCRIPTION_REQUEST_SENT] method=whisper model={whisper_model}")
         result = model.transcribe(audio_path, fp16=False, initial_prompt=tech_prompt)
+        print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=whisper segments={len(result.get('segments', []))}")
 
         captions = []
         for segment in result.get("segments", []):
@@ -164,7 +180,7 @@ def _transcribe_with_whisper(audio_path, progress_callback=None):
 
 
 def _transcribe_with_speech_recognition(audio_path):
-    """Fallback transcription using SpeechRecognition + Google API."""
+    """Fallback transcription using SpeechRecognition + Google API in 15-second chunks."""
     try:
         import speech_recognition as sr
         import wave
@@ -180,56 +196,39 @@ def _transcribe_with_speech_recognition(audio_path):
             print(f"[STT] Failed to read audio duration: {e}")
 
         recognizer = sr.Recognizer()
-        with sr.AudioFile(audio_path) as source:
-            audio = recognizer.record(source)
-
-        text = recognizer.recognize_google(audio)
-        if not text:
-            return None
-
-        # Segment the text block proportionally rather than returning a single giant segment
-        words = text.split()
-        if not words:
-            return None
-            
-        words_per_segment = 10
-        total_words = len(words)
-        num_segments = max(1, round(total_words / words_per_segment))
-        
-        # Guard against 0 duration
-        actual_duration = duration if duration > 0 else 5.0
-        segment_duration = actual_duration / num_segments
-        
+        chunk_duration = 15.0
+        current_time = 0.0
         captions = []
-        for i in range(num_segments):
-            start_idx = i * words_per_segment
-            end_idx = min(start_idx + words_per_segment, total_words)
-            
-            # last segment contains any trailing words
-            if i == num_segments - 1:
-                end_idx = total_words
+
+        while current_time < duration:
+            print(f"[STT] Processing chunk {current_time}s to {current_time + chunk_duration}s...")
+            print(f"[TRANSCRIPTION_REQUEST_SENT] method=speech_recognition offset={current_time} duration={chunk_duration}")
+            with sr.AudioFile(audio_path) as source:
+                audio = recognizer.record(source, offset=current_time, duration=chunk_duration)
+            try:
+                text = recognizer.recognize_google(audio)
+                print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=success length={len(text) if text else 0}")
+                if text:
+                    text = text.strip()
+                    if text:
+                        # Capitalize first letter and add a period if not present
+                        text = text[0].upper() + text[1:]
+                        if text[-1] not in {'.', '?', '!'}:
+                            text += '.'
+                        
+                        captions.append({
+                            "text": text,
+                            "start": round(current_time, 2),
+                            "end": round(min(current_time + chunk_duration, duration), 2)
+                        })
+            except sr.UnknownValueError:
+                print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=no-speech")
+            except Exception as e:
+                print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=error error={str(e)}")
+                print(f"[STT] Google SR chunk error at {current_time}s: {e}")
                 
-            segment_words = words[start_idx:end_idx]
-            if not segment_words:
-                continue
-                
-            segment_text = " ".join(segment_words).strip()
-            
-            # Capitalize first letter and add a period if not present
-            if segment_text:
-                segment_text = segment_text[0].upper() + segment_text[1:]
-                if segment_text[-1] not in {'.', '?', '!'}:
-                    segment_text += '.'
-                    
-            start_time = round(i * segment_duration, 2)
-            end_time = round(min((i + 1) * segment_duration, actual_duration), 2)
-            
-            captions.append({
-                "text": segment_text,
-                "start": start_time,
-                "end": end_time
-            })
-            
+            current_time += chunk_duration
+
         return captions if captions else None
 
     except ImportError:

@@ -77,6 +77,7 @@ def upload_video():
         }), 400
 
     filename        = secure_filename(file.filename)
+    print(f"[VIDEO_RECEIVED] route=upload-video filename={filename}")
     print(f"[CAPTION_REQUEST_STARTED] route=upload-video filename={filename}")
     input_path      = os.path.join(UPLOAD_FOLDER, filename)
     output_filename = f"signed_{filename}"
@@ -263,6 +264,7 @@ def extract_captions():
         }), 400
 
     filename   = secure_filename(file.filename)
+    print(f"[VIDEO_RECEIVED] route=extract-captions filename={filename}")
     print(f"[CAPTION_REQUEST_STARTED] route=extract-captions filename={filename}")
     input_path = os.path.join(UPLOAD_FOLDER, f"temp_{filename}")
     file.save(input_path)

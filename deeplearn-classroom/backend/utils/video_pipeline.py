@@ -197,6 +197,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                         INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
                         VALUES (?, ?, ?, ?, ?)
                     """, (video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
+                    print(f"[TRANSCRIPT_SEGMENT_SAVED] video_id={video_id} start={cap['start']} end={cap['end']} text=\"{cap['text']}\"")
                 
                 conn.commit()
                 print(f"[CAPTION_SAVED] video_id={video_id} count={len(captions)}")
