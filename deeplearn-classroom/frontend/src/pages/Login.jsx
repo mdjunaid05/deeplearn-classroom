@@ -67,43 +67,43 @@ export default function Login() {
 
   if (isAuthenticated && user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
+      <div className="min-h-screen flex items-center justify-center bg-[#faf8ff]">
         <div className="text-center">
-          <Brain className="w-12 h-12 text-primary-500 animate-pulse mx-auto mb-4" />
-          <p className="text-slate-600 font-semibold text-sm">Already signed in. Redirecting to your dashboard...</p>
+          <Brain className="w-12 h-12 text-[#00687a] animate-pulse mx-auto mb-4" />
+          <p className="text-[#131b2e] font-semibold text-sm">Already signed in. Redirecting to your dashboard...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="page-enter min-h-screen flex items-center justify-center px-4 py-20 relative overflow-hidden">
+    <div className="page-enter bg-nexus-background min-h-screen flex items-center justify-center px-4 py-20 relative overflow-hidden">
       {/* Background ambient light */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary-500/8 rounded-full blur-3xl animate-pulse-slow" />
-      <div className="absolute bottom-1/4 right-1/4 w-72 h-72 bg-purple-500/6 rounded-full blur-3xl" />
+      <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] bg-[#06b6d4]/10 rounded-full blur-3xl animate-pulse-slow pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-[#006a63]/8 rounded-full blur-3xl pointer-events-none" />
 
       <div className="w-full max-w-md relative">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl
-                          bg-gradient-to-br from-primary-500 to-purple-500 mb-5 shadow-lg shadow-primary-500/25
+                          bg-gradient-to-br from-[#00687a] to-[#006a63] mb-5 shadow-lg shadow-[#00687a]/25
                           transform hover:scale-110 transition-transform duration-300">
             <Brain className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-display font-bold text-slate-800">Welcome Back</h1>
-          <p className="text-slate-500 text-sm mt-2">Sign in to your DeepLearn Classroom</p>
+          <h1 className="text-3xl font-bold text-[#131b2e]">Welcome Back</h1>
+          <p className="text-[#3d494c] text-sm mt-2">Sign in to your Lumina Classroom</p>
         </div>
 
         {/* Success message (post-registration) */}
         {successMsg && (
-          <div className="mb-5 flex items-center gap-2 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 animate-fade-in">
-            <CheckCircle className="w-4 h-4 shrink-0" />
+          <div className="mb-5 flex items-center gap-2 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 animate-fade-in font-semibold">
+            <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600" />
             {successMsg}
           </div>
         )}
 
         {/* Role Toggle */}
-        <div className="flex gap-2 mb-6 p-1.5 rounded-xl bg-slate-100/80 border border-slate-200" id="login-role-toggle">
+        <div className="flex gap-2 mb-6 p-1.5 rounded-xl bg-[#eaedff] border border-[#bcc9cd]/40" id="login-role-toggle">
           {[
             { key: 'student', label: 'Student', icon: GraduationCap },
             { key: 'teacher', label: 'Teacher', icon: Users },
@@ -112,11 +112,11 @@ export default function Login() {
               key={key}
               type="button"
               onClick={() => { setRole(key); setErrors({}); }}
-              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold
+              className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold
                           transition-all duration-300
                           ${role === key
-                            ? 'bg-white text-primary-600 shadow-md shadow-primary-500/10'
-                            : 'text-slate-500 hover:text-slate-700'
+                            ? 'bg-white text-[#00687a] shadow-md border border-[#bcc9cd]/25'
+                            : 'text-[#3d494c] hover:text-[#00687a]'
                           }`}
             >
               <Icon className="w-4 h-4" />
@@ -127,60 +127,60 @@ export default function Login() {
 
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-5">
-          <div className="bg-white rounded-2xl p-6 space-y-4 shadow-lg shadow-slate-200/50 border border-slate-200/80">
+          <div className="glass-panel rounded-3xl p-6 space-y-4 card-shadow">
             {/* Email */}
             <div>
-              <label htmlFor="login-email" className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">
+              <label htmlFor="login-email" className="block text-xs font-bold text-[#3d494c] mb-1.5 uppercase tracking-wider">
                 Email Address
               </label>
               <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-[#3d494c]" />
                 <input
                   id="login-email"
                   type="email"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({...errors, email: ''}) }}
                   placeholder={role === 'student' ? 'student@deeplearn.edu' : 'teacher@deeplearn.edu'}
-                  className={`w-full pl-10 pr-4 py-3 rounded-xl bg-slate-50 border text-slate-800 placeholder-slate-400 text-sm
-                              focus:outline-none focus:ring-2 focus:bg-white transition-all duration-200
-                              ${errors.email ? 'border-red-300 focus:ring-red-500/30' : 'border-slate-200 focus:ring-primary-500/30 focus:border-primary-400'}`}
+                  className={`w-full pl-11 pr-4 py-3 rounded-xl bg-white border text-[#131b2e] placeholder-[#6d797d] text-sm
+                              focus:outline-none focus:ring-2 focus:ring-[#06b6d4]/50 focus:border-[#00687a] transition-all duration-200
+                              ${errors.email ? 'border-red-300 focus:ring-red-500/30' : 'border-[#bcc9cd]/60'}`}
                 />
               </div>
-              {errors.email && <p className="mt-1.5 text-xs text-red-500 flex items-center gap-1">{errors.email}</p>}
+              {errors.email && <p className="mt-1.5 text-xs text-red-500 font-semibold">{errors.email}</p>}
             </div>
 
             {/* Password */}
             <div>
-              <label htmlFor="login-password" className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wider">
+              <label htmlFor="login-password" className="block text-xs font-bold text-[#3d494c] mb-1.5 uppercase tracking-wider">
                 Password
               </label>
               <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-[#3d494c]" />
                 <input
                   id="login-password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({...errors, password: ''}) }}
                   placeholder="••••••••"
-                  className={`w-full pl-10 pr-11 py-3 rounded-xl bg-slate-50 border text-slate-800 placeholder-slate-400 text-sm
-                              focus:outline-none focus:ring-2 focus:bg-white transition-all duration-200
-                              ${errors.password ? 'border-red-300 focus:ring-red-500/30' : 'border-slate-200 focus:ring-primary-500/30 focus:border-primary-400'}`}
+                  className={`w-full pl-11 pr-11 py-3 rounded-xl bg-white border text-[#131b2e] placeholder-[#6d797d] text-sm
+                              focus:outline-none focus:ring-2 focus:ring-[#06b6d4]/50 focus:border-[#00687a] transition-all duration-200
+                              ${errors.password ? 'border-red-300 focus:ring-red-500/30' : 'border-[#bcc9cd]/60'}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#3d494c] hover:text-[#00687a] transition-colors"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
                 </button>
               </div>
-              {errors.password && <p className="mt-1.5 text-xs text-red-500">{errors.password}</p>}
+              {errors.password && <p className="mt-1.5 text-xs text-red-500 font-semibold">{errors.password}</p>}
             </div>
 
             {/* Error Message */}
             {errors.submit && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200">
-                <p className="text-xs text-red-600 font-medium">{errors.submit}</p>
+              <div className="p-3.5 rounded-xl bg-red-50 border border-red-200">
+                <p className="text-xs text-red-600 font-bold">{errors.submit}</p>
               </div>
             )}
           </div>
@@ -190,13 +190,10 @@ export default function Login() {
             type="submit"
             id="login-submit"
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-bold text-white text-sm
-                       bg-gradient-to-r from-primary-600 to-purple-600
-                       hover:from-primary-500 hover:to-purple-500
-                       shadow-lg shadow-primary-600/25 hover:shadow-primary-500/40
+            className="btn-primary w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-bold text-white text-sm
                        disabled:opacity-60 disabled:cursor-not-allowed
                        transform hover:scale-[1.01] active:scale-[0.99]
-                       transition-all duration-300"
+                       transition-all duration-300 cursor-pointer"
           >
             {loading ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -210,11 +207,11 @@ export default function Login() {
 
           {/* Sign Up Link */}
           <div className="text-center">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[#3d494c]">
               Don't have an account?{' '}
               <Link
                 to={`/register${role ? `?role=${role}` : ''}`}
-                className="text-primary-600 hover:text-primary-500 font-semibold transition-colors"
+                className="text-[#00687a] hover:text-[#06b6d4] font-bold transition-colors"
               >
                 Create Account
               </Link>

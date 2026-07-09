@@ -31,7 +31,7 @@ const BEHAVIOUR_CONFIG = {
   Distracted: { color: '#f59e0b', bg: 'bg-amber-500/10',  border: 'border-amber-500/30',  text: 'text-amber-600' },
   Inactive:   { color: '#ef4444', bg: 'bg-red-500/10',    border: 'border-red-500/30',    text: 'text-red-600' },
   Sleeping:   { color: '#8b5cf6', bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-600' },
-  Absent:     { color: '#6b7280', bg: 'bg-slate-500/10',  border: 'border-slate-500/30',  text: 'text-slate-600' },
+  Absent:     { color: '#6b7280', bg: 'bg-slate-500/10',  border: 'border-slate-500/30',  text: 'text-[#3d494c]' },
 };
 
 function ScoreRing({ value, label, color, size = 80 }) {
@@ -52,10 +52,10 @@ function ScoreRing({ value, label, color, size = 80 }) {
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className="text-sm font-bold text-slate-800">{Math.min(value, 100)}</span>
+          <span className="text-sm font-bold text-[#131b2e]">{Math.min(value, 100)}</span>
         </div>
       </div>
-      <span className="text-xs text-slate-500 font-medium">{label}</span>
+      <span className="text-xs text-[#6d797d] font-medium">{label}</span>
     </div>
   );
 }
@@ -71,8 +71,8 @@ function AlertCard({ icon, title, subtitle, severity = 'warning' }) {
     <div className={`flex items-start gap-3 p-3 rounded-xl border ${colors[severity]} transition-all duration-200`}>
       <div className="mt-0.5 flex-shrink-0">{icon}</div>
       <div>
-        <p className="text-sm font-semibold text-slate-800">{title}</p>
-        {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+        <p className="text-sm font-semibold text-[#131b2e]">{title}</p>
+        {subtitle && <p className="text-xs text-[#6d797d] mt-0.5">{subtitle}</p>}
       </div>
     </div>
   );
@@ -155,16 +155,16 @@ export default function BehaviourMonitor() {
   const cfg = BEHAVIOUR_CONFIG[currentBehaviour] || BEHAVIOUR_CONFIG.Passive;
 
   return (
-    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background">
 
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
-            <Brain className="w-8 h-8 text-primary-400" />
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-[#131b2e] flex items-center gap-3">
+            <Brain className="w-8 h-8 text-[#00687a]" />
             AI Behaviour Monitor
           </h1>
-          <p className="text-slate-500 mt-1 text-sm">
+          <p className="text-[#6d797d] mt-1 text-sm">
             Real-time attention tracking · AI-powered engagement analysis
           </p>
         </div>
@@ -173,12 +173,12 @@ export default function BehaviourMonitor() {
         {isTeacher && (
           <form onSubmit={handleSearch} className="flex gap-2 items-center">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6d797d]" />
               <input
                 type="number"
                 value={studentIdInput}
                 onChange={e => setStudentIdInput(e.target.value)}
-                className="pl-9 pr-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-800 text-sm
+                className="pl-9 pr-3 py-2 rounded-lg bg-white border border-slate-300 text-[#131b2e] text-sm
                            focus:outline-none focus:ring-2 focus:ring-primary-500/50 shadow-sm w-40"
                 placeholder="Student ID"
                 id="behaviour-student-id"
@@ -213,10 +213,10 @@ export default function BehaviourMonitor() {
         />
 
         {/* Middle: Score Rings + Current Status */}
-        <div className="glass rounded-2xl border border-slate-200/60 shadow-lg p-5 space-y-5">
+        <div className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl border border-[#bcc9cd]/40 shadow-lg p-5 space-y-5">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-200/40">
-            <Target className="w-4 h-4 text-primary-400" />
-            <h3 className="text-sm font-semibold text-slate-700">Performance Scores</h3>
+            <Target className="w-4 h-4 text-[#00687a]" />
+            <h3 className="text-sm font-semibold text-[#131b2e]">Performance Scores</h3>
           </div>
 
           {/* Current behaviour badge */}
@@ -235,14 +235,14 @@ export default function BehaviourMonitor() {
           {/* Quick stats */}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Avg Click/min', value: avgClickFreq, icon: <MousePointer2 className="w-3.5 h-3.5 text-primary-400" /> },
+              { label: 'Avg Click/min', value: avgClickFreq, icon: <MousePointer2 className="w-3.5 h-3.5 text-[#00687a]" /> },
               { label: 'Avg Response', value: `${avgResponse}s`, icon: <Zap className="w-3.5 h-3.5 text-amber-400" /> },
               { label: 'Total Chats', value: totalChats, icon: <MessageSquare className="w-3.5 h-3.5 text-emerald-400" /> },
               { label: 'Total Idle', value: `${totalIdle}m`, icon: <Clock className="w-3.5 h-3.5 text-red-400" /> },
             ].map(({ label, value, icon }) => (
-              <div key={label} className="p-3 rounded-xl bg-slate-50 border border-slate-200/60">
-                <div className="flex items-center gap-1.5 mb-1">{icon}<span className="text-xs text-slate-500">{label}</span></div>
-                <p className="text-base font-bold text-slate-800">{value}</p>
+              <div key={label} className="p-3 rounded-xl bg-slate-50 border border-[#bcc9cd]/40">
+                <div className="flex items-center gap-1.5 mb-1">{icon}<span className="text-xs text-[#6d797d]">{label}</span></div>
+                <p className="text-base font-bold text-[#131b2e]">{value}</p>
               </div>
             ))}
           </div>
@@ -260,11 +260,11 @@ export default function BehaviourMonitor() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
         {/* Behaviour Distribution (animated bars) */}
-        <div className="glass rounded-2xl border border-slate-200/60 shadow-lg p-6">
+        <div className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl border border-[#bcc9cd]/40 shadow-lg p-6">
           <div className="flex items-center gap-2 mb-5">
-            <BarChart3 className="w-4 h-4 text-primary-400" />
-            <h3 className="text-sm font-semibold text-slate-700">Behaviour Summary</h3>
-            <span className="ml-auto text-xs text-slate-400">{events.length} activities</span>
+            <BarChart3 className="w-4 h-4 text-[#00687a]" />
+            <h3 className="text-sm font-semibold text-[#131b2e]">Behaviour Summary</h3>
+            <span className="ml-auto text-xs text-[#6d797d]">{events.length} activities</span>
           </div>
           <div className="space-y-4">
             {[
@@ -275,9 +275,9 @@ export default function BehaviourMonitor() {
               <div key={label}>
                 <div className="flex justify-between items-center mb-1.5">
                   <span className="text-sm font-semibold" style={{ color }}>{label}</span>
-                  <span className="text-sm font-bold text-slate-700">
+                  <span className="text-sm font-bold text-[#131b2e]">
                     {count}
-                    <span className="text-xs font-normal text-slate-400 ml-1">
+                    <span className="text-xs font-normal text-[#6d797d] ml-1">
                       ({((count / total) * 100).toFixed(0)}%)
                     </span>
                   </span>
@@ -305,10 +305,10 @@ export default function BehaviourMonitor() {
         </div>
 
         {/* Alerts Panel */}
-        <div className="glass rounded-2xl border border-slate-200/60 shadow-lg p-6 lg:col-span-2">
+        <div className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl border border-[#bcc9cd]/40 shadow-lg p-6 lg:col-span-2">
           <div className="flex items-center gap-2 mb-5">
             <AlertTriangle className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-semibold text-slate-700">Behaviour Alerts</h3>
+            <h3 className="text-sm font-semibold text-[#131b2e]">Behaviour Alerts</h3>
             {alerts.length > 0 && (
               <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-bold">
                 {alerts.length} flagged
@@ -318,7 +318,7 @@ export default function BehaviourMonitor() {
 
           {loading ? (
             <div className="flex justify-center py-8">
-              <RefreshCw className="w-6 h-6 text-primary-400 animate-spin" />
+              <RefreshCw className="w-6 h-6 text-[#00687a] animate-spin" />
             </div>
           ) : alerts.length === 0 ? (
             <AlertCard
@@ -348,7 +348,7 @@ export default function BehaviourMonitor() {
           {/* Live tracker history alerts */}
           {liveHistory.length > 0 && (
             <div className="mt-4 pt-4 border-t border-slate-200/40">
-              <p className="text-xs font-semibold text-slate-500 mb-3">Live Session Events</p>
+              <p className="text-xs font-semibold text-[#6d797d] mb-3">Live Session Events</p>
               <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                 {liveHistory.filter(h => h.behaviour === 'Distracted' || h.behaviour === 'Inactive' || h.behaviour === 'Sleeping').slice(-5).reverse().map((h, idx) => (
                   <AlertCard
@@ -360,7 +360,7 @@ export default function BehaviourMonitor() {
                   />
                 ))}
                 {liveHistory.filter(h => h.behaviour === 'Distracted' || h.behaviour === 'Inactive' || h.behaviour === 'Sleeping').length === 0 && (
-                  <p className="text-xs text-slate-400 text-center py-2">No attention issues in current session</p>
+                  <p className="text-xs text-[#6d797d] text-center py-2">No attention issues in current session</p>
                 )}
               </div>
             </div>
@@ -369,24 +369,24 @@ export default function BehaviourMonitor() {
       </div>
 
       {/* ── Bottom Row: Timeline ── */}
-      <div className="glass rounded-2xl border border-slate-200/60 shadow-lg p-6">
+      <div className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl border border-[#bcc9cd]/40 shadow-lg p-6">
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-semibold text-slate-700">
+            <h3 className="text-sm font-semibold text-[#131b2e]">
               Interaction Timeline
-              {isTeacher && <span className="ml-2 text-slate-400 font-normal">(Student #{studentId})</span>}
+              {isTeacher && <span className="ml-2 text-[#6d797d] font-normal">(Student #{studentId})</span>}
             </h3>
           </div>
-          <span className="text-xs text-slate-400">Based on AI classification model</span>
+          <span className="text-xs text-[#6d797d]">Based on AI classification model</span>
         </div>
 
         {loading ? (
           <div className="flex justify-center py-10">
-            <RefreshCw className="w-6 h-6 text-primary-400 animate-spin" />
+            <RefreshCw className="w-6 h-6 text-[#00687a] animate-spin" />
           </div>
         ) : events.length === 0 ? (
-          <div className="text-center py-10 text-slate-400 text-sm">
+          <div className="text-center py-10 text-[#6d797d] text-sm">
             No activity data recorded yet.
           </div>
         ) : (

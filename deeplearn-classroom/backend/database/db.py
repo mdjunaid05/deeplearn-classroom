@@ -69,6 +69,83 @@ _mysql_initialized = False
 def _init_mysql(conn):
     try:
         cursor = conn.cursor()
+        
+        # Create new tables if they don't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quizzes (
+                quiz_id      INT AUTO_INCREMENT PRIMARY KEY,
+                title        VARCHAR(255) NOT NULL,
+                recording_id INT,
+                created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (recording_id) REFERENCES recordings(recording_id) ON DELETE SET NULL
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS questions (
+                question_id   INT AUTO_INCREMENT PRIMARY KEY,
+                quiz_id       INT NOT NULL,
+                question_text TEXT NOT NULL,
+                options       TEXT NOT NULL,
+                correct_option INT NOT NULL,
+                FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS quiz_attempts (
+                attempt_id        INT AUTO_INCREMENT PRIMARY KEY,
+                student_id        INT NOT NULL,
+                quiz_id           INT NOT NULL,
+                score             INT NOT NULL,
+                total_questions   INT NOT NULL,
+                correct_answers   INT NOT NULL,
+                incorrect_answers INT NOT NULL,
+                percentage        DECIMAL(5,2) NOT NULL,
+                time_taken        DECIMAL(8,2) NOT NULL,
+                submitted_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+                FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS student_responses (
+                response_id     INT AUTO_INCREMENT PRIMARY KEY,
+                attempt_id      INT NOT NULL,
+                question_id     INT NOT NULL,
+                selected_option INT NOT NULL,
+                is_correct      BOOLEAN NOT NULL,
+                FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(attempt_id) ON DELETE CASCADE,
+                FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS analytics_reports (
+                report_id          INT AUTO_INCREMENT PRIMARY KEY,
+                quiz_id            INT NOT NULL,
+                class_average      DECIMAL(5,2) DEFAULT 0.00,
+                highest_score      DECIMAL(5,2) DEFAULT 0.00,
+                lowest_score       DECIMAL(5,2) DEFAULT 0.00,
+                pass_count         INT DEFAULT 0,
+                fail_count         INT DEFAULT 0,
+                participation_rate DECIMAL(5,2) DEFAULT 0.00,
+                updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS student_progress (
+                progress_id   INT AUTO_INCREMENT PRIMARY KEY,
+                student_id    INT NOT NULL,
+                course_id     INT NOT NULL,
+                lesson_id     VARCHAR(255) NOT NULL,
+                quiz_score    DECIMAL(5,2) DEFAULT 0.00,
+                passed        BOOLEAN DEFAULT FALSE,
+                attempts      INT DEFAULT 0,
+                unlocked      BOOLEAN DEFAULT FALSE,
+                completed_at  DATETIME DEFAULT NULL,
+                FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+
         cursor.execute("SHOW TABLES LIKE 'videos'")
         if cursor.fetchone():
             cursor.execute("DESCRIBE videos")
@@ -86,6 +163,55 @@ def _init_mysql(conn):
             if altered:
                 conn.commit()
                 print("[Database] MySQL columns migrated successfully.")
+
+        cursor.execute("SHOW TABLES LIKE 'students'")
+        if cursor.fetchone():
+            cursor.execute("DESCRIBE students")
+            cols = [row[0] for row in cursor.fetchall()]
+            altered = False
+            new_cols = {
+                "profilePhoto": "VARCHAR(255)",
+                "age": "INT",
+                "gender": "VARCHAR(50)",
+                "dob": "VARCHAR(50)",
+                "phone": "VARCHAR(50)",
+                "schoolName": "VARCHAR(255)",
+                "grade": "VARCHAR(50)",
+                "section": "VARCHAR(50)",
+                "rollNumber": "VARCHAR(50)",
+                "academicYear": "VARCHAR(50)",
+                "parentName": "VARCHAR(255)",
+                "parentPhone": "VARCHAR(50)",
+                "parentEmail": "VARCHAR(255)",
+                "emergencyContact": "VARCHAR(50)",
+                "city": "VARCHAR(100)",
+                "state": "VARCHAR(100)",
+                "country": "VARCHAR(100)",
+                "learningLevel": "VARCHAR(50)",
+                "attendanceRate": "DECIMAL(5,2) DEFAULT 100.0"
+            }
+            for col_name, col_type in new_cols.items():
+                if col_name not in cols:
+                    cursor.execute(f"ALTER TABLE students ADD COLUMN {col_name} {col_type}")
+                    altered = True
+            if altered:
+                conn.commit()
+                print("[Database] MySQL students table columns migrated successfully.")
+
+        # Also migrate user roles to allow admin
+        cursor.execute("SHOW TABLES LIKE 'users'")
+        if cursor.fetchone():
+            cursor.execute("DESCRIBE users")
+            user_cols = cursor.fetchall()
+            role_type = ""
+            for ucol in user_cols:
+                if ucol[0] == "role":
+                    role_type = ucol[1]
+                    break
+            if "admin" not in role_type:
+                cursor.execute("ALTER TABLE users MODIFY COLUMN role ENUM('student', 'teacher', 'admin') NOT NULL")
+                conn.commit()
+                print("[Database] MySQL users role column updated to include admin.")
     except Exception as e:
         print(f"[Database] MySQL schema migration failed: {e}")
 
@@ -134,7 +260,7 @@ def _init_sqlite(conn):
             name            TEXT NOT NULL,
             email           TEXT NOT NULL UNIQUE,
             password_hash   TEXT NOT NULL,
-            role            TEXT NOT NULL CHECK(role IN ('student', 'teacher')),
+            role            TEXT NOT NULL CHECK(role IN ('student', 'teacher', 'admin')),
             avatar_url      TEXT,
             created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
             last_login      DATETIME
@@ -147,7 +273,26 @@ def _init_sqlite(conn):
             password_hash       TEXT NOT NULL,
             disability_type     TEXT DEFAULT 'Hearing-Impaired',
             preferred_language  TEXT DEFAULT 'ASL',
-            enrolled_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+            enrolled_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+            profilePhoto        TEXT,
+            age                 INTEGER,
+            gender              TEXT,
+            dob                 TEXT,
+            phone               TEXT,
+            schoolName          TEXT,
+            grade               TEXT,
+            section             TEXT,
+            rollNumber          TEXT,
+            academicYear        TEXT,
+            parentName          TEXT,
+            parentPhone         TEXT,
+            parentEmail         TEXT,
+            emergencyContact    TEXT,
+            city                TEXT,
+            state               TEXT,
+            country             TEXT,
+            learningLevel       TEXT,
+            attendanceRate      REAL DEFAULT 100.0
         );
 
         CREATE TABLE IF NOT EXISTS teachers (
@@ -331,9 +476,112 @@ def _init_sqlite(conn):
             message         TEXT NOT NULL,
             created_at      REAL NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS quizzes (
+            quiz_id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            title        TEXT NOT NULL,
+            recording_id INTEGER,
+            created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (recording_id) REFERENCES recordings(recording_id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS questions (
+            question_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            quiz_id       INTEGER NOT NULL,
+            question_text TEXT NOT NULL,
+            options       TEXT NOT NULL, -- JSON-serialized list of options
+            correct_option INTEGER NOT NULL, -- index of correct option
+            FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS quiz_attempts (
+            attempt_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id        INTEGER NOT NULL,
+            quiz_id           INTEGER NOT NULL,
+            score             INTEGER NOT NULL,
+            total_questions   INTEGER NOT NULL,
+            correct_answers   INTEGER NOT NULL,
+            incorrect_answers INTEGER NOT NULL,
+            percentage        REAL NOT NULL,
+            time_taken        REAL NOT NULL, -- in seconds
+            submitted_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+            FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS student_responses (
+            response_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+            attempt_id      INTEGER NOT NULL,
+            question_id     INTEGER NOT NULL,
+            selected_option INTEGER NOT NULL,
+            is_correct      BOOLEAN NOT NULL,
+            FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(attempt_id) ON DELETE CASCADE,
+            FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS analytics_reports (
+            report_id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            quiz_id            INTEGER NOT NULL,
+            class_average      REAL DEFAULT 0.0,
+            highest_score      REAL DEFAULT 0.0,
+            lowest_score       REAL DEFAULT 0.0,
+            pass_count         INTEGER DEFAULT 0,
+            fail_count         INTEGER DEFAULT 0,
+            participation_rate REAL DEFAULT 0.0,
+            updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS student_progress (
+            progress_id   INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id    INTEGER NOT NULL,
+            course_id     INTEGER NOT NULL,
+            lesson_id     TEXT NOT NULL,
+            quiz_score    REAL DEFAULT 0.0,
+            passed        BOOLEAN DEFAULT 0,
+            attempts      INTEGER DEFAULT 0,
+            unlocked      BOOLEAN DEFAULT 0,
+            completed_at  DATETIME,
+            FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+        );
     """)
 
     conn.commit()
+
+    # Recreate users table to support 'admin' role in check constraint if needed
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='users'")
+        sql_row = cursor.fetchone()
+        if sql_row:
+            sql = sql_row[0]
+            if "'admin'" not in sql and '"admin"' not in sql:
+                print("[Database] Migrating users table to support 'admin' role CHECK constraint...")
+                cursor.execute("PRAGMA foreign_keys=OFF")
+                cursor.execute("ALTER TABLE users RENAME TO users_old")
+                cursor.execute("""
+                    CREATE TABLE users (
+                        user_id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name            TEXT NOT NULL,
+                        email           TEXT NOT NULL UNIQUE,
+                        password_hash   TEXT NOT NULL,
+                        role            TEXT NOT NULL CHECK(role IN ('student', 'teacher', 'admin')),
+                        avatar_url      TEXT,
+                        created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        last_login      DATETIME
+                    );
+                """)
+                cursor.execute("""
+                    INSERT INTO users (user_id, name, email, password_hash, role, avatar_url, created_at, last_login)
+                    SELECT user_id, name, email, password_hash, role, avatar_url, created_at, last_login
+                    FROM users_old;
+                """)
+                cursor.execute("DROP TABLE users_old")
+                cursor.execute("PRAGMA foreign_keys=ON")
+                conn.commit()
+                print("[Database] SQLite users table CHECK constraint migrated successfully.")
+    except Exception as e:
+        print(f"[Database] SQLite users table CHECK constraint migration failed: {e}")
 
     # Dynamic SQLite migration for existing database files
     try:
@@ -352,9 +600,45 @@ def _init_sqlite(conn):
             altered = True
         if altered:
             conn.commit()
-            print("[Database] SQLite columns migrated successfully.")
+            print("[Database] SQLite videos columns migrated successfully.")
     except Exception as e:
-        print(f"[Database] SQLite schema migration failed: {e}")
+        print(f"[Database] SQLite videos schema migration failed: {e}")
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("PRAGMA table_info(students)")
+        cols = [col[1] for col in cursor.fetchall()]
+        altered = False
+        new_cols = {
+            "profilePhoto": "TEXT",
+            "age": "INTEGER",
+            "gender": "TEXT",
+            "dob": "TEXT",
+            "phone": "TEXT",
+            "schoolName": "TEXT",
+            "grade": "TEXT",
+            "section": "TEXT",
+            "rollNumber": "TEXT",
+            "academicYear": "TEXT",
+            "parentName": "TEXT",
+            "parentPhone": "TEXT",
+            "parentEmail": "TEXT",
+            "emergencyContact": "TEXT",
+            "city": "TEXT",
+            "state": "TEXT",
+            "country": "TEXT",
+            "learningLevel": "TEXT",
+            "attendanceRate": "REAL DEFAULT 100.0"
+        }
+        for col_name, col_type in new_cols.items():
+            if col_name not in cols:
+                cursor.execute(f"ALTER TABLE students ADD COLUMN {col_name} {col_type}")
+                altered = True
+        if altered:
+            conn.commit()
+            print("[Database] SQLite students table columns migrated successfully.")
+    except Exception as e:
+        print(f"[Database] SQLite students schema migration failed: {e}")
 
 
 def query_db(query, args=(), one=False):

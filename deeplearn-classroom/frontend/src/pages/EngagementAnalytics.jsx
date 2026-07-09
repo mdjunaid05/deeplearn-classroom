@@ -53,31 +53,31 @@ export default function EngagementAnalytics() {
 
   if (loading) {
     return (
-      <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background">
         <div className="flex flex-col items-center justify-center py-32">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500 mb-4" />
-          <p className="text-slate-500">Loading engagement analytics...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00687a] mb-4" />
+          <p className="text-[#6d797d]">Loading engagement analytics...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
-            <BarChart3 className="w-8 h-8 text-primary-400" />
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-[#131b2e] flex items-center gap-3">
+            <BarChart3 className="w-8 h-8 text-[#00687a]" />
             Engagement Analytics
           </h1>
-          <p className="text-slate-600 mt-1">
+          <p className="text-[#3d494c] mt-1">
             {totalStudents > 0
               ? `Platform-wide trends · ${totalStudents} students · ${totalRecords} records`
               : 'Platform-wide engagement trends and time-of-day analysis'}
           </p>
         </div>
-        <button onClick={fetchData} className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors" title="Refresh">
+        <button onClick={fetchData} className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#3d494c] transition-colors" title="Refresh">
           <RefreshCw className="w-5 h-5" />
         </button>
       </div>
@@ -90,62 +90,62 @@ export default function EngagementAnalytics() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* KPI Cards */}
-        <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-primary-50 to-transparent shadow-lg border border-slate-200/60 hover:border-primary-400 transition-all duration-300">
+        <div className="p-6 rounded-2xl glass-panel card-shadow border border-[#bcc9cd]/40 card-hover bg-gradient-to-br from-primary-50 to-transparent shadow-lg border border-[#bcc9cd]/40 hover:border-primary-400 transition-all duration-300">
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-primary-700">Peak Engagement</p>
-              <h3 className="text-3xl font-bold text-slate-800 mt-1">{peakEngPct}{peakEngPct !== '—' ? '%' : ''}</h3>
+              <h3 className="text-3xl font-bold text-[#131b2e] mt-1">{peakEngPct}{peakEngPct !== '—' ? '%' : ''}</h3>
             </div>
              <div className="p-2 bg-primary-100 rounded-lg">
                 <TrendingUp className="w-5 h-5 text-primary-500" />
              </div>
           </div>
-          <p className="text-xs text-slate-600">{totalEng > 0 ? `${highCount} highly engaged out of ${totalEng} sessions` : 'No data available yet.'}</p>
+          <p className="text-xs text-[#3d494c]">{totalEng > 0 ? `${highCount} highly engaged out of ${totalEng} sessions` : 'No data available yet.'}</p>
         </div>
 
-         <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-emerald-50 to-transparent shadow-lg border border-slate-200/60 hover:border-emerald-400 transition-all duration-300">
+         <div className="p-6 rounded-2xl glass-panel card-shadow border border-[#bcc9cd]/40 card-hover bg-gradient-to-br from-emerald-50 to-transparent shadow-lg border border-[#bcc9cd]/40 hover:border-emerald-400 transition-all duration-300">
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-emerald-700">Total Students</p>
-              <h3 className="text-3xl font-bold text-slate-800 mt-1">{totalStudents || '—'}</h3>
+              <h3 className="text-3xl font-bold text-[#131b2e] mt-1">{totalStudents || '—'}</h3>
             </div>
              <div className="p-2 bg-emerald-100 rounded-lg">
                 <Activity className="w-5 h-5 text-emerald-500" />
              </div>
           </div>
-           <p className="text-xs text-slate-600">{totalRecords > 0 ? `${totalRecords} activity records tracked` : 'No data available yet.'}</p>
+           <p className="text-xs text-[#3d494c]">{totalRecords > 0 ? `${totalRecords} activity records tracked` : 'No data available yet.'}</p>
         </div>
 
-        <div className="p-6 rounded-2xl glass card-hover bg-gradient-to-br from-amber-50 to-transparent shadow-lg border border-slate-200/60 hover:border-amber-400 transition-all duration-300">
+        <div className="p-6 rounded-2xl glass-panel card-shadow border border-[#bcc9cd]/40 card-hover bg-gradient-to-br from-amber-50 to-transparent shadow-lg border border-[#bcc9cd]/40 hover:border-amber-400 transition-all duration-300">
           <div className="flex justify-between items-start mb-4">
             <div>
               <p className="text-sm font-medium text-amber-700">Risk Factor</p>
-              <h3 className="text-3xl font-bold text-slate-800 mt-1">{riskPct}{riskPct !== '—' ? '%' : ''}</h3>
+              <h3 className="text-3xl font-bold text-[#131b2e] mt-1">{riskPct}{riskPct !== '—' ? '%' : ''}</h3>
             </div>
              <div className="p-2 bg-amber-100 rounded-lg">
                 <BarChart3 className="w-5 h-5 text-amber-500" />
              </div>
           </div>
-           <p className="text-xs text-slate-600">{totalEng > 0 ? `${lowCount} low-engagement sessions flagged` : 'No data available yet.'}</p>
+           <p className="text-xs text-[#3d494c]">{totalEng > 0 ? `${lowCount} low-engagement sessions flagged` : 'No data available yet.'}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Engagement Over Time */}
-        <div className="p-6 rounded-2xl glass shadow-lg border border-slate-200/60 hover:border-primary-400 transition-all duration-300">
-           <h3 className="text-sm font-semibold text-slate-500 mb-4">Long-Term Engagement Trend</h3>
+        <div className="p-6 rounded-2xl glass-panel card-shadow border border-[#bcc9cd]/40 hover:border-primary-400 transition-all duration-300">
+           <h3 className="text-sm font-semibold text-[#6d797d] mb-4">Long-Term Engagement Trend</h3>
            {timeline.length > 0 ? (
              <EngagementAreaChart data={timeline} />
            ) : (
-             <div className="flex items-center justify-center h-[300px] text-slate-400 text-sm">
+             <div className="flex items-center justify-center h-[300px] text-[#6d797d] text-sm">
                No timeline data available yet. Start recording sessions.
              </div>
            )}
         </div>
 
         {/* Time-of-Day Heatmap */}
-        <div className="p-6 rounded-2xl glass shadow-lg border border-slate-200/60 hover:border-primary-400 transition-all duration-300">
-          <h3 className="text-sm font-semibold text-slate-500 mb-4">Engagement by Time-of-Day</h3>
+        <div className="p-6 rounded-2xl glass-panel card-shadow border border-[#bcc9cd]/40 hover:border-primary-400 transition-all duration-300">
+          <h3 className="text-sm font-semibold text-[#6d797d] mb-4">Engagement by Time-of-Day</h3>
           
           <div className="space-y-4">
             {HEATMAP_DATA.map((row, idx) => {
@@ -156,10 +156,10 @@ export default function EngagementAnalytics() {
               const lPct = total > 0 ? (row.Low / total) * 100 : 0;
 
               return (
-                <div key={idx} className="p-4 rounded-xl glass-light shadow-sm border border-slate-200/60 hover:border-primary-400 transition-all duration-300">
+                <div key={idx} className="p-4 rounded-xl glass-light shadow-sm border border-[#bcc9cd]/40 hover:border-primary-400 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-3">
-                    <row.icon className="w-4 h-4 text-slate-600" />
-                    <span className="text-sm font-medium text-slate-700">{row.time}</span>
+                    <row.icon className="w-4 h-4 text-[#3d494c]" />
+                    <span className="text-sm font-medium text-[#131b2e]">{row.time}</span>
                   </div>
                   
                   {/* Segmented bar */}
@@ -171,7 +171,7 @@ export default function EngagementAnalytics() {
                         <div style={{ width: `${lPct}%` }} className="bg-red-500" title={`Low: ${row.Low}`} />
                       </div>
                       
-                      <div className="flex justify-between mt-2 text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                      <div className="flex justify-between mt-2 text-[10px] font-medium uppercase tracking-wider text-[#6d797d]">
                         <span className="text-emerald-600">{hPct.toFixed(0)}% High</span>
                         <span className="text-amber-600">{mPct.toFixed(0)}% Med</span>
                         <span className="text-red-600">{lPct.toFixed(0)}% Low</span>
@@ -185,7 +185,7 @@ export default function EngagementAnalytics() {
             })}
           </div>
           
-          <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600">
+          <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-[#3d494c]">
             <strong>Insight:</strong> Night sessions typically show lower engagement. Consider scheduling complex topics for morning sessions.
           </div>
         </div>

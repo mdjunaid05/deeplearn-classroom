@@ -5,17 +5,17 @@ import {
 } from 'recharts';
 
 const BEHAVIOR_COLORS = {
-  Active: '#22c55e',
-  Passive: '#eab308',
-  Distracted: '#ef4444',
+  Active: '#006a63',
+  Passive: '#00687a',
+  Distracted: '#ba1a1a',
 };
 
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="glass rounded-lg px-3 py-2 text-xs shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+      <div className="glass-panel rounded-xl px-3.5 py-2.5 text-xs card-shadow border border-[#bcc9cd]/40">
         {payload.map((entry, idx) => (
-          <p key={idx} style={{ color: entry.color || entry.payload?.fill }} className="font-semibold">
+          <p key={idx} style={{ color: entry.color || entry.payload?.fill }} className="font-bold">
             {entry.name}: {entry.value}
           </p>
         ))}
@@ -94,7 +94,7 @@ export function BehaviourTimeline({ events }) {
         return (
           <div
             key={idx}
-            className="flex items-start gap-3 p-3 rounded-lg glass-light card-hover shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300"
+            className="flex items-start gap-3 p-3 rounded-lg glass-light card-hover shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300"
           >
             <div
               className="w-3 h-3 rounded-full mt-1 flex-shrink-0"
@@ -105,24 +105,24 @@ export function BehaviourTimeline({ events }) {
                 <span className={`badge badge-${event.behaviour_label.toLowerCase()}`}>
                   {event.behaviour_label}
                 </span>
-                <span className="text-xs text-slate-500">Activity #{event.activity_id}</span>
+                <span className="text-xs text-[#6d797d]">Activity #{event.activity_id}</span>
               </div>
               <div className="grid grid-cols-4 gap-2 text-xs">
                 <div className="text-center">
-                  <p className="text-slate-400 mb-0.5">Idle</p>
-                  <p className="font-semibold text-slate-700">{event.idle_time}m</p>
+                  <p className="text-[#6d797d] mb-0.5">Idle</p>
+                  <p className="font-semibold text-[#131b2e]">{event.idle_time}m</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-slate-400 mb-0.5">Chat</p>
-                  <p className="font-semibold text-slate-700">{event.chat_count}</p>
+                  <p className="text-[#6d797d] mb-0.5">Chat</p>
+                  <p className="font-semibold text-[#131b2e]">{event.chat_count}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-slate-400 mb-0.5">Clicks/m</p>
-                  <p className="font-semibold text-slate-700">{clickFreq}</p>
+                  <p className="text-[#6d797d] mb-0.5">Clicks/m</p>
+                  <p className="font-semibold text-[#131b2e]">{clickFreq}</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-slate-400 mb-0.5">Resp.</p>
-                  <p className="font-semibold text-slate-700">{event.response_speed?.toFixed(1) || '—'}s</p>
+                  <p className="text-[#6d797d] mb-0.5">Resp.</p>
+                  <p className="font-semibold text-[#131b2e]">{event.response_speed?.toFixed(1) || '—'}s</p>
                 </div>
               </div>
             </div>

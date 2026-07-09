@@ -35,14 +35,14 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
         {isDetecting ? (
           <div className="absolute inset-0 border-2 border-emerald-500/50 rounded-xl" />
         ) : null}
-        <Camera className={`w-8 h-8 ${isDetecting ? 'text-emerald-400' : 'text-slate-500'}`} aria-hidden="true" />
+        <Camera className={`w-8 h-8 ${isDetecting ? 'text-emerald-400' : 'text-[#6d797d]'}`} aria-hidden="true" />
         <span className="sr-only">{isDetecting ? 'Camera active' : 'Camera inactive'}</span>
       </div>
       
       {/* Confidence Bar */}
       <div className="p-4 rounded-xl bg-surface-800/50 border border-white/5 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
         <div className="flex justify-between items-center mb-2">
-          <span className="text-sm font-semibold text-slate-500">
+          <span className="text-sm font-semibold text-[#6d797d]">
             {currentSign ? `Sign: ${currentSign}` : 'Waiting for gesture...'}
           </span>
           <span className="text-xs font-mono text-emerald-400">
@@ -59,7 +59,7 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
 
       {/* History */}
       <div className="space-y-2">
-        <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wider font-bold">Recent Signs</h4>
+        <h4 className="text-xs font-medium text-[#6d797d] uppercase tracking-wider font-bold">Recent Signs</h4>
         <div className="flex flex-wrap gap-2" role="list" aria-label="Recent signs recognized">
           {history.map((sign, idx) => (
             <div key={idx} role="listitem" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
@@ -67,7 +67,7 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
               {sign}
             </div>
           ))}
-          {history.length === 0 && <span className="text-sm text-slate-500">No signs recognized yet.</span>}
+          {history.length === 0 && <span className="text-sm text-[#6d797d]">No signs recognized yet.</span>}
         </div>
       </div>
     </div>

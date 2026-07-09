@@ -73,7 +73,7 @@ export default function BehaviourHeatmap({ studentSummaries = [], periods = 10 }
       {/* Legend */}
       <div className="flex flex-wrap gap-3 mb-4">
         {Object.entries(COLOUR_MAP).slice(0, 7).map(([label, color]) => (
-          <div key={label} className="flex items-center gap-1.5 text-xs text-slate-500">
+          <div key={label} className="flex items-center gap-1.5 text-xs text-[#6d797d]">
             <div className="w-3 h-3 rounded-sm" style={{ background: color }} />
             {label}
           </div>
@@ -84,20 +84,20 @@ export default function BehaviourHeatmap({ studentSummaries = [], periods = 10 }
         {/* Period headers */}
         <div className="flex items-center gap-1 mb-2 pl-20">
           {periodLabels.map(p => (
-            <div key={p} className="flex-1 text-center text-xs text-slate-400 font-mono">{p}</div>
+            <div key={p} className="flex-1 text-center text-xs text-[#6d797d] font-mono">{p}</div>
           ))}
         </div>
 
         {/* Student rows */}
         <div className="space-y-1">
           {students.length === 0 && (
-            <div className="text-center text-slate-400 py-8 text-sm">No student data available</div>
+            <div className="text-center text-[#6d797d] py-8 text-sm">No student data available</div>
           )}
           {students.map((student) => {
             const row = generateFakeRow(student);
             return (
               <div key={student.student_id} className="flex items-center gap-1">
-                <div className="w-20 text-xs text-slate-500 text-right pr-2 truncate font-mono">
+                <div className="w-20 text-xs text-[#6d797d] text-right pr-2 truncate font-mono">
                   #{student.student_id}
                 </div>
                 {row.map((label, i) => (
@@ -110,7 +110,7 @@ export default function BehaviourHeatmap({ studentSummaries = [], periods = 10 }
           })}
         </div>
 
-        <div className="mt-4 text-xs text-slate-400 text-center">
+        <div className="mt-4 text-xs text-[#6d797d] text-center">
           Showing last {periods} activity periods per student · Hover cells for details
         </div>
       </div>

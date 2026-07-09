@@ -63,7 +63,7 @@ export default function StudentDashboard() {
 
   const fetchVideos = async () => {
     try {
-      const res = await fetch(`${API_BASE}/videos`);
+      const res = await fetch(`${API_BASE}/videos?student_id=${studentId}`);
       if (res.ok) {
         const json = await res.json();
         setVideos(json.videos || []);
@@ -102,10 +102,10 @@ export default function StudentDashboard() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[80vh] gap-6">
-        <div className="w-12 h-12 border-4 border-primary-500/30 border-t-primary-500 rounded-full animate-spin shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
+        <div className="w-12 h-12 border-4 border-[#00687a]/30 border-t-primary-500 rounded-full animate-spin shadow-[0_0_15px_rgba(6,182,212,0.5)]" />
         <div className="text-center">
-          <h3 className="text-lg font-semibold text-slate-800 mb-1">Please Wait</h3>
-          <p className="text-slate-500 text-sm max-w-xs">{loadingText}</p>
+          <h3 className="text-lg font-semibold text-[#131b2e] mb-1">Please Wait</h3>
+          <p className="text-[#6d797d] text-sm max-w-xs">{loadingText}</p>
         </div>
       </div>
     );
@@ -114,7 +114,7 @@ export default function StudentDashboard() {
   if (!data) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="w-8 h-8 border-2 border-primary-500/30 border-t-primary-500 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-2 border-[#00687a]/30 border-t-primary-500 rounded-full animate-spin" />
       </div>
     );
   }
@@ -127,7 +127,7 @@ export default function StudentDashboard() {
   const behaviourBadge  = `badge-${(data?.current_behaviour || 'none').toLowerCase()}`;
 
   return (
-    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background">
       {/* AI Behaviour Monitoring Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <LiveBehaviourTracker onMetricsUpdate={handleLiveMetrics} studentId={studentId} />
@@ -141,18 +141,18 @@ export default function StudentDashboard() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
-            <GraduationCap className="w-8 h-8 text-primary-400" />
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-[#131b2e] flex items-center gap-3">
+            <GraduationCap className="w-8 h-8 text-[#00687a]" />
             Student Dashboard
           </h1>
-          <p className="text-slate-600 mt-1">Track your learning progress and engagement</p>
+          <p className="text-[#3d494c] mt-1">Track your learning progress and engagement</p>
         </div>
         <form onSubmit={handleSearch} className="flex gap-2">
           <input
             type="number"
             value={studentId}
             onChange={(e) => setStudentId(Number(e.target.value))}
-            className="w-32 px-3 py-2 rounded-lg bg-white/60 border border-slate-300 text-slate-800 text-sm
+            className="w-32 px-3 py-2 rounded-lg bg-white/60 border border-slate-300 text-[#131b2e] text-sm
                        focus:outline-none focus:ring-2 focus:ring-primary-500/50"
             placeholder="Student ID"
             id="student-id-input"
@@ -200,15 +200,15 @@ export default function StudentDashboard() {
             iconColor: 'text-purple-400',
           },
         ].map((card, idx) => (
-          <div key={idx} className="p-5 rounded-2xl glass card-hover shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+          <div key={idx} className="p-5 rounded-[24px] glass-panel card-shadow border border-[#bcc9cd]/40 transition-all duration-300">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-medium text-slate-600">{card.label}</span>
+              <span className="text-xs font-medium text-[#3d494c]">{card.label}</span>
               <card.icon className={`w-5 h-5 ${card.iconColor}`} />
             </div>
             {card.badge ? (
               <span className={`badge ${card.badge} text-base`}>{card.value}</span>
             ) : (
-              <p className="text-2xl font-display font-bold text-slate-800">{card.value}</p>
+              <p className="text-2xl font-display font-bold text-[#131b2e]">{card.value}</p>
             )}
           </div>
         ))}
@@ -217,14 +217,14 @@ export default function StudentDashboard() {
       {/* Charts Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         {/* Engagement Gauge */}
-        <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-          <h3 className="text-sm font-semibold text-slate-500 mb-4">Engagement Score</h3>
+        <div className="p-6 rounded-[24px] glass-panel card-shadow border border-[#bcc9cd]/40 transition-all duration-300">
+          <h3 className="text-sm font-semibold text-[#6d797d] mb-4">Engagement Score</h3>
           <EngagementGauge score={engagementScore} label="Overall" />
         </div>
 
         {/* Quiz Performance */}
-        <div className="lg:col-span-2 p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-          <h3 className="text-sm font-semibold text-slate-500 mb-4">Quiz Performance Trend</h3>
+        <div className="lg:col-span-2 p-6 rounded-[24px] glass-panel card-shadow border border-[#bcc9cd]/40 transition-all duration-300">
+          <h3 className="text-sm font-semibold text-[#6d797d] mb-4">Quiz Performance Trend</h3>
           <EngagementLineChart data={data.performance_history || []} />
         </div>
       </div>
@@ -232,19 +232,19 @@ export default function StudentDashboard() {
       {/* Recommendation + Progress */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recommendation */}
-        <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-          <h3 className="text-sm font-semibold text-slate-500 mb-4 flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-primary-400" />
+        <div className="p-6 rounded-[24px] glass-panel card-shadow border border-[#bcc9cd]/40 transition-all duration-300">
+          <h3 className="text-sm font-semibold text-[#6d797d] mb-4 flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-[#00687a]" />
             Recommended Next Activity
           </h3>
-          <div className="p-4 rounded-xl bg-primary-600/10 border border-primary-500/20">
+          <div className="p-4 rounded-xl bg-primary-600/10 border border-[#00687a]/20">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-semibold text-slate-700">Suggested Difficulty:</span>
+              <span className="text-sm font-semibold text-[#131b2e]">Suggested Difficulty:</span>
               <span className={`badge badge-${(data.recommendation?.suggested_difficulty || 'medium').toLowerCase()}`}>
                 {data.recommendation?.suggested_difficulty}
               </span>
             </div>
-            <p className="text-sm text-slate-500">{data.recommendation?.reason}</p>
+            <p className="text-sm text-[#6d797d]">{data.recommendation?.reason}</p>
           </div>
 
           <div className="mt-6 space-y-4">
@@ -259,20 +259,20 @@ export default function StudentDashboard() {
         </div>
 
         {/* Recent Activity */}
-        <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-          <h3 className="text-sm font-semibold text-slate-500 mb-4">Recent Engagement</h3>
+        <div className="p-6 rounded-[24px] glass-panel card-shadow border border-[#bcc9cd]/40 transition-all duration-300">
+          <h3 className="text-sm font-semibold text-[#6d797d] mb-4">Recent Engagement</h3>
           <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
             {(data.engagement_history || []).slice(-8).reverse().map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 rounded-lg glass-light shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+              <div key={idx} className="flex items-center justify-between p-3 rounded-lg glass-light shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300">
                 <div className="flex items-center gap-3">
                   <div className={`w-2.5 h-2.5 rounded-full ${
                     item.engagement_label === 'High' ? 'bg-emerald-400' :
                     item.engagement_label === 'Low' ? 'bg-red-400' : 'bg-amber-400'
                   }`} />
-                  <span className="text-sm text-slate-500">Activity #{item.activity_id}</span>
+                  <span className="text-sm text-[#6d797d]">Activity #{item.activity_id}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-slate-500">{item.session_time?.toFixed(0)}min</span>
+                  <span className="text-xs text-[#6d797d]">{item.session_time?.toFixed(0)}min</span>
                   <span className={`badge badge-${item.engagement_label.toLowerCase()}`}>
                     {item.engagement_label}
                   </span>
@@ -284,27 +284,27 @@ export default function StudentDashboard() {
       </div>
 
       {/* Signed Videos Section */}
-      <div className="mt-8 p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-        <h2 className="text-lg font-semibold text-slate-800 mb-6 flex items-center gap-2">
+      <div className="mt-8 p-6 rounded-[24px] glass-panel card-shadow border border-[#bcc9cd]/40 transition-all duration-300">
+        <h2 className="text-lg font-semibold text-[#131b2e] mb-6 flex items-center gap-2">
           <BookOpen className="w-5 h-5 text-emerald-400" aria-hidden="true" />
           Classroom Video Catalog
         </h2>
 
         <div className="mb-8">
-          <h3 className="text-sm font-semibold text-slate-600 mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-[#3d494c] mb-4 flex items-center gap-2">
             <Video className="w-4 h-4 text-purple-400" />
             Classroom Lesson Videos
           </h3>
           {videos.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-6 text-center bg-surface-800/30 rounded-xl border border-white/5">
-              <p className="text-slate-600 text-sm">No lesson videos are currently available.</p>
+              <p className="text-[#3d494c] text-sm">No lesson videos are currently available.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {videos.map(video => (
                 <div 
                   key={video.video_id} 
-                  className="glass rounded-2xl overflow-hidden shadow-lg border border-slate-200/60 hover:shadow-xl hover:border-primary-400 cursor-pointer transition-all duration-300 flex flex-col group"
+                  className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden shadow-lg border border-[#bcc9cd]/40 hover:shadow-xl hover:border-primary-400 cursor-pointer transition-all duration-300 flex flex-col group"
                   onClick={() => {
                     const params = new URLSearchParams();
                     if (video.video_id) params.append('video_id', video.video_id);
@@ -314,19 +314,19 @@ export default function StudentDashboard() {
                 >
                   <div className="relative aspect-video bg-slate-900 group">
                     <div className="w-full h-full flex items-center justify-center">
-                       <Video className="w-12 h-12 text-slate-600" />
+                       <Video className="w-12 h-12 text-[#3d494c]" />
                     </div>
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-                      <div className="w-12 h-12 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                      <div className="w-12 h-12 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
                         <Play className="w-6 h-6 ml-1" />
                       </div>
                     </div>
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
-                    <h3 className="text-sm font-bold text-slate-800 line-clamp-1 mb-1 group-hover:text-primary-600 transition-colors">
+                    <h3 className="text-sm font-bold text-[#131b2e] line-clamp-1 mb-1 group-hover:text-primary-600 transition-colors">
                       {video.title || "Lesson Video"}
                     </h3>
-                    <div className="mt-auto pt-3 space-y-1 text-xs text-slate-500">
+                    <div className="mt-auto pt-3 space-y-1 text-xs text-[#6d797d]">
                       <p>Uploader: {video.uploader}</p>
                       <p>Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}</p>
                       <p>Captions: <span className="text-emerald-500 font-semibold">{video.captions_status}</span></p>
@@ -339,20 +339,20 @@ export default function StudentDashboard() {
         </div>
 
         <div>
-          <h3 className="text-sm font-semibold text-slate-600 mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-[#3d494c] mb-4 flex items-center gap-2">
             <Video className="w-4 h-4 text-emerald-400" />
             Recorded Live Sessions
           </h3>
           {recordings.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-6 text-center bg-surface-800/30 rounded-xl border border-white/5">
-              <p className="text-slate-600 text-sm">No live session recordings are currently available.</p>
+              <p className="text-[#3d494c] text-sm">No live session recordings are currently available.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {recordings.map(recording => (
                 <div 
                   key={recording.recording_id} 
-                  className={`glass rounded-2xl overflow-hidden shadow-lg border border-slate-200/60 transition-all duration-300 flex flex-col group ${
+                  className={`glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden shadow-lg border border-[#bcc9cd]/40 transition-all duration-300 flex flex-col group ${
                     recording.is_locked ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-xl hover:border-primary-400 cursor-pointer'
                   }`}
                   onClick={() => {
@@ -370,13 +370,13 @@ export default function StudentDashboard() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
-                         <Video className="w-12 h-12 text-slate-600" />
+                         <Video className="w-12 h-12 text-[#3d494c]" />
                       </div>
                     )}
                     
                     {!recording.is_locked && (
                       <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-                        <div className="w-12 h-12 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                        <div className="w-12 h-12 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
                           <Play className="w-6 h-6 ml-1" />
                         </div>
                       </div>
@@ -385,7 +385,7 @@ export default function StudentDashboard() {
                     {recording.is_locked && (
                       <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm">
                         <div className="text-center p-4">
-                          <div className="w-12 h-12 rounded-full bg-slate-800 text-slate-400 flex items-center justify-center mx-auto mb-2 shadow-lg border border-slate-700">
+                          <div className="w-12 h-12 rounded-full bg-slate-800 text-[#6d797d] flex items-center justify-center mx-auto mb-2 shadow-lg border border-slate-700">
                             <Lock className="w-5 h-5" />
                           </div>
                           <p className="text-xs font-semibold text-slate-300">Complete previous quiz to continue</p>
@@ -398,11 +398,11 @@ export default function StudentDashboard() {
                     </div>
                   </div>
                   <div className="p-4 flex-1 flex flex-col">
-                    <h3 className="text-sm font-bold text-slate-800 line-clamp-1 mb-1 group-hover:text-primary-600 transition-colors">
+                    <h3 className="text-sm font-bold text-[#131b2e] line-clamp-1 mb-1 group-hover:text-primary-600 transition-colors">
                       {recording.class_title || "Virtual Class Session"}
                     </h3>
                     <div className="mt-auto pt-3 flex items-center justify-between">
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-[#6d797d]">
                         {new Date(recording.recording_timestamp).toLocaleDateString()}
                       </span>
                       <span className="text-xs font-medium text-primary-500 flex items-center gap-1">

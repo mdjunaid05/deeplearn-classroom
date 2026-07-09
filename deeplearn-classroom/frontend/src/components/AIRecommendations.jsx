@@ -68,10 +68,10 @@ export default function AIRecommendations({ behaviour = 'Focused', engagementSco
   const allRecs = [...recs.slice(0, 2), ...scoreRecs.slice(0, 1)];
 
   return (
-    <div className="glass rounded-2xl border border-slate-200/60 shadow-lg overflow-hidden">
+    <div className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl border border-[#bcc9cd]/40 shadow-lg overflow-hidden">
       <div className="px-5 py-4 border-b border-slate-200/40 flex items-center gap-2">
         <Lightbulb className="w-4 h-4 text-amber-400" />
-        <h3 className="text-sm font-semibold text-slate-700">AI Recommendations</h3>
+        <h3 className="text-sm font-semibold text-[#131b2e]">AI Recommendations</h3>
         <span className={`ml-auto text-xs px-2 py-0.5 rounded-full font-semibold ${
           scoreLevel === 'high' ? 'bg-emerald-100 text-emerald-600' :
           scoreLevel === 'medium' ? 'bg-amber-100 text-amber-600' :
@@ -83,12 +83,12 @@ export default function AIRecommendations({ behaviour = 'Focused', engagementSco
       <div className="p-5 space-y-3">
         {allRecs.map((rec, idx) => (
           <div key={idx}
-            className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200/60 hover:border-cyan-300 transition-all duration-200 hover:bg-cyan-50/30">
+            className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-[#bcc9cd]/40 hover:border-cyan-300 transition-all duration-200 hover:bg-cyan-50/30">
             <span className="text-lg leading-none mt-0.5">{rec.icon}</span>
-            <p className="text-sm text-slate-600 leading-relaxed">{rec.text}</p>
+            <p className="text-sm text-[#3d494c] leading-relaxed">{rec.text}</p>
           </div>
         ))}
-        <div className="pt-2 text-xs text-slate-400 text-center">
+        <div className="pt-2 text-xs text-[#6d797d] text-center">
           Powered by DeepLearn AI · Updates every session
         </div>
       </div>

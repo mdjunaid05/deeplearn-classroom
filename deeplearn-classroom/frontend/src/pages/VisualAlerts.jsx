@@ -10,21 +10,21 @@ export default function VisualAlerts() {
   };
 
   return (
-    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Visual Alerts Dashboard">
+    <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background" role="main" aria-label="Visual Alerts Dashboard">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
-            <Bell className="w-8 h-8 text-primary-400" aria-hidden="true" />
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-[#131b2e] flex items-center gap-3">
+            <Bell className="w-8 h-8 text-[#00687a]" aria-hidden="true" />
             Visual Alerts
           </h1>
-          <p className="text-slate-600 mt-1">Color-coded, non-auditory notifications for classroom events.</p>
+          <p className="text-[#3d494c] mt-1">Color-coded, non-auditory notifications for classroom events.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Controls */}
-        <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-          <h2 className="text-lg font-semibold text-slate-800 mb-6">Test Alert Types</h2>
+        <div className="p-6 rounded-[24px] glass-panel card-shadow border border-[#bcc9cd]/40 transition-all duration-300">
+          <h2 className="text-lg font-semibold text-[#131b2e] mb-6">Test Alert Types</h2>
           
           <div className="space-y-4">
             <button 
@@ -77,8 +77,8 @@ export default function VisualAlerts() {
 
         {/* Live Display Area */}
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl glass min-h-[300px] shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-            <h2 className="text-lg font-semibold text-slate-800 mb-4">Alert Display Zone</h2>
+          <div className="p-6 rounded-2xl glass-panel card-shadow border border-[#bcc9cd]/40 min-h-[300px] shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300">
+            <h2 className="text-lg font-semibold text-[#131b2e] mb-4">Alert Display Zone</h2>
             
             <div className="h-full flex flex-col gap-4 relative">
               <VisualAlertBanner 
@@ -87,7 +87,7 @@ export default function VisualAlerts() {
               />
               
               {!activeAlert && (
-                <div className="flex-1 flex items-center justify-center border-2 border-dashed border-white/10 rounded-xl p-8 text-center text-slate-500">
+                <div className="flex-1 flex items-center justify-center border-2 border-dashed border-white/10 rounded-xl p-8 text-center text-[#6d797d]">
                   Trigger an alert from the left panel to see how it appears without relying on audio cues.
                 </div>
               )}

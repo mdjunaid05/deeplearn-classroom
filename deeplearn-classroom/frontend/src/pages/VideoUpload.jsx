@@ -268,14 +268,14 @@ export default function VideoUpload() {
   const currentGesture = allGestureWords[currentGestureIdx] || '';
 
   return (
-    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Video Upload and Pipeline">
+    <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background" role="main" aria-label="Video Upload and Pipeline">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
-            <UploadCloud className="w-8 h-8 text-primary-400" aria-hidden="true" />
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-[#131b2e] flex items-center gap-3">
+            <UploadCloud className="w-8 h-8 text-[#00687a]" aria-hidden="true" />
             Sign Language Video Pipeline
           </h1>
-          <p className="text-slate-600 mt-1">Upload lesson videos to automatically extract captions and render an ASL avatar overlay.</p>
+          <p className="text-[#3d494c] mt-1">Upload lesson videos to automatically extract captions and render an ASL avatar overlay.</p>
         </div>
       </div>
 
@@ -283,7 +283,7 @@ export default function VideoUpload() {
         {/* Upload Area */}
         <div className="space-y-6">
           <div 
-            className={`p-10 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-colors text-center cursor-pointer ${file ? 'border-primary-500 bg-primary-500/10' : 'border-white/20 bg-surface-800/50 hover:bg-surface-800'}`}
+            className={`p-10 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center transition-colors text-center cursor-pointer ${file ? 'border-[#00687a] bg-primary-500/10' : 'border-white/20 bg-surface-800/50 hover:bg-surface-800'}`}
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             onClick={() => document.getElementById('video-upload-input').click()}
@@ -300,15 +300,15 @@ export default function VideoUpload() {
             />
             {file ? (
               <>
-                <Video className="w-12 h-12 text-primary-400 mb-4" aria-hidden="true" />
-                 <p className="text-lg font-semibold text-slate-800">{file.name}</p>
-                <p className="text-sm text-slate-600 mt-2">{(file.size / (1024*1024)).toFixed(2)} MB</p>
+                <Video className="w-12 h-12 text-[#00687a] mb-4" aria-hidden="true" />
+                 <p className="text-lg font-semibold text-[#131b2e]">{file.name}</p>
+                <p className="text-sm text-[#3d494c] mt-2">{(file.size / (1024*1024)).toFixed(2)} MB</p>
               </>
             ) : (
               <>
-                <UploadCloud className="w-12 h-12 text-slate-500 mb-4" aria-hidden="true" />
-                 <p className="text-lg font-semibold text-slate-800">Drag & drop video here</p>
-                <p className="text-sm text-slate-600 mt-2">MP4, AVI, or MOV up to 500MB</p>
+                <UploadCloud className="w-12 h-12 text-[#6d797d] mb-4" aria-hidden="true" />
+                 <p className="text-lg font-semibold text-[#131b2e]">Drag & drop video here</p>
+                <p className="text-sm text-[#3d494c] mt-2">MP4, AVI, or MOV up to 500MB</p>
               </>
             )}
           </div>
@@ -317,7 +317,7 @@ export default function VideoUpload() {
             <button 
               onClick={handleUpload}
               disabled={!file || uploading}
-              className={`flex-1 py-3 rounded-xl font-semibold transition-all ${!file || uploading ? 'bg-surface-800 text-slate-500 cursor-not-allowed' : 'bg-surface-700 hover:bg-surface-600 text-white shadow-lg border border-white/10'}`}
+              className={`flex-1 py-3 rounded-xl font-semibold transition-all ${!file || uploading ? 'bg-surface-800 text-[#6d797d] cursor-not-allowed' : 'bg-surface-700 hover:bg-surface-600 text-white shadow-lg border border-white/10'}`}
               aria-label="Extract Captions Only"
             >
               {uploading ? 'Processing...' : 'Extract Captions Only (Fast)'}
@@ -325,7 +325,7 @@ export default function VideoUpload() {
             <button 
               onClick={handleFullPipeline}
               disabled={!file || uploading}
-              className={`flex-1 py-3 rounded-xl font-semibold transition-all ${!file || uploading ? 'bg-surface-800 text-slate-500 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-500 text-white shadow-lg hover:shadow-primary-500/25'}`}
+              className={`flex-1 py-3 rounded-xl font-semibold transition-all ${!file || uploading ? 'bg-surface-800 text-[#6d797d] cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-500 text-white shadow-lg hover:shadow-primary-500/25'}`}
               aria-label="Start full deaf signing pipeline"
             >
               {uploading ? (
@@ -339,10 +339,10 @@ export default function VideoUpload() {
 
           {/* Progress Bar */}
           {status === 'processing' && (
-            <div className="p-6 rounded-2xl glass shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300" aria-live="polite">
+            <div className="p-6 rounded-[24px] glass-panel card-shadow border border-[#bcc9cd]/40 transition-all duration-300" aria-live="polite">
               <div className="flex justify-between items-center mb-2">
                  <span className="text-sm font-semibold text-primary-700">Processing Video Pipeline...</span>
-                 <span className="text-sm font-mono text-slate-800">{progress}%</span>
+                 <span className="text-sm font-mono text-[#131b2e]">{progress}%</span>
                </div>
                <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
                 <div 
@@ -350,7 +350,7 @@ export default function VideoUpload() {
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-xs text-slate-600 mt-3 text-center">
+              <p className="text-xs text-[#3d494c] mt-3 text-center">
                 {step || 'Extracting Audio → Whisper STT → Sign Mapping → Avatar Render → Output'}
               </p>
             </div>
@@ -363,7 +363,7 @@ export default function VideoUpload() {
                <h3 className="text-lg font-bold text-red-700">Processing Failed</h3>
                <p className="text-sm text-red-400/80 mt-1">{error}</p>
                <button 
-                 className="mt-4 px-6 py-2 rounded-lg glass text-sm text-slate-700 hover:bg-slate-100/50 transition shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300"
+                 className="mt-4 px-6 py-2 rounded-lg glass-panel card-shadow border border-[#bcc9cd]/40 text-sm text-[#131b2e] hover:bg-slate-100/50 transition shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300"
                 onClick={() => { resetState(); setUploading(false); }}
               >
                 Try Again
@@ -436,8 +436,8 @@ export default function VideoUpload() {
 
         {/* Preview Area */}
         <div className="space-y-6">
-          <div className="p-6 rounded-2xl glass min-h-[300px] shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-             <h2 className="text-lg font-semibold text-slate-800 mb-4">Pipeline Output Preview</h2>
+          <div className="p-6 rounded-2xl glass-panel card-shadow border border-[#bcc9cd]/40 min-h-[300px] shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300">
+             <h2 className="text-lg font-semibold text-[#131b2e] mb-4">Pipeline Output Preview</h2>
              {status === 'done' ? (
                <div className="relative aspect-video bg-black rounded-xl overflow-hidden border border-white/10">
                  {/* Show actual processed video if available */}
@@ -456,13 +456,13 @@ export default function VideoUpload() {
                  <SignAvatarOverlay currentWord={currentGesture} />
                </div>
              ) : status === 'processing' ? (
-               <div className="aspect-video bg-surface-800/50 rounded-xl border-2 border-dashed border-primary-500/30 flex flex-col items-center justify-center text-center gap-3 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-                 <Loader2 className="w-10 h-10 text-primary-400 animate-spin" />
+               <div className="aspect-video bg-surface-800/50 rounded-xl border-2 border-dashed border-[#00687a]/30 flex flex-col items-center justify-center text-center gap-3 shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300">
+                 <Loader2 className="w-10 h-10 text-[#00687a] animate-spin" />
                  <p className="text-sm text-primary-300 font-medium">{step || 'Processing...'}</p>
-                 <p className="text-xs text-slate-500">This may take a few minutes depending on video length</p>
+                 <p className="text-xs text-[#6d797d]">This may take a few minutes depending on video length</p>
                </div>
              ) : (
-               <div className="aspect-video bg-surface-800/50 rounded-xl border-2 border-dashed border-white/10 flex items-center justify-center text-slate-500 shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+               <div className="aspect-video bg-surface-800/50 rounded-xl border-2 border-dashed border-white/10 flex items-center justify-center text-[#6d797d] shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300">
                  Preview will appear here after processing.
                </div>
              )}
@@ -470,23 +470,23 @@ export default function VideoUpload() {
 
           {/* Extracted Captions */}
           {status === 'done' && captions.length > 0 && (
-            <div className="p-6 rounded-2xl glass max-h-80 overflow-y-auto shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
-              <h3 className="text-sm font-semibold text-slate-500 mb-4 sticky top-0 bg-surface-900/90 py-2 flex items-center justify-between rounded-2xl shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-cyan-400 transition-all duration-300">
+            <div className="p-6 rounded-2xl glass-panel card-shadow border border-[#bcc9cd]/40 max-h-80 overflow-y-auto shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300">
+              <h3 className="text-sm font-semibold text-[#6d797d] mb-4 sticky top-0 bg-surface-900/90 py-2 flex items-center justify-between rounded-2xl shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-cyan-400 transition-all duration-300">
                 <span>Extracted Captions & Sign Gesture Mapping</span>
-                <span className="text-xs text-primary-400 font-normal">{captions.length} segments</span>
+                <span className="text-xs text-[#00687a] font-normal">{captions.length} segments</span>
               </h3>
               <ul className="space-y-3">
                 {captions.map((cap, idx) => (
                   <li key={idx} className="p-3 rounded-lg bg-surface-800 border border-white/5 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
                     <div className="flex justify-between items-center mb-1">
-                      <span className="text-xs font-mono text-primary-400">
+                      <span className="text-xs font-mono text-[#00687a]">
                         [{cap.start_time || '—'} — {cap.end_time || '—'}]
                       </span>
-                      <span className="text-[10px] text-slate-500">
+                      <span className="text-[10px] text-[#6d797d]">
                         Segment {idx + 1}
                       </span>
                     </div>
-                     <p className="text-sm text-slate-800 mb-2">{cap.text}</p>
+                     <p className="text-sm text-[#131b2e] mb-2">{cap.text}</p>
                     <div className="flex flex-wrap gap-1">
                       {(cap.gestures || cap.text.split(' ')).map((gesture, i) => (
                         <span 

@@ -145,6 +145,7 @@ def _seed_demo_accounts():
         ("Bob Williams", "bob@deeplearn.edu", hash_password("Bob123"), "student"),
         ("Demo Teacher", "teacher@deeplearn.edu", hash_password("Teacher123"), "teacher"),
         ("Dr. Smith", "dr.smith@deeplearn.edu", hash_password("Smith123"), "teacher"),
+        ("Demo Admin", "admin@deeplearn.edu", hash_password("Admin123"), "admin"),
     ]
 
     for name, email, pwd_hash, role in demo_users:
@@ -220,8 +221,8 @@ def register():
         return jsonify({"error": "Email is required"}), 400
     if not validate_email(email):
         return jsonify({"error": "Invalid email format"}), 400
-    if not role or role not in ["student", "teacher"]:
-        return jsonify({"error": "Valid role (student/teacher) is required"}), 400
+    if not role or role not in ["student", "teacher", "admin"]:
+        return jsonify({"error": "Valid role (student/teacher/admin) is required"}), 400
 
     valid, msg = validate_password(password)
     if not valid:
@@ -229,33 +230,37 @@ def register():
 
     # Check if email already exists
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users WHERE email = ?", (email,))
-    if cursor.fetchone():
-        conn.close()
-        return jsonify({"error": "An account with this email already exists"}), 409
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users WHERE email = ?", (email,))
+        if cursor.fetchone():
+            return jsonify({"error": "An account with this email already exists"}), 409
 
-    # Create the account
-    pwd_hash = hash_password(password)
-    cursor.execute(
-        "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-        (name, email, pwd_hash, role),
-    )
-    user_id = cursor.lastrowid
-    
-    if role == "student":
+        # Create the account
+        pwd_hash = hash_password(password)
         cursor.execute(
-            "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-            (user_id, name, email, pwd_hash),
+            "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+            (name, email, pwd_hash, role),
         )
-    elif role == "teacher":
-        cursor.execute(
-            "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-            (user_id, name, email, pwd_hash),
-        )
+        user_id = cursor.lastrowid
         
-    conn.commit()
-    conn.close()
+        if role == "student":
+            cursor.execute(
+                "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                (user_id, name, email, pwd_hash),
+            )
+        elif role == "teacher":
+            cursor.execute(
+                "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                (user_id, name, email, pwd_hash),
+            )
+            
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
     # Generate token
     token = create_jwt({
@@ -302,8 +307,8 @@ def login():
         return jsonify({"error": "Email is required"}), 400
     if not password:
         return jsonify({"error": "Password is required"}), 400
-    if not role or role not in ["student", "teacher"]:
-        return jsonify({"error": "Valid role (student/teacher) is required"}), 400
+    if not role or role not in ["student", "teacher", "admin"]:
+        return jsonify({"error": "Valid role (student/teacher/admin) is required"}), 400
     if not validate_email(email):
         return jsonify({"error": "Invalid email format"}), 400
 
@@ -315,13 +320,15 @@ def login():
 
     # Look up user in database
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT user_id, name, email, password_hash, role FROM users WHERE email = ? AND role = ?",
-        (email, role),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT user_id, name, email, password_hash, role FROM users WHERE email = ? AND role = ?",
+            (email, role),
+        )
+        row = cursor.fetchone()
+    finally:
+        conn.close()
 
     if not row:
         return jsonify({"error": "Invalid email or password"}), 401
@@ -405,3 +412,217 @@ def validate_credentials():
         return jsonify({"status": "invalid", "errors": errors}), 400
 
     return jsonify({"status": "valid"}), 200
+
+
+# ── Student Profile Management ────────────────────────────────────────────────
+
+def validate_student_profile(data):
+    errors = {}
+    
+    # Age: 3-100
+    if "age" in data and data["age"] is not None:
+        try:
+            age_val = int(data["age"])
+            if age_val < 3 or age_val > 100:
+                errors["age"] = "Age must be between 3 and 100"
+        except (ValueError, TypeError):
+            errors["age"] = "Age must be a valid integer"
+            
+    # School Name: Required
+    if "schoolName" in data:
+        school_name = str(data["schoolName"]).strip()
+        if not school_name:
+            errors["schoolName"] = "School Name is required"
+
+    # Parent Phone: Valid format
+    if "parentPhone" in data and data["parentPhone"] is not None:
+        parent_phone = str(data["parentPhone"]).strip()
+        if parent_phone and not re.match(r"^\+?[\d\s\-()]{7,20}$", parent_phone):
+            errors["parentPhone"] = "Parent Phone format is invalid"
+
+    # Email validations
+    if "email" in data and data["email"] is not None:
+        email = str(data["email"]).strip()
+        if email and not validate_email(email):
+            errors["email"] = "Email format is invalid"
+
+    if "parentEmail" in data and data["parentEmail"] is not None:
+        parent_email = str(data["parentEmail"]).strip()
+        if parent_email and not validate_email(parent_email):
+            errors["parentEmail"] = "Parent Email format is invalid"
+
+    return len(errors) == 0, errors
+
+
+@auth_bp.route("/student/profile/<int:student_id>", methods=["GET"])
+@require_auth
+def get_student_profile(student_id):
+    """
+    GET /auth/student/profile/:student_id
+    Retrieves full details for a student.
+    Allowed roles: student (only own), teacher, admin.
+    """
+    current_user = request.current_user
+    role = current_user.get("role")
+    
+    # Authorization checks
+    if role == "student" and current_user.get("user_id") != student_id:
+        return jsonify({"error": "Access denied. You can only view your own profile."}), 403
+        
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT 
+            student_id, name, email, disability_type, preferred_language, enrolled_at,
+            profilePhoto, age, gender, dob, phone, schoolName, grade, section,
+            rollNumber, academicYear, parentName, parentPhone, parentEmail,
+            emergencyContact, city, state, country, learningLevel, attendanceRate
+        FROM students WHERE student_id = ?
+    """, (student_id,))
+    row = cursor.fetchone()
+    conn.close()
+    
+    if not row:
+        return jsonify({"error": "Student not found"}), 404
+        
+    # Build dict
+    if hasattr(row, "keys"):
+        student = dict(row)
+    else:
+        columns = [
+            "student_id", "name", "email", "disability_type", "preferred_language", "enrolled_at",
+            "profilePhoto", "age", "gender", "dob", "phone", "schoolName", "grade", "section",
+            "rollNumber", "academicYear", "parentName", "parentPhone", "parentEmail",
+            "emergencyContact", "city", "state", "country", "learningLevel", "attendanceRate"
+        ]
+        student = dict(zip(columns, row))
+        
+    # Also add course and progression statistics
+    # Enrolled Courses, Completed Courses, Quiz Scores, Certificates Earned
+    try:
+        from routes.quiz_analytics import get_student_progress_list
+        progress_pct, lessons = get_student_progress_list(student_id, course_id=1)
+        
+        student["enrolled_courses"] = ["Smart Virtual Classroom Basics"]
+        student["completed_courses"] = ["Smart Virtual Classroom Basics"] if progress_pct >= 100.0 else []
+        student["current_course_progress"] = progress_pct
+        student["certificates_earned"] = ["Smart Classroom Completion Certificate"] if progress_pct >= 100.0 else []
+        
+        # Get actual quiz scores from quiz_attempts
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT qa.score, qa.total_questions, qa.percentage, q.title 
+            FROM quiz_attempts qa
+            JOIN quizzes q ON qa.quiz_id = q.quiz_id
+            WHERE qa.student_id = ?
+        """, (student_id,))
+        attempts = cursor.fetchall()
+        conn.close()
+        
+        quiz_scores_list = []
+        if attempts:
+            if hasattr(attempts[0], "keys"):
+                for att in attempts:
+                    quiz_scores_list.append({
+                        "quiz_name": att["title"],
+                        "score": f"{att['score']}/{att['total_questions']}",
+                        "percentage": float(att["percentage"])
+                    })
+            else:
+                for att in attempts:
+                    quiz_scores_list.append({
+                        "quiz_name": att[3],
+                        "score": f"{att[0]}/{att[1]}",
+                        "percentage": float(att[2])
+                    })
+        student["quiz_scores"] = quiz_scores_list
+    except Exception as e:
+        print(f"Error computing learning stats: {e}")
+        student["enrolled_courses"] = []
+        student["completed_courses"] = []
+        student["current_course_progress"] = 0.0
+        student["certificates_earned"] = []
+        student["quiz_scores"] = []
+        
+    return jsonify({"status": "success", "student": student}), 200
+
+
+@auth_bp.route("/student/profile/<int:student_id>", methods=["PUT"])
+@require_auth
+def update_student_profile(student_id):
+    """
+    PUT /auth/student/profile/:student_id
+    Updates student profile details.
+    Allowed roles: student (only own), admin.
+    Teachers are NOT allowed to modify.
+    """
+    current_user = request.current_user
+    role = current_user.get("role")
+    
+    # Authorization check
+    if role == "teacher":
+        return jsonify({"error": "Access denied. Teachers cannot modify student profiles."}), 403
+    if role == "student" and current_user.get("user_id") != student_id:
+        return jsonify({"error": "Access denied. You can only modify your own profile."}), 403
+        
+    data = request.get_json(silent=True) or {}
+    
+    # Convert age if present
+    if "age" in data and data["age"] != "" and data["age"] is not None:
+        try:
+            data["age"] = int(data["age"])
+        except ValueError:
+            return jsonify({"error": "Age must be a valid integer"}), 400
+            
+    # Validations
+    valid, errors = validate_student_profile(data)
+    if not valid:
+        return jsonify({"error": "Validation failed", "errors": errors}), 400
+        
+    # Fields to update
+    fields = [
+        "name", "profilePhoto", "age", "gender", "dob", "phone",
+        "schoolName", "grade", "section", "rollNumber", "academicYear",
+        "parentName", "parentPhone", "parentEmail", "emergencyContact",
+        "city", "state", "country", "learningLevel", "disability_type", "preferred_language"
+    ]
+    
+    update_parts = []
+    params = []
+    
+    for f in fields:
+        if f in data:
+            update_parts.append(f"{f} = ?")
+            params.append(data[f])
+            
+    if not update_parts:
+        return jsonify({"error": "No fields to update"}), 400
+        
+    params.append(student_id)
+    query = f"UPDATE students SET {', '.join(update_parts)} WHERE student_id = ?"
+    
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        
+        # Sync name/email to users table
+        if "name" in data or "email" in data:
+            user_update_parts = []
+            user_params = []
+            if "name" in data:
+                user_update_parts.append("name = ?")
+                user_params.append(data["name"])
+            if "email" in data:
+                user_update_parts.append("email = ?")
+                user_params.append(data["email"])
+            user_params.append(student_id)
+            cursor.execute(f"UPDATE users SET {', '.join(user_update_parts)} WHERE user_id = ?", user_params)
+            
+        conn.commit()
+        conn.close()
+        
+        return jsonify({"status": "success", "message": "Profile updated successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to update profile: {str(e)}"}), 500

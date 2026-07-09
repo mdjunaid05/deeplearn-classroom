@@ -11,7 +11,7 @@ CREATE TABLE users (
     name            VARCHAR(120)  NOT NULL,
     email           VARCHAR(255)  NOT NULL UNIQUE,
     password_hash   VARCHAR(255)  NOT NULL,
-    role            ENUM('student', 'teacher') NOT NULL,
+    role            ENUM('student', 'teacher', 'admin') NOT NULL,
     avatar_url      VARCHAR(255)  DEFAULT NULL,
     created_at      DATETIME      DEFAULT CURRENT_TIMESTAMP,
     last_login      DATETIME      DEFAULT NULL
@@ -25,7 +25,26 @@ CREATE TABLE students (
     password_hash       VARCHAR(255)  NOT NULL,
     disability_type     VARCHAR(100)  DEFAULT 'Hearing-Impaired',
     preferred_language  ENUM('ASL', 'ISL', 'BSL') DEFAULT 'ASL',
-    enrolled_at         DATETIME      DEFAULT CURRENT_TIMESTAMP
+    enrolled_at         DATETIME      DEFAULT CURRENT_TIMESTAMP,
+    profilePhoto        VARCHAR(255)  DEFAULT NULL,
+    age                 INT           DEFAULT NULL,
+    gender              VARCHAR(50)   DEFAULT NULL,
+    dob                 VARCHAR(50)   DEFAULT NULL,
+    phone               VARCHAR(50)   DEFAULT NULL,
+    schoolName          VARCHAR(255)  DEFAULT NULL,
+    grade               VARCHAR(50)   DEFAULT NULL,
+    section             VARCHAR(50)   DEFAULT NULL,
+    rollNumber          VARCHAR(50)   DEFAULT NULL,
+    academicYear        VARCHAR(50)   DEFAULT NULL,
+    parentName          VARCHAR(255)  DEFAULT NULL,
+    parentPhone         VARCHAR(50)   DEFAULT NULL,
+    parentEmail         VARCHAR(255)  DEFAULT NULL,
+    emergencyContact    VARCHAR(50)   DEFAULT NULL,
+    city                VARCHAR(100)  DEFAULT NULL,
+    state               VARCHAR(100)  DEFAULT NULL,
+    country             VARCHAR(100)  DEFAULT NULL,
+    learningLevel       VARCHAR(50)   DEFAULT NULL,
+    attendanceRate      DECIMAL(5,2)  DEFAULT 100.0
 ) ENGINE=InnoDB;
 
 -- ── Teachers ──────────────────────────────────────────────
@@ -242,4 +261,75 @@ CREATE INDEX idx_behaviour_session  ON behaviour_logs(session_id);
 CREATE INDEX idx_engagement_student ON engagement_metrics(student_id);
 CREATE INDEX idx_engagement_session ON engagement_metrics(session_id);
 CREATE INDEX idx_chat_session       ON session_chat_messages(session_id, created_at);
+
+-- ── Quiz Analytics & Teacher Reporting System ────────────────
+CREATE TABLE quizzes (
+    quiz_id      INT AUTO_INCREMENT PRIMARY KEY,
+    title        VARCHAR(255) NOT NULL,
+    recording_id INT DEFAULT NULL,
+    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (recording_id) REFERENCES recordings(recording_id) ON DELETE SET NULL
+) ENGINE=InnoDB;
+
+CREATE TABLE questions (
+    question_id   INT AUTO_INCREMENT PRIMARY KEY,
+    quiz_id       INT NOT NULL,
+    question_text TEXT NOT NULL,
+    options       TEXT NOT NULL,
+    correct_option INT NOT NULL,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE quiz_attempts (
+    attempt_id        INT AUTO_INCREMENT PRIMARY KEY,
+    student_id        INT NOT NULL,
+    quiz_id           INT NOT NULL,
+    score             INT NOT NULL,
+    total_questions   INT NOT NULL,
+    correct_answers   INT NOT NULL,
+    incorrect_answers INT NOT NULL,
+    percentage        DECIMAL(5,2) NOT NULL,
+    time_taken        DECIMAL(8,2) NOT NULL,
+    submitted_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE student_responses (
+    response_id     INT AUTO_INCREMENT PRIMARY KEY,
+    attempt_id      INT NOT NULL,
+    question_id     INT NOT NULL,
+    selected_option INT NOT NULL,
+    is_correct      BOOLEAN NOT NULL,
+    FOREIGN KEY (attempt_id) REFERENCES quiz_attempts(attempt_id) ON DELETE CASCADE,
+    FOREIGN KEY (question_id) REFERENCES questions(question_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE analytics_reports (
+    report_id          INT AUTO_INCREMENT PRIMARY KEY,
+    quiz_id            INT NOT NULL,
+    class_average      DECIMAL(5,2) DEFAULT 0.00,
+    highest_score      DECIMAL(5,2) DEFAULT 0.00,
+    lowest_score       DECIMAL(5,2) DEFAULT 0.00,
+    pass_count         INT DEFAULT 0,
+    fail_count         INT DEFAULT 0,
+    participation_rate DECIMAL(5,2) DEFAULT 0.00,
+    updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+CREATE TABLE student_progress (
+    progress_id   INT AUTO_INCREMENT PRIMARY KEY,
+    student_id    INT NOT NULL,
+    course_id     INT NOT NULL,
+    lesson_id     VARCHAR(255) NOT NULL,
+    quiz_score    DECIMAL(5,2) DEFAULT 0.00,
+    passed        BOOLEAN DEFAULT FALSE,
+    attempts      INT DEFAULT 0,
+    unlocked      BOOLEAN DEFAULT FALSE,
+    completed_at  DATETIME DEFAULT NULL,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE
+) ENGINE=InnoDB;
+
+
 

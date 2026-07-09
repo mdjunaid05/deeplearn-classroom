@@ -129,7 +129,10 @@ export default function VirtualClassroom() {
       // 1. If we have videoId/jobId/filename in query params, try fetching direct video URL from backend
       if (videoId || jobId || filename) {
         try {
-          const urlRes = await fetch(`${API_BASE}/video-url?${params.toString()}`);
+          const userIdParam = user?.role === 'teacher' 
+            ? `teacher_id=${user.id || 1}` 
+            : `student_id=${user?.id || user?.user_id || 1}`;
+          const urlRes = await fetch(`${API_BASE}/video-url?${params.toString()}&${userIdParam}`);
           if (urlRes.ok) {
             const urlData = await urlRes.json();
             if (urlData.video_url) {
@@ -213,7 +216,10 @@ export default function VirtualClassroom() {
   const fetchVideos = async () => {
     try {
       setLoadingVideos(true);
-      const res = await fetch(`${API_BASE}/videos`);
+      const userIdParam = user?.role === 'teacher' 
+        ? `teacher_id=${user.id || 1}` 
+        : `student_id=${user?.id || user?.user_id || 1}`;
+      const res = await fetch(`${API_BASE}/videos?${userIdParam}`);
       if (res.ok) {
         const data = await res.json();
         setVideos(data.videos || []);
@@ -347,17 +353,17 @@ export default function VirtualClassroom() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="w-full bg-white min-h-[calc(100vh-4rem)] text-slate-800 transition-colors duration-300">
+    <div className="w-full bg-nexus-background min-h-[calc(100vh-4rem)] text-[#131b2e] transition-colors duration-300">
       <style>{`
-        .dark-glass {
-            background: rgba(255, 255, 255, 0.7);
+        .dark-glass-panel card-shadow border border-[#bcc9cd]/40 {
+            background: rgba(250, 248, 255, 0.75); border: 1px solid rgba(188, 201, 205, 0.4);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(0, 0, 0, 0.06);
             box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.04);
         }
         .dark-glass-high {
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(188, 201, 205, 0.5);
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
             border: 1px solid rgba(0, 0, 0, 0.08);
@@ -367,8 +373,8 @@ export default function VirtualClassroom() {
             box-shadow: 0 0 20px rgba(16, 185, 129, 0.08);
         }
         .interpreter-window {
-            border: 2px solid #06b6d4;
-            box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+            border: 2px solid #00687a;
+            box-shadow: 0 10px 30px rgba(19, 27, 46, 0.08);
         }
         .badge-active {
             background: rgba(16, 185, 129, 0.1);
@@ -384,7 +390,7 @@ export default function VirtualClassroom() {
         }
       `}</style>
 
-      <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main" aria-label="Virtual Classroom">
+      <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background" role="main" aria-label="Virtual Classroom">
 
         {/* Visual Alert Banner */}
         <div className="mb-6 w-full max-w-3xl mx-auto">
@@ -394,11 +400,11 @@ export default function VirtualClassroom() {
         {/* ── Header ── */}
         <div className="flex items-center justify-between mb-8 pb-4 border-b border-slate-200">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-display font-bold text-[#131b2e] flex items-center gap-3">
               <Monitor className="w-8 h-8 text-primary-500" />
               Virtual Classroom
             </h1>
-            <p className="text-slate-500 mt-1 text-sm">{videoTitle} — Live Interactive Session</p>
+            <p className="text-[#6d797d] mt-1 text-sm">{videoTitle} — Live Interactive Session</p>
           </div>
           <div className="flex gap-4 items-center">
             {/* Caption/mic status indicator */}
@@ -411,7 +417,7 @@ export default function VirtualClassroom() {
                 <Mic className="w-4 h-4" /> Auto Captions
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-xs text-slate-400">
+              <span className="flex items-center gap-1.5 text-xs text-[#6d797d]">
                 <MicOff className="w-4 h-4" /> Captions off
               </span>
             )}
@@ -420,7 +426,7 @@ export default function VirtualClassroom() {
             <div className="flex items-center gap-2 px-3 py-1 bg-slate-100 border border-slate-200 rounded-full">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
               <span className="text-[10px] font-bold text-emerald-600 tracking-wider uppercase">LIVE</span>
-              <span className="text-[10px] text-slate-500 ml-2 font-mono">{formatTime(sessionTime)}</span>
+              <span className="text-[10px] text-[#6d797d] ml-2 font-mono">{formatTime(sessionTime)}</span>
             </div>
 
             {/* Upload video button (for teachers) */}
@@ -446,17 +452,25 @@ export default function VirtualClassroom() {
             {/* ── Video Player stage ── */}
             <div
               ref={videoContainerRef}
-              className={`relative w-full aspect-video rounded-3xl overflow-hidden dark-glass emerald-glow group transition-all duration-300 ${isFullscreen ? 'fullscreen-video-container' : ''}`}
+              className={`relative w-full aspect-video rounded-3xl overflow-hidden dark-glass-panel card-shadow border border-[#bcc9cd]/40 emerald-glow group transition-all duration-300 ${isFullscreen ? 'fullscreen-video-container' : ''}`}
             >
               <video
                 ref={videoRef}
                 src={isVideoLoaded ? videoSrc : ''}
                 className="w-full h-full object-contain bg-slate-950"
                 controls
-                onPlay={() => { setIsPlaying(true); setVideoEnded(false); }}
+                onPlay={() => { 
+                  console.log('[VIDEO_PLAY_REQUEST] src=' + videoSrc);
+                  console.log('[VIDEO_STREAM_STARTED] src=' + videoSrc);
+                  setIsPlaying(true); 
+                  setVideoEnded(false); 
+                }}
                 onPause={() => setIsPlaying(false)}
                 onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
                 onEnded={() => { setIsPlaying(false); setVideoEnded(true); }}
+                onError={() => {
+                  console.error('[VIDEO_STREAM_FAILED] src=' + videoSrc);
+                }}
                 onLoadedMetadata={() => console.log('[VIDEO_RENDERED] src=' + videoSrc)}
                 poster={
                   isVideoLoaded && videoSrc.includes('Sintel')
@@ -470,7 +484,7 @@ export default function VirtualClassroom() {
                 <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center pointer-events-none z-10">
                   <CheckCircle className="w-16 h-16 text-emerald-400 mb-3" />
                   <p className="text-white font-semibold text-lg">Video Complete</p>
-                  <p className="text-slate-400 text-sm mt-1">Quiz generated below</p>
+                  <p className="text-[#6d797d] text-sm mt-1">Quiz generated below</p>
                 </div>
               )}
 
@@ -524,7 +538,7 @@ export default function VirtualClassroom() {
                   captionSize={captionSize}
                 />
                 {!isPlaying && transcript.length === 0 && (
-                  <p className="text-xs text-slate-500 italic text-center py-2">
+                  <p className="text-xs text-[#6d797d] italic text-center py-2">
                     Captions will appear here when the video plays.
                   </p>
                 )}
@@ -532,16 +546,16 @@ export default function VirtualClassroom() {
             )}
 
             {/* ── Accessibility Controls ── */}
-            <div className="p-4 rounded-2xl dark-glass flex flex-wrap items-center gap-4 shadow-lg border border-slate-200 transition-all duration-300">
+            <div className="p-4 rounded-2xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-wrap items-center gap-4 shadow-lg border border-slate-200 transition-all duration-300">
               <div className="flex items-center gap-2">
                 <Settings className="w-5 h-5 text-primary-500" />
-                <span className="text-sm font-semibold text-slate-700">Accessibility Controls</span>
+                <span className="text-sm font-semibold text-[#131b2e]">Accessibility Controls</span>
               </div>
               <div className="w-px h-6 bg-slate-200 mx-2"></div>
               
               <button 
                 onClick={() => setCaptionsEnabled(!captionsEnabled)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${captionsEnabled ? 'bg-primary-500/10 text-primary-600 border border-primary-500/20' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${captionsEnabled ? 'bg-primary-500/10 text-primary-600 border border-[#00687a]/20' : 'bg-slate-100 text-[#6d797d] hover:bg-slate-200'}`}
               >
                 {captionsEnabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
                 Captions
@@ -553,7 +567,7 @@ export default function VirtualClassroom() {
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${
                   signLangEnabled
                     ? 'bg-purple-500/10 text-purple-600 border border-purple-500/20 shadow-sm shadow-purple-500/5'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    : 'bg-slate-100 text-[#6d797d] hover:bg-slate-200'
                 }`}
                 aria-pressed={signLangEnabled}
                 aria-label="Toggle sign language interpreter"
@@ -568,11 +582,11 @@ export default function VirtualClassroom() {
               </button>
               
               <div className="flex items-center gap-2 ml-auto">
-                <Type className="w-4 h-4 text-slate-500" />
+                <Type className="w-4 h-4 text-[#6d797d]" />
                 <select 
                   value={captionSize} 
                   onChange={(e) => setCaptionSize(e.target.value)}
-                  className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-1.5 outline-none font-medium focus:ring-1 focus:ring-primary-500"
+                  className="bg-white border border-slate-200 text-[#131b2e] text-sm rounded-lg p-1.5 outline-none font-medium focus:ring-1 focus:ring-primary-500"
                 >
                   <option value="small">Small text</option>
                   <option value="normal">Normal text</option>
@@ -581,11 +595,11 @@ export default function VirtualClassroom() {
               </div>
               
               <div className="flex items-center gap-2">
-                <FastForward className="w-4 h-4 text-slate-500" />
+                <FastForward className="w-4 h-4 text-[#6d797d]" />
                 <select 
                   value={playbackSpeed} 
                   onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
-                  className="bg-white border border-slate-200 text-slate-700 text-sm rounded-lg p-1.5 outline-none font-medium focus:ring-1 focus:ring-primary-500"
+                  className="bg-white border border-slate-200 text-[#131b2e] text-sm rounded-lg p-1.5 outline-none font-medium focus:ring-1 focus:ring-primary-500"
                 >
                   <option value="0.5">0.5x</option>
                   <option value="0.75">0.75x</option>
@@ -598,14 +612,14 @@ export default function VirtualClassroom() {
             </div>
 
             {/* ── Quiz Section (Bento Card Style) ── */}
-            <div className="p-8 rounded-3xl dark-glass flex flex-col gap-6 border border-slate-200 transition-all duration-300">
+            <div className="p-8 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-6 border border-slate-200 transition-all duration-300">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-purple-500/10 rounded-lg text-purple-600">
                   <CheckCircle className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-bold text-slate-800">Quick Assessment</h3>
-                  <p className="text-xs text-slate-500">
+                  <h3 className="text-lg font-bold text-[#131b2e]">Quick Assessment</h3>
+                  <p className="text-xs text-[#6d797d]">
                     {quizQuestions
                       ? 'Questions generated dynamically from the video transcript.'
                       : videoEnded
@@ -617,7 +631,7 @@ export default function VirtualClassroom() {
 
               {/* Quiz not ready yet */}
               {!quizReady && !videoEnded && (
-                <div className="text-center py-8 text-slate-400">
+                <div className="text-center py-8 text-[#6d797d]">
                   <Activity className="w-8 h-8 mx-auto mb-2 opacity-40 animate-pulse text-primary-500" />
                   <p className="text-sm">Finish watching the video to unlock the quiz.</p>
                 </div>
@@ -627,8 +641,8 @@ export default function VirtualClassroom() {
               {(quizReady || videoEnded) && !showResults && (
                 <div className="space-y-6">
                   {activeQuiz.map((q, qIdx) => (
-                    <div key={q.id} className="p-5 rounded-2xl bg-slate-50/50 border border-slate-100 hover:border-primary-500/30 transition-all duration-300">
-                      <p className="text-sm font-semibold text-slate-800 mb-4">
+                    <div key={q.id} className="p-5 rounded-2xl bg-slate-50/50 border border-[#bcc9cd]/25 hover:border-[#00687a]/30 transition-all duration-300">
+                      <p className="text-sm font-semibold text-[#131b2e] mb-4">
                         {qIdx + 1}. {q.question}
                       </p>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -641,8 +655,8 @@ export default function VirtualClassroom() {
                               onClick={() => handleAnswer(qIdx, optIdx)}
                               className={`flex items-center justify-between p-5 rounded-2xl text-left text-sm transition-all duration-200
                                 ${isSelected
-                                  ? 'bg-primary-50 border-2 border-primary-500 text-primary-900 font-semibold'
-                                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-800'
+                                  ? 'bg-primary-50 border-2 border-[#00687a] text-primary-900 font-semibold'
+                                  : 'bg-white border border-slate-200 text-[#3d494c] hover:bg-slate-50 hover:text-[#131b2e]'
                                 }`}
                             >
                               <span>{opt}</span>
@@ -675,27 +689,44 @@ export default function VirtualClassroom() {
                 <div className="text-center py-8">
                   <div className={`text-5xl font-display font-bold mb-2 ${
                     score === activeQuiz.length ? 'text-emerald-600' :
-                    score >= activeQuiz.length / 2 ? 'text-yellow-600' : 'text-red-500'
+                    (quizSubmitResult ? quizSubmitResult.attempt?.passed : score >= activeQuiz.length * 0.35) ? 'text-emerald-600' : 'text-red-500'
                   }`}>
                     {score}/{activeQuiz.length}
                   </div>
-                  <p className="text-slate-500 text-sm mb-6">
-                    {score === activeQuiz.length
-                      ? 'Perfect score! Excellent work!'
-                      : score >= activeQuiz.length / 2
-                        ? 'Good job! Review the material to improve.'
-                        : "Keep studying — you'll improve!"}
+                  <p className="text-[#6d797d] text-sm mb-4">
+                    Score Percentage: <span className="font-bold">{((score / activeQuiz.length) * 100).toFixed(1)}%</span>
                   </p>
+                  <p className="text-[#3d494c] text-sm mb-6">
+                    {quizSubmitResult ? quizSubmitResult.message : (score >= activeQuiz.length * 0.35 ? 'Success! Lesson completed and next video unlocked.' : 'You must score at least 35% to unlock the next lesson.')}
+                  </p>
+
+                  {quizSubmitResult && quizSubmitResult.weak_areas && quizSubmitResult.weak_areas.length > 0 && (
+                    <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-left max-w-xl mx-auto">
+                      <span className="text-xs font-bold text-amber-800 block mb-1.5">Recommended Areas of Improvement:</span>
+                      <div className="flex flex-wrap gap-2">
+                        {quizSubmitResult.weak_areas.map((area, idx) => (
+                          <span key={idx} className="px-2.5 py-1 bg-white text-amber-700 border border-amber-200 text-[10px] font-semibold rounded-full">
+                            {area}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-3 text-left mt-6 max-w-xl mx-auto">
                     {activeQuiz.map((q, qIdx) => (
-                      <div key={q.id} className="flex items-start gap-3 p-4 rounded-xl bg-white border border-slate-100">
+                      <div key={q.id} className="flex items-start gap-3 p-4 rounded-xl bg-white border border-[#bcc9cd]/25 shadow-sm">
                         {answers[qIdx] === q.correct
                           ? <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                           : <XCircle    className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />}
                         <div>
-                          <span className="text-xs text-slate-400 block mb-1">Question {qIdx + 1}</span>
-                          <span className="text-sm text-slate-700">{q.question}</span>
+                          <span className="text-xs text-[#6d797d] block mb-1">Question {qIdx + 1}</span>
+                          <span className="text-sm text-[#131b2e]">{q.question}</span>
+                          {answers[qIdx] !== q.correct && (
+                            <p className="text-xs text-red-500 mt-1">
+                              Your answer: <span className="font-semibold">{q.options[answers[qIdx]] || 'None'}</span> · Correct: <span className="font-semibold text-emerald-600">{q.options[q.correct]}</span>
+                            </p>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -703,8 +734,8 @@ export default function VirtualClassroom() {
 
                   <button
                     id="quiz-retry-btn"
-                    onClick={() => { setShowResults(false); setAnswers({}); }}
-                    className="mt-8 px-6 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-sm transition-all border border-slate-200"
+                    onClick={() => { setShowResults(false); setAnswers({}); setQuizStartTime(Date.now()); setQuizSubmitResult(null); }}
+                    className="mt-8 px-6 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-[#131b2e] text-sm transition-all border border-slate-200"
                   >
                     Retry Quiz
                   </button>
@@ -717,9 +748,9 @@ export default function VirtualClassroom() {
           <div className="space-y-4">
 
             {/* Live Engagement */}
-            <div className="p-6 rounded-3xl dark-glass flex flex-col gap-4 border border-slate-200">
+            <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-4 border border-slate-200">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider">
                   Class Engagement
                 </span>
                 <span className={`text-sm font-bold ${
@@ -731,13 +762,13 @@ export default function VirtualClassroom() {
               </div>
               <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-purple-500 to-primary-500 transition-all duration-1000"
+                  className="h-full bg-gradient-to-r from-[#00687a] to-[#006a63] transition-all duration-1000"
                   style={{
                     width: engagement === 'High' ? '88%' : engagement === 'Medium' ? '65%' : '38%'
                   }}
                 />
               </div>
-              <p className="text-[10px] text-slate-500 leading-tight">
+              <p className="text-[10px] text-[#6d797d] leading-tight">
                 {engagement === 'High' ? 'Interaction levels are peaking in the current segment.' :
                  engagement === 'Medium' ? 'Classroom attention is steady.' :
                  'Attention levels are low. Consider triggering a stretch break.'}
@@ -745,8 +776,8 @@ export default function VirtualClassroom() {
             </div>
 
             {/* Behaviour Status */}
-            <div className="p-6 rounded-3xl dark-glass flex flex-col gap-4 border border-slate-200">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-4 border border-slate-200">
+              <h3 className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider">
                 Behaviour Status
               </h3>
               <div className="flex items-center gap-2">
@@ -759,47 +790,47 @@ export default function VirtualClassroom() {
                   behaviour === 'Distracted' ? 'badge-distracted' : 'badge-passive'
                 }`}>{behaviour}</span>
               </div>
-              <div className="space-y-2 border-t border-slate-100 pt-3">
+              <div className="space-y-2 border-t border-[#bcc9cd]/25 pt-3">
                 {[['Click Rate', 'Steady'], ['Response', 'Good'], ['Idle Time', 'Low']].map(([k, v]) => (
                   <div key={k} className="flex justify-between text-xs">
-                    <span className="text-slate-400">{k}</span>
-                    <span className="text-slate-700 font-medium">{v}</span>
+                    <span className="text-[#6d797d]">{k}</span>
+                    <span className="text-[#131b2e] font-medium">{v}</span>
                   </div>
                 ))}
               </div>
             </div>
 
             {/* Session Info */}
-            <div className="p-6 rounded-3xl dark-glass flex flex-col gap-3 border border-slate-200">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-3 border border-slate-200">
+              <h3 className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider">
                 Session Info
               </h3>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Course</span>
-                  <span className="text-slate-700 font-medium truncate max-w-[150px] text-right" title={videoTitle}>{videoTitle}</span>
+                  <span className="text-[#6d797d]">Course</span>
+                  <span className="text-[#131b2e] font-medium truncate max-w-[150px] text-right" title={videoTitle}>{videoTitle}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Captions</span>
-                  <span className="text-slate-700 font-medium">{transcript.length} segments</span>
+                  <span className="text-[#6d797d]">Captions</span>
+                  <span className="text-[#131b2e] font-medium">{transcript.length} segments</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Duration</span>
-                  <span className="text-slate-700 font-mono">{formatTime(sessionTime)}</span>
+                  <span className="text-[#6d797d]">Duration</span>
+                  <span className="text-[#131b2e] font-mono">{formatTime(sessionTime)}</span>
                 </div>
               </div>
             </div>
 
             {/* Transcript preview */}
             {transcript.length > 0 && (
-              <div className="p-6 rounded-3xl dark-glass flex flex-col gap-3 border border-slate-200">
-                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-3 border border-slate-200">
+                <h3 className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider">
                   Transcript ({transcript.length})
                 </h3>
                 <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1" style={{ scrollbarWidth: 'none' }}>
                   {transcript.slice(-8).map((item, idx) => (
-                    <p key={idx} className="text-[10px] text-slate-600 leading-snug">
-                      <span className="text-slate-400 font-mono mr-1">{formatTime(Math.floor(item.timestamp))}</span>
+                    <p key={idx} className="text-[10px] text-[#3d494c] leading-snug">
+                      <span className="text-[#6d797d] font-mono mr-1">{formatTime(Math.floor(item.timestamp))}</span>
                       {item.text}
                     </p>
                   ))}
@@ -808,9 +839,9 @@ export default function VirtualClassroom() {
             )}
 
             {/* Text Chat */}
-            <div className="p-6 rounded-3xl dark-glass flex flex-col h-[400px] border border-slate-200">
-              <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+            <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col h-[400px] border border-slate-200">
+              <div className="pb-3 border-b border-[#bcc9cd]/25 flex items-center justify-between">
+                <span className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-purple-500" />
                   Class Chat
                 </span>
@@ -818,33 +849,33 @@ export default function VirtualClassroom() {
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto my-3 pr-1" role="log" aria-label="Chat messages">
                 {chatMessages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center text-slate-400">
+                  <div className="h-full flex flex-col items-center justify-center text-center text-[#6d797d]">
                     <MessageSquare className="w-8 h-8 opacity-20 mb-2" />
                     <p className="text-xs">No messages yet. Say hello!</p>
                   </div>
                 ) : (
                   chatMessages.map((c, idx) => (
                     <div key={idx} className="flex gap-2">
-                      <div className="w-7 h-7 rounded-full bg-slate-200 text-[10px] font-bold text-slate-700 flex items-center justify-center shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-slate-200 text-[10px] font-bold text-[#131b2e] flex items-center justify-center shrink-0">
                         {c.user === 'You' ? 'ME' : c.user.split(' ').map(n=>n[0]).join('').toUpperCase()}
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-0.5">
-                          <span className="text-[11px] font-semibold text-slate-700">{c.user}</span>
-                          <span className="text-[9px] text-slate-400">{c.time}</span>
+                          <span className="text-[11px] font-semibold text-[#131b2e]">{c.user}</span>
+                          <span className="text-[9px] text-[#6d797d]">{c.time}</span>
                         </div>
-                        <p className="text-xs bg-slate-50 border border-slate-100 p-2 rounded-2xl rounded-tl-none text-slate-700 leading-relaxed">{c.msg}</p>
+                        <p className="text-xs bg-slate-50 border border-[#bcc9cd]/25 p-2 rounded-2xl rounded-tl-none text-[#131b2e] leading-relaxed">{c.msg}</p>
                       </div>
                     </div>
                   ))
                 )}
               </div>
-              <form onSubmit={handleSendChat} className="flex gap-2 pt-2 border-t border-slate-100">
+              <form onSubmit={handleSendChat} className="flex gap-2 pt-2 border-t border-[#bcc9cd]/25">
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
-                  className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:bg-white"
+                  className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-[#131b2e] placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-primary-500 focus:bg-white"
                   placeholder="Type a message…"
                   aria-label="Chat message input"
                   style={{ color: '#1e293b', backgroundColor: '#f8fafc' }}
@@ -863,7 +894,7 @@ export default function VirtualClassroom() {
             <div className="flex flex-col gap-4">
               <button
                 onClick={() => setActiveAlert({ type: 'info', message: 'Sign Language Input mode started.', flash: false, duration: 3000 })}
-                className="w-full py-4 rounded-2xl bg-gradient-to-br from-purple-500 to-primary-500 text-white font-bold flex items-center justify-center gap-3 shadow-lg hover:scale-[1.02] transition-transform"
+                className="w-full py-4 rounded-2xl bg-gradient-to-br from-[#00687a] to-[#006a63] text-white font-bold flex items-center justify-center gap-3 shadow-lg hover:scale-[1.02] transition-transform"
                 aria-label="Open sign language input"
               >
                 <HandMetal className="w-5 h-5" />
@@ -874,19 +905,19 @@ export default function VirtualClassroom() {
                   onClick={() => {
                     setActiveAlert({ type: 'success', message: 'Hand raised. Teacher has been notified.', flash: true, duration: 3000 });
                   }}
-                  className="p-4 rounded-2xl dark-glass hover:bg-slate-100 border border-slate-100 transition-all flex flex-col items-center gap-2 group"
+                  className="p-4 rounded-2xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 hover:bg-slate-100 border border-[#bcc9cd]/25 transition-all flex flex-col items-center gap-2 group"
                 >
-                  <HandMetal className="w-5 h-5 text-slate-400 group-hover:text-primary-500 transition-colors" />
-                  <span className="text-xs font-medium text-slate-600">Raise Hand</span>
+                  <HandMetal className="w-5 h-5 text-[#6d797d] group-hover:text-primary-500 transition-colors" />
+                  <span className="text-xs font-medium text-[#3d494c]">Raise Hand</span>
                 </button>
                 <button 
                   onClick={() => {
                     setActiveAlert({ type: 'info', message: 'Notes panel opened.', flash: false, duration: 2000 });
                   }}
-                  className="p-4 rounded-2xl dark-glass hover:bg-slate-100 border border-slate-100 transition-all flex flex-col items-center gap-2 group"
+                  className="p-4 rounded-2xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 hover:bg-slate-100 border border-[#bcc9cd]/25 transition-all flex flex-col items-center gap-2 group"
                 >
-                  <Settings className="w-5 h-5 text-slate-400 group-hover:text-primary-500 transition-colors" />
-                  <span className="text-xs font-medium text-slate-600">Take Notes</span>
+                  <Settings className="w-5 h-5 text-[#6d797d] group-hover:text-primary-500 transition-colors" />
+                  <span className="text-xs font-medium text-[#3d494c]">Take Notes</span>
                 </button>
               </div>
             </div>
@@ -896,35 +927,72 @@ export default function VirtualClassroom() {
 
         {/* ── Recorded Classes Section ── */}
         <div className="mt-16 border-t border-slate-200 pt-12">
-          <h2 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3 mb-8">
+          <h2 className="text-2xl font-display font-bold text-[#131b2e] flex items-center gap-3 mb-8">
             <Video className="w-7 h-7 text-primary-500" />
             Classroom Video Catalog
           </h2>
 
+          {user?.role === 'student' && courseProgress !== null && (
+            <div className="mb-8 p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-bold text-[#131b2e]">Your Course progression Progress</h3>
+                <p className="text-xs text-[#6d797d]">Complete quizzes with &ge; 35% to unlock subsequent lessons.</p>
+              </div>
+              <div className="w-full md:w-2/3 flex items-center gap-4">
+                <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-500 to-primary-500 transition-all duration-500" 
+                    style={{ width: `${courseProgress}%` }}
+                  />
+                </div>
+                <span className="text-sm font-bold text-emerald-600 shrink-0">{courseProgress}% Completed</span>
+              </div>
+            </div>
+          )}
+
           <div className="mb-12">
-            <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-[#131b2e] mb-4 flex items-center gap-2">
               <Video className="w-5 h-5 text-purple-400" />
               Classroom Lesson Videos
             </h3>
             {loadingVideos ? (
               <div className="flex justify-center py-6">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-500"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#00687a]"></div>
               </div>
             ) : videos.length === 0 ? (
               <div className="text-center py-8 bg-surface-800/30 rounded-xl border border-white/5 mb-8">
-                <p className="text-slate-500 text-sm">No uploaded lesson videos available yet.</p>
+                <p className="text-[#6d797d] text-sm">No uploaded lesson videos available yet.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {videos.map(video => (
                   <div 
                     key={video.video_id} 
-                    className="dark-glass rounded-2xl overflow-hidden border border-slate-100 transition-all duration-300 flex flex-col group cursor-pointer hover:border-primary-500/40 hover:shadow-lg"
+                    className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
+                      video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
+                    }`}
                     onClick={() => {
+                      if (video.is_locked) {
+                        setActiveAlert({
+                          type: 'warning',
+                          message: 'You must score at least 35% on the previous quiz to unlock this lesson.',
+                          flash: true,
+                          duration: 3000
+                        });
+                        return;
+                      }
                       const rawUrl = video.r2_url || video.processed_url || video.original_url || '';
-                      const videoUrl = rawUrl && rawUrl.startsWith('http') 
-                        ? rawUrl 
-                        : rawUrl ? `${API_BASE}${rawUrl}` : '';
+                      const authParam = user?.role === 'teacher' 
+                        ? `teacher_id=${user.id || 1}` 
+                        : `student_id=${user?.id || user?.user_id || 1}`;
+                      let videoUrl = rawUrl;
+                      if (rawUrl && !rawUrl.startsWith('http')) {
+                        videoUrl = `${API_BASE}${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
+                      } else if (rawUrl && (rawUrl.startsWith(API_BASE) || rawUrl.includes('/download-signed-video'))) {
+                        if (!rawUrl.includes('student_id=') && !rawUrl.includes('teacher_id=')) {
+                          videoUrl = `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
+                        }
+                      }
                       setVideoSrc(videoUrl);
                       setVideoTitle(video.title || "Uploaded Video");
                       setActiveRecording(null);
@@ -951,27 +1019,34 @@ export default function VirtualClassroom() {
                   >
                     <div className="relative aspect-video bg-slate-950 group">
                       <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                         <Video className="w-10 h-10 text-slate-500" />
+                         <Video className="w-10 h-10 text-[#6d797d]" />
                       </div>
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
-                        <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
-                          <Play className="w-5 h-5 fill-white ml-0.5" />
+                      {video.is_locked ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
+                          <Lock className="w-6 h-6 text-white/60 mb-2" />
+                          <span className="text-white/80 text-[10px] font-semibold px-4 text-center">Locked: complete previous quiz</span>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
+                          <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                            <Play className="w-5 h-5 fill-white ml-0.5" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                     
                     <div className="p-4 flex flex-col flex-1">
-                      <h3 className="font-bold text-slate-700 text-sm mb-1 truncate" title={video.title}>
+                      <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={video.title}>
                         {video.title}
                       </h3>
                       <div className="space-y-1 mt-auto">
-                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                           Uploader: {video.uploader}
                         </p>
-                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                           Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}
                         </p>
-                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                           Captions: <span className={video.status === 'done' ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>{video.captions_status}</span>
                         </p>
                       </div>
@@ -983,27 +1058,27 @@ export default function VirtualClassroom() {
           </div>
 
           <div>
-            <h3 className="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-[#131b2e] mb-4 flex items-center gap-2">
               <Video className="w-5 h-5 text-emerald-400" />
               Recorded Live Sessions
             </h3>
             {loadingRecordings ? (
               <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00687a]"></div>
               </div>
             ) : recordings.length === 0 ? (
-              <div className="text-center py-16 dark-glass rounded-3xl border border-slate-200">
+              <div className="text-center py-16 dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-3xl border border-slate-200">
                 <Video className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <h3 className="text-lg font-bold text-slate-700">No recordings found</h3>
-                <p className="text-slate-500 text-sm">Class recordings will appear here.</p>
+                <h3 className="text-lg font-bold text-[#131b2e]">No recordings found</h3>
+                <p className="text-[#6d797d] text-sm">Class recordings will appear here.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {recordings.map(recording => (
                   <div 
                     key={recording.recording_id} 
-                    className={`dark-glass rounded-2xl overflow-hidden border border-slate-100 transition-all duration-300 flex flex-col group ${
-                      recording.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-primary-500/40 cursor-pointer hover:shadow-lg'
+                    className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
+                      recording.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
                     }`}
                     onClick={() => {
                       if (recording.is_locked) return;
@@ -1040,7 +1115,7 @@ export default function VirtualClassroom() {
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                           <Video className="w-10 h-10 text-slate-500" />
+                           <Video className="w-10 h-10 text-[#6d797d]" />
                         </div>
                       )}
                       
@@ -1051,7 +1126,7 @@ export default function VirtualClassroom() {
                         </div>
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
-                          <div className="w-10 h-10 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                          <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
                             <Play className="w-5 h-5 fill-white ml-0.5" />
                           </div>
                         </div>
@@ -1063,25 +1138,25 @@ export default function VirtualClassroom() {
                     </div>
                     
                     <div className="p-4 flex flex-col flex-1">
-                      <h3 className="font-bold text-slate-700 text-sm mb-1 truncate" title={recording.class_title || "Virtual Class Session"}>
+                      <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={recording.class_title || "Virtual Class Session"}>
                         {recording.class_title || "Virtual Class Session"}
                       </h3>
                       
                       <div className="space-y-1 mt-auto">
-                        <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
+                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                           <Calendar className="w-3 h-3" />
                           {new Date(recording.recording_timestamp).toLocaleDateString()}
                         </p>
                       </div>
 
-                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                      <div className="flex items-center justify-between pt-3 mt-3 border-t border-[#bcc9cd]/25">
                         <a 
                           href={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
                           download
                           onClick={(e) => e.stopPropagation()}
                           className={`flex items-center gap-1.5 text-[10px] font-semibold transition-colors ${
                             recording.is_locked 
-                              ? 'text-slate-400 cursor-not-allowed pointer-events-none' 
+                              ? 'text-[#6d797d] cursor-not-allowed pointer-events-none' 
                               : 'text-primary-600 hover:text-primary-700'
                           }`}
                         >

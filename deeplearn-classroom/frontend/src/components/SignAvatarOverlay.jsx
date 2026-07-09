@@ -623,7 +623,7 @@ export default function SignAvatarOverlay({
         >
           {currentSign?.word || (isActive ? '• • •' : 'STAND BY')}
         </div>
-        <div className="text-[8px] text-slate-500 mt-0.5 tracking-widest uppercase">
+        <div className="text-[8px] text-[#6d797d] mt-0.5 tracking-widest uppercase">
           {label}
         </div>
       </div>
@@ -634,7 +634,7 @@ export default function SignAvatarOverlay({
           className="px-2 py-1.5 space-y-0.5 overflow-hidden"
           style={{ borderTop: `1px solid ${color.primary}11`, maxHeight: 80 }}
         >
-          <div className="text-[7px] text-slate-600 uppercase tracking-widest mb-1">
+          <div className="text-[7px] text-[#3d494c] uppercase tracking-widest mb-1">
             Queue ({signQueue.length})
           </div>
           <div className="flex flex-wrap gap-1">
@@ -670,12 +670,12 @@ export default function SignAvatarOverlay({
         style={{ borderTop: `1px solid ${color.primary}22` }}
       >
         {isProcessing ? (
-          <span className="flex items-center gap-1 text-[8px] text-slate-500">
+          <span className="flex items-center gap-1 text-[8px] text-[#6d797d]">
             <Loader2 style={{ width: 8, height: 8 }} className="animate-spin" />
             AI Processing
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-[8px] text-slate-600">
+          <span className="flex items-center gap-1 text-[8px] text-[#3d494c]">
             <Zap style={{ width: 7, height: 7, color: color.primary }} />
             {signCount} signs
           </span>

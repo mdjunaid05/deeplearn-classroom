@@ -32,7 +32,7 @@ export default function ProgressBar({ value, max = 100, label, color = 'primary'
     <div className="w-full" id={`progress-${label?.toLowerCase().replace(/\s+/g, '-') || 'bar'}`}>
       {(label || showPercent) && (
         <div className="flex items-center justify-between mb-1.5">
-          {label && <span className="text-xs font-medium text-slate-600">{label}</span>}
+          {label && <span className="text-xs font-medium text-[#3d494c]">{label}</span>}
           {showPercent && (
             <span className={`text-xs font-bold ${scheme.text}`}>
               {percent.toFixed(0)}%

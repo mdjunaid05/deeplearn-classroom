@@ -14,8 +14,8 @@ export default function TeacherRoute({ children }) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-500" />
-          <p className="text-sm text-slate-500">Verifying permissions…</p>
+          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#00687a]" />
+          <p className="text-sm text-[#6d797d]">Verifying permissions…</p>
         </div>
       </div>
     );

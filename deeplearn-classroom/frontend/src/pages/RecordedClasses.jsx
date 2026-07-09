@@ -71,28 +71,28 @@ export default function RecordedClasses() {
   );
 
   return (
-    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
+    <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background" role="main">
       <div className="mb-6 w-full max-w-3xl mx-auto">
         <VisualAlertBanner alert={activeAlert} onDismiss={() => setActiveAlert(null)} />
       </div>
 
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-display font-bold text-slate-800 flex items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold text-[#131b2e] flex items-center gap-3">
             <Video className="w-8 h-8 text-primary-500" />
             Recorded Classes
           </h1>
-          <p className="text-slate-600 mt-1">Access and manage your past live sessions</p>
+          <p className="text-[#3d494c] mt-1">Access and manage your past live sessions</p>
         </div>
         
         <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6d797d]" />
           <input
             type="text"
             placeholder="Search recordings..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 shadow-sm"
+            className="w-full pl-9 pr-4 py-2 rounded-xl bg-white border border-slate-200 text-sm text-[#131b2e] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500/50 shadow-sm"
           />
         </div>
       </div>
@@ -118,18 +118,18 @@ export default function RecordedClasses() {
 
       {loading ? (
         <div className="flex justify-center items-center py-20">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#00687a]"></div>
         </div>
       ) : filteredRecordings.length === 0 ? (
-        <div className="text-center py-20 glass rounded-3xl shadow-lg border border-slate-200/60">
+        <div className="text-center py-20 glass-panel card-shadow border border-[#bcc9cd]/40 rounded-3xl shadow-lg border border-[#bcc9cd]/40">
           <Video className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-slate-700 mb-2">No recordings found</h3>
-          <p className="text-slate-500">You haven't recorded any live classes yet.</p>
+          <h3 className="text-xl font-bold text-[#131b2e] mb-2">No recordings found</h3>
+          <p className="text-[#6d797d]">You haven't recorded any live classes yet.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRecordings.map(recording => (
-            <div key={recording.recording_id} className="glass rounded-2xl overflow-hidden shadow-lg hover:shadow-xl border border-slate-200/60 hover:border-primary-400 transition-all duration-300 flex flex-col group">
+            <div key={recording.recording_id} className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden shadow-lg hover:shadow-xl border border-[#bcc9cd]/40 hover:border-primary-400 transition-all duration-300 flex flex-col group">
               <div className="relative aspect-video bg-slate-900 group cursor-pointer" onClick={() => setSelectedVideo(recording)}>
                 {recording.thumbnail_path ? (
                   <img 
@@ -139,12 +139,12 @@ export default function RecordedClasses() {
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
-                     <Video className="w-12 h-12 text-slate-600" />
+                     <Video className="w-12 h-12 text-[#3d494c]" />
                   </div>
                 )}
                 
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
-                  <div className="w-12 h-12 rounded-full bg-primary-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                  <div className="w-12 h-12 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
                     <Play className="w-6 h-6 ml-1" />
                   </div>
                 </div>
@@ -160,22 +160,22 @@ export default function RecordedClasses() {
               </div>
               
               <div className="p-4 flex flex-col flex-1">
-                <h3 className="font-bold text-slate-800 mb-1 truncate" title={recording.class_title || "Virtual Class Session"}>
+                <h3 className="font-bold text-[#131b2e] mb-1 truncate" title={recording.class_title || "Virtual Class Session"}>
                   {recording.class_title || "Virtual Class Session"}
                 </h3>
                 
                 <div className="space-y-1 mb-4 flex-1">
-                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                  <p className="text-xs text-[#6d797d] flex items-center gap-1.5">
                     <Calendar className="w-3.5 h-3.5" />
                     {formatDate(recording.recording_timestamp)}
                   </p>
-                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                  <p className="text-xs text-[#6d797d] flex items-center gap-1.5">
                     <Clock className="w-3.5 h-3.5" />
                     Session: {recording.session_id.substring(0,8)}...
                   </p>
                 </div>
                 
-                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                <div className="flex items-center justify-between pt-3 border-t border-[#bcc9cd]/25">
                   <a 
                     href={`${API_BASE}/recordings/${recording.course_id}/${recording.session_id}/${recording.file_path}`}
                     download

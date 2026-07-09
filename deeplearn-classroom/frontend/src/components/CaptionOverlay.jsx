@@ -110,7 +110,7 @@ export default function CaptionOverlay({
 
           {/* Empty state - shown while active but no caption has arrived yet */}
           {isActive && !currentCaption && transcript.length === 0 && (
-            <p className="text-xs text-slate-500 italic animate-pulse">
+            <p className="text-xs text-[#6d797d] italic animate-pulse">
               {usingSimulation
                 ? 'Generating captions\u2026'
                 : 'Listening for speech\u2026 (captions appear here)'}
@@ -119,7 +119,7 @@ export default function CaptionOverlay({
 
           {/* Paused state - last caption shown dimly */}
           {!isActive && transcript.length > 0 && (
-            <p className="text-xs text-slate-600 italic text-center">
+            <p className="text-xs text-[#3d494c] italic text-center">
               Captions paused
             </p>
           )}

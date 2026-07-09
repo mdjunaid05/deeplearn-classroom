@@ -186,30 +186,23 @@ def get_recordings():
     rows = cursor.fetchall()
     recordings_list = [dict(zip(columns, row)) for row in rows]
     
-    # If student is viewing, determine lock status based on quiz scores
     if student_id:
-        # Get all quiz scores for this student
-        cursor.execute("SELECT recording_id, score, passed FROM quiz_scores WHERE student_id = ?", (student_id,))
-        scores = cursor.fetchall()
-        
-        # Determine if row elements are accessible via indices or keys
-        if scores and hasattr(scores[0], 'keys'):
-             passed_set = {s['recording_id'] for s in scores if s['passed']}
-        else:
-             passed_set = {s[0] for s in scores if s[2]} # index 0 is recording_id, index 2 is passed
-             
-        # First recording is always unlocked
-        is_locked = False
-        for i, rec in enumerate(recordings_list):
-            rec['is_locked'] = is_locked
-            if is_locked:
-                rec['locked_reason'] = "Complete previous quiz to continue"
-            else:
+        try:
+            from routes.quiz_analytics import get_student_progress_list
+            _, lessons = get_student_progress_list(student_id)
+            lock_map = {les["lesson_id"]: les["is_locked"] for les in lessons}
+            for rec in recordings_list:
+                lesson_id = f"r_{rec['recording_id']}"
+                rec['is_locked'] = lock_map.get(lesson_id, True)
+                if rec['is_locked']:
+                    rec['locked_reason'] = "You must score at least 35% on the previous quiz to unlock this lesson."
+                else:
+                    rec['locked_reason'] = None
+        except Exception as e:
+            print(f"Error checking recording lock status: {e}")
+            for rec in recordings_list:
+                rec['is_locked'] = False
                 rec['locked_reason'] = None
-                
-            # To unlock the NEXT recording, this recording's quiz must be passed
-            if rec['recording_id'] not in passed_set:
-                is_locked = True
                 
     # Sort DESC for displaying the newest first, if desired, or keep ASC for learning path.
     # Usually a learning path is displayed chronologically. Let's keep it ASC for the student path, or DESC for teachers.
@@ -226,6 +219,31 @@ def serve_recording(course_id, session_id, filename):
     import re
     if not re.match(r'^[a-zA-Z0-9\-]+$', session_id):
         return jsonify({"error": "Invalid session_id format"}), 400
+
+    student_id = request.args.get("student_id", type=int)
+    teacher_id = request.args.get("teacher_id", type=int)
+
+    if not student_id and not teacher_id:
+        return jsonify({"error": "Unauthorized: student_id or teacher_id is required.", "locked": True}), 403
+
+    if student_id:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT recording_id FROM recordings WHERE (file_path = ? OR thumbnail_path = ?) AND course_id = ?", (filename, filename, course_id))
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            recording_id = row[0]
+            try:
+                from routes.quiz_analytics import get_student_progress_list
+                _, lessons = get_student_progress_list(student_id)
+                lesson_id = f"r_{recording_id}"
+                for les in lessons:
+                    if les["lesson_id"] == lesson_id and les["is_locked"]:
+                        return jsonify({"error": "You must score at least 35% on the previous quiz to unlock this lesson.", "locked": True}), 403
+            except Exception as e:
+                print(f"Error serving locked recording check: {e}")
 
     filepath = os.path.join(RECORDINGS_DIR, str(course_id), session_id, secure_filename(filename))
     if not os.path.exists(filepath):

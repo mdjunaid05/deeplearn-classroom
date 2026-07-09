@@ -20,7 +20,7 @@ function ParticipantCard({ p }) {
   const initials = p.name?.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() || '??';
   return (
     <div className={`flex items-center gap-2.5 p-2.5 rounded-xl transition-all duration-300 ${
-      p.isSpeaking ? 'bg-cyan-50 border border-cyan-200 shadow-sm shadow-cyan-100' : 'bg-white border border-slate-100'
+      p.isSpeaking ? 'bg-cyan-50 border border-cyan-200 shadow-sm shadow-cyan-100' : 'bg-white border border-[#bcc9cd]/25'
     }`}>
       <div className="relative flex-shrink-0">
         <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm"
@@ -32,8 +32,8 @@ function ParticipantCard({ p }) {
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-semibold text-slate-800 truncate">{p.name}</p>
-        <p className="text-[10px] text-slate-400 capitalize">{p.role}</p>
+        <p className="text-xs font-semibold text-[#131b2e] truncate">{p.name}</p>
+        <p className="text-[10px] text-[#6d797d] capitalize">{p.role}</p>
       </div>
       <div className="flex gap-1">
         {p.is_muted    && <MicOff   className="w-3.5 h-3.5 text-red-400" />}
@@ -412,13 +412,13 @@ export default function LiveClassroom() {
   // ── Pre-class screen ────────────────────────────────────────────────────
   if (!isClassStarted) return (
     <div className="page-enter max-w-7xl mx-auto px-4 py-20 flex items-center justify-center min-h-[80vh]">
-      <div className="text-center glass p-10 rounded-3xl max-w-md w-full shadow-xl border border-slate-200/60">
+      <div className="text-center glass-panel card-shadow border border-[#bcc9cd]/40 p-10 rounded-3xl max-w-md w-full shadow-xl border border-[#bcc9cd]/40">
         <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-cyan-500/30">
           <Video className="w-12 h-12 text-white" />
           <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 border-2 border-white animate-pulse" />
         </div>
-        <h2 className="text-3xl font-display font-bold text-slate-800 mb-2">Live Session</h2>
-        <p className="text-slate-500 mb-2 text-sm">
+        <h2 className="text-3xl font-display font-bold text-[#131b2e] mb-2">Live Session</h2>
+        <p className="text-[#6d797d] mb-2 text-sm">
           {user?.role==='teacher' ? 'Start broadcasting to your students.' : 'Join the live class session.'}
         </p>
         <div className="flex items-center justify-center gap-1.5 text-xs text-cyan-600 bg-cyan-50 px-3 py-1.5 rounded-full w-fit mx-auto mb-6">
@@ -427,7 +427,7 @@ export default function LiveClassroom() {
         </div>
 
         <div className="mb-6 text-left">
-          <label htmlFor="live-room-input" className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">
+          <label htmlFor="live-room-input" className="block text-xs font-semibold text-[#6d797d] mb-1.5 uppercase tracking-wider">
             Classroom Room ID
           </label>
           <input
@@ -436,7 +436,7 @@ export default function LiveClassroom() {
             value={roomName}
             onChange={(e) => setRoomName(e.target.value.replace(/[^a-zA-Z0-9\-]/g, ''))}
             placeholder="e.g. math-101"
-            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+            className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-[#131b2e] text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
           />
         </div>
 
@@ -449,7 +449,7 @@ export default function LiveClassroom() {
   );
 
   return (
-    <div className="page-enter max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background">
       {activeAlert && (
         <VisualAlertBanner alert={activeAlert} onDismiss={() => setActiveAlert(null)} />
       )}
@@ -457,20 +457,20 @@ export default function LiveClassroom() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-display font-bold text-slate-800 flex items-center gap-3">
+          <h1 className="text-2xl font-display font-bold text-[#131b2e] flex items-center gap-3">
             <Video className="w-7 h-7 text-cyan-500" />
             Live Classroom
             <span className="flex items-center gap-1.5 text-xs font-semibold bg-red-500 text-white px-2.5 py-1 rounded-full ml-1">
               <span className="w-2 h-2 rounded-full bg-white animate-pulse" />LIVE
             </span>
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-[#6d797d] mt-1">
             {sessionId ? `Session: ${sessionId.slice(0,12)}…` : 'Local session'}
             {' · '}{participants.length} participant{participants.length!==1?'s':''}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <span className="text-sm font-mono bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg">{fmt(sessionTime)}</span>
+          <span className="text-sm font-mono bg-slate-100 text-[#131b2e] px-3 py-1.5 rounded-lg">{fmt(sessionTime)}</span>
           {isRecording && (
             <span className="flex items-center gap-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 px-3 py-1.5 rounded-lg">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
@@ -498,8 +498,8 @@ export default function LiveClassroom() {
             {isVideoOff && (
               <div className="absolute inset-0 bg-slate-900 flex items-center justify-center">
                 <div className="text-center">
-                  <VideoOff className="w-12 h-12 text-slate-500 mx-auto mb-2" />
-                  <p className="text-slate-400 text-sm">Camera off</p>
+                  <VideoOff className="w-12 h-12 text-[#6d797d] mx-auto mb-2" />
+                  <p className="text-[#6d797d] text-sm">Camera off</p>
                 </div>
               </div>
             )}
@@ -508,7 +508,7 @@ export default function LiveClassroom() {
               <div className="flex items-center gap-2 mb-1.5 justify-center">
                 {isListening
                   ? <span className="flex items-center gap-1.5 text-[10px] text-cyan-400 font-semibold tracking-wider"><span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />LIVE CAPTIONS</span>
-                  : <span className="flex items-center gap-1.5 text-[10px] text-slate-400"><WifiOff className="w-3 h-3"/>CAPTIONS OFF</span>
+                  : <span className="flex items-center gap-1.5 text-[10px] text-[#6d797d]"><WifiOff className="w-3 h-3"/>CAPTIONS OFF</span>
                 }
               </div>
               <p className="text-white text-sm text-center max-w-2xl mx-auto leading-relaxed min-h-[1.5rem]">
@@ -526,34 +526,34 @@ export default function LiveClassroom() {
           </div>
 
           {/* Controls */}
-          <div className="glass rounded-2xl border border-slate-200/60 p-3">
+          <div className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl border border-[#bcc9cd]/40 p-3">
             <div className="flex items-center justify-center gap-2.5 flex-wrap">
               <button onClick={() => setIsMuted(!isMuted)}
-                className={`p-3 rounded-xl transition-all duration-200 ${isMuted ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                className={`p-3 rounded-xl transition-all duration-200 ${isMuted ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-slate-100 text-[#131b2e] hover:bg-slate-200'}`}
                 title={isMuted?'Unmute':'Mute'}>
                 {isMuted ? <MicOff className="w-5 h-5"/> : <Mic className="w-5 h-5"/>}
               </button>
 
               <button onClick={() => setIsVideoOff(!isVideoOff)}
-                className={`p-3 rounded-xl transition-all duration-200 ${isVideoOff ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                className={`p-3 rounded-xl transition-all duration-200 ${isVideoOff ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-slate-100 text-[#131b2e] hover:bg-slate-200'}`}
                 title={isVideoOff?'Camera On':'Camera Off'}>
                 {isVideoOff ? <VideoOff className="w-5 h-5"/> : <Video className="w-5 h-5"/>}
               </button>
 
               <button onClick={() => setHandRaised(!handRaised)}
-                className={`p-3 rounded-xl transition-all duration-200 ${handRaised ? 'bg-amber-400 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                className={`p-3 rounded-xl transition-all duration-200 ${handRaised ? 'bg-amber-400 text-white' : 'bg-slate-100 text-[#131b2e] hover:bg-slate-200'}`}
                 title="Raise Hand">
                 <Hand className="w-5 h-5"/>
               </button>
 
               {user?.role==='teacher' && (<>
                 <button onClick={toggleScreenShare}
-                  className={`p-3 rounded-xl transition-all duration-200 ${isScreenSharing ? 'bg-cyan-500 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  className={`p-3 rounded-xl transition-all duration-200 ${isScreenSharing ? 'bg-cyan-500 text-white' : 'bg-slate-100 text-[#131b2e] hover:bg-slate-200'}`}
                   title="Screen Share">
                   <MonitorUp className="w-5 h-5"/>
                 </button>
                 {!isRecording
-                  ? <button onClick={startRecording} className="p-3 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition-all" title="Record"><Play className="w-5 h-5"/></button>
+                  ? <button onClick={startRecording} className="p-3 rounded-xl bg-slate-100 text-[#131b2e] hover:bg-slate-200 transition-all" title="Record"><Play className="w-5 h-5"/></button>
                   : <>
                       <button onClick={isRecordingPaused?resumeRecording:pauseRecording}
                         className="p-3 rounded-xl bg-amber-100 text-amber-700 hover:bg-amber-200 transition-all">
@@ -582,12 +582,12 @@ export default function LiveClassroom() {
 
           {/* Live transcript preview */}
           {transcript.length > 0 && (
-            <div className="glass rounded-xl border border-slate-200/60 p-4">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Live Transcript ({transcript.length} segments)</h3>
+            <div className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-xl border border-[#bcc9cd]/40 p-4">
+              <h3 className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider mb-2">Live Transcript ({transcript.length} segments)</h3>
               <div className="space-y-1 max-h-28 overflow-y-auto">
                 {transcript.slice(-6).map((seg, i) => (
-                  <p key={i} className="text-xs text-slate-600">
-                    <span className="font-mono text-slate-400 mr-2">{fmt(Math.floor(seg.start_time||0))}</span>
+                  <p key={i} className="text-xs text-[#3d494c]">
+                    <span className="font-mono text-[#6d797d] mr-2">{fmt(Math.floor(seg.start_time||0))}</span>
                     {seg.text}
                   </p>
                 ))}
@@ -597,13 +597,13 @@ export default function LiveClassroom() {
         </div>
 
         {/* Sidebar */}
-        <div className="glass rounded-2xl border border-slate-200/60 shadow-lg flex flex-col overflow-hidden" style={{maxHeight: 640}}>
+        <div className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl border border-[#bcc9cd]/40 shadow-lg flex flex-col overflow-hidden" style={{maxHeight: 640}}>
           {/* Tab switcher */}
-          <div className="flex border-b border-slate-200/60">
+          <div className="flex border-b border-[#bcc9cd]/40">
             {[{key:'participants', icon:Users, label:'People'}, {key:'chat', icon:MessageSquare, label:'Chat'}].map(({key,icon:Icon,label}) => (
               <button key={key} onClick={() => setActiveTab(key)}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-colors ${
-                  activeTab===key ? 'text-cyan-600 border-b-2 border-cyan-500 bg-cyan-50/50' : 'text-slate-500 hover:text-slate-700'}`}>
+                  activeTab===key ? 'text-cyan-600 border-b-2 border-cyan-500 bg-cyan-50/50' : 'text-[#6d797d] hover:text-[#131b2e]'}`}>
                 <Icon className="w-3.5 h-3.5"/>{label}
                 {key==='participants' && (
                   <span className="ml-0.5 text-[9px] bg-cyan-100 text-cyan-700 px-1.5 py-0.5 rounded-full font-bold">{participants.length}</span>
@@ -616,14 +616,14 @@ export default function LiveClassroom() {
           {activeTab==='participants' && (
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
               {participantsLoading && participants.length===0 && (
-                <div className="flex items-center justify-center py-8 gap-2 text-slate-400">
+                <div className="flex items-center justify-center py-8 gap-2 text-[#6d797d]">
                   <Loader2 className="w-4 h-4 animate-spin"/>Connecting…
                 </div>
               )}
               {participants.length===0 && !participantsLoading && (
                 <div className="text-center py-8">
                   <Users className="w-10 h-10 text-slate-200 mx-auto mb-2"/>
-                  <p className="text-xs text-slate-400">Waiting for participants…</p>
+                  <p className="text-xs text-[#6d797d]">Waiting for participants…</p>
                 </div>
               )}
               {participants.map((p, i) => <ParticipantCard key={p.user_id||i} p={p}/>)}
@@ -634,7 +634,7 @@ export default function LiveClassroom() {
           {activeTab==='chat' && (<>
             <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
               {chatMessages.length===0 && (
-                <p className="text-xs text-slate-400 text-center py-8">No messages yet. Say hi! 👋</p>
+                <p className="text-xs text-[#6d797d] text-center py-8">No messages yet. Say hi! 👋</p>
               )}
               {chatMessages.map((msg) => {
                 const isSelf = String(msg.user_id) === String(user?.user_id || user?.id);
@@ -643,15 +643,15 @@ export default function LiveClassroom() {
                   : '';
                 return (
                   <div key={msg.message_id} className={`rounded-xl px-3 py-2 border shadow-sm ${
-                    isSelf ? 'bg-cyan-50 border-cyan-100' : 'bg-white border-slate-100'
+                    isSelf ? 'bg-cyan-50 border-cyan-100' : 'bg-white border-[#bcc9cd]/25'
                   }`}>
                     <div className="flex items-center justify-between mb-0.5">
                       <span className={`text-xs font-semibold ${isSelf ? 'text-cyan-700' : 'text-cyan-600'}`}>
                         {isSelf ? 'You' : (msg.user_name || 'Anonymous')}
                       </span>
-                      <span className="text-[10px] text-slate-400">{timeStr}</span>
+                      <span className="text-[10px] text-[#6d797d]">{timeStr}</span>
                     </div>
-                    <p className="text-sm text-slate-700">{msg.message}</p>
+                    <p className="text-sm text-[#131b2e]">{msg.message}</p>
                   </div>
                 );
               })}
@@ -661,7 +661,7 @@ export default function LiveClassroom() {
               <div className="flex gap-2">
                 <input type="text" value={chatInput} onChange={e=>setChatInput(e.target.value)}
                   placeholder="Type a message…"
-                  className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/40"/>
+                  className="flex-1 px-3 py-2 rounded-lg bg-slate-50 border border-slate-200 text-[#131b2e] text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/40"/>
                 <button type="submit" className="p-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white transition-colors">
                   <Send className="w-4 h-4"/>
                 </button>

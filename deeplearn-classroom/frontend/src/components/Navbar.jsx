@@ -77,22 +77,22 @@ export default function Navbar() {
   const roleLabel = isTeacher ? 'Teacher' : 'Student';
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/60 shadow-sm">
+    <nav className="fixed top-0 left-0 right-0 z-50 bg-[#faf8ff]/85 backdrop-blur-xl border-b border-[#bcc9cd]/40 shadow-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2.5 group" id="nav-logo">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center
+            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#00687a] to-[#006a63] flex items-center justify-center
                             transition-transform group-hover:scale-110 shadow-sm">
               <Brain className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-display font-bold gradient-text hidden sm:block">
-              DeepLearn
+            <span className="text-lg font-bold bg-gradient-to-r from-[#00687a] to-[#006a63] bg-clip-text text-transparent hidden sm:block">
+              Lumina Edu
             </span>
           </Link>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center gap-0.5 overflow-x-auto no-scrollbar max-w-[55%]">
+          <div className="hidden md:flex items-center gap-1 overflow-x-auto no-scrollbar max-w-[55%]">
             {navLinks.map(({ path, label, icon: Icon }) => {
               const isActive = location.pathname === path;
               return (
@@ -100,10 +100,10 @@ export default function Navbar() {
                   key={path}
                   to={path}
                   id={`nav-${label.toLowerCase().replace(/\s+/g, '-')}`}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold transition-all duration-200 whitespace-nowrap
                     ${isActive
-                      ? 'bg-primary-100 text-primary-600 shadow-sm'
-                      : 'text-slate-500 hover:text-primary-600 hover:bg-primary-50'
+                      ? 'bg-[#06b6d4]/10 text-[#00687a] shadow-sm border border-[#06b6d4]/20'
+                      : 'text-[#3d494c] hover:text-[#00687a] hover:bg-[#f2f3ff]'
                     }`}
                 >
                   <Icon className="w-4 h-4 shrink-0" />
@@ -119,31 +119,31 @@ export default function Navbar() {
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-all duration-200"
+                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-[#f2f3ff] transition-all duration-200"
                   id="nav-user-menu"
                 >
                   {/* Avatar */}
-                  <div className={`w-8 h-8 rounded-lg ${roleBg} text-white text-xs font-bold flex items-center justify-center shadow-sm`}>
+                  <div className={`w-8 h-8 rounded-lg bg-[#00687a] text-white text-xs font-bold flex items-center justify-center shadow-sm`}>
                     {getInitials()}
                   </div>
                   <div className="hidden lg:block text-left">
-                    <p className="text-sm font-semibold text-slate-700 leading-tight">{user?.name}</p>
-                    <p className="text-[10px] text-slate-400 uppercase tracking-wider font-medium">{roleLabel}</p>
+                    <p className="text-sm font-semibold text-[#131b2e] leading-tight">{user?.name}</p>
+                    <p className="text-[10px] text-[#3d494c] uppercase tracking-wider font-semibold">{roleLabel}</p>
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-4 h-4 text-[#3d494c] transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* Dropdown */}
                 {showUserMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-20 animate-fade-in">
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-[#bcc9cd]/40 overflow-hidden z-20 animate-fade-in">
                       {/* User info header */}
-                      <div className="px-4 py-3 bg-slate-50 border-b border-slate-100">
-                        <p className="text-sm font-semibold text-slate-800">{user?.name}</p>
-                        <p className="text-xs text-slate-500 truncate">{user?.email}</p>
+                      <div className="px-4 py-3 bg-[#faf8ff] border-b border-[#bcc9cd]/25">
+                        <p className="text-sm font-semibold text-[#131b2e]">{user?.name}</p>
+                        <p className="text-xs text-[#3d494c] truncate">{user?.email}</p>
                         <span className={`inline-block mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
-                                         ${isTeacher ? 'bg-purple-100 text-purple-600' : 'bg-primary-100 text-primary-600'}`}>
+                                         ${isTeacher ? 'bg-[#9cf2e8]/30 text-[#006a63]' : 'bg-[#06b6d4]/10 text-[#00687a]'}`}>
                           {roleLabel}
                         </span>
                       </div>
@@ -153,7 +153,7 @@ export default function Navbar() {
                         <Link
                           to={isTeacher ? '/teacher' : '/student'}
                           onClick={() => setShowUserMenu(false)}
-                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#3d494c] hover:bg-[#f2f3ff] hover:text-[#00687a] transition-colors"
                         >
                           <LayoutDashboard className="w-4 h-4" />
                           My Dashboard
@@ -162,7 +162,7 @@ export default function Navbar() {
                           <Link
                             to="/engagement"
                             onClick={() => setShowUserMenu(false)}
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-primary-50 hover:text-primary-600 transition-colors"
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#3d494c] hover:bg-[#f2f3ff] hover:text-[#00687a] transition-colors"
                           >
                             <BarChart3 className="w-4 h-4" />
                             Analytics
@@ -171,7 +171,7 @@ export default function Navbar() {
                       </div>
 
                       {/* Logout */}
-                      <div className="border-t border-slate-100 py-1">
+                      <div className="border-t border-[#bcc9cd]/25 py-1">
                         <button
                           onClick={handleLogout}
                           className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
@@ -189,16 +189,14 @@ export default function Navbar() {
                 <Link
                   to="/login"
                   id="nav-login"
-                  className="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-primary-600 hover:bg-primary-50 transition-all duration-200"
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-[#3d494c] hover:text-[#00687a] hover:bg-[#f2f3ff] transition-all duration-200"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/register"
                   id="nav-register"
-                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-primary-600 to-purple-600
-                             hover:from-primary-500 hover:to-purple-500 text-white transition-all duration-200
-                             shadow-md shadow-primary-600/20 hover:shadow-primary-500/30"
+                  className="btn-primary px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all duration-200"
                 >
                   Sign Up
                 </Link>
@@ -209,7 +207,7 @@ export default function Navbar() {
           {/* Mobile menu button */}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="md:hidden p-2 rounded-lg text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-colors shrink-0"
+            className="md:hidden p-2 rounded-lg text-[#3d494c] hover:text-[#131b2e] hover:bg-slate-100 transition-colors shrink-0"
             id="nav-mobile-toggle"
           >
             {isOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -219,15 +217,15 @@ export default function Navbar() {
 
       {/* Mobile Navigation */}
       {isOpen && (
-        <div className="md:hidden bg-white border-t border-slate-200/60 animate-slide-up max-h-[80vh] overflow-y-auto shadow-lg">
+        <div className="md:hidden bg-white border-t border-[#bcc9cd]/40 animate-slide-up max-h-[80vh] overflow-y-auto shadow-lg">
           {/* Mobile user info */}
           {isAuthenticated && (
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-3">
+            <div className="px-4 py-3 bg-slate-50 border-b border-[#bcc9cd]/25 flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg ${roleBg} text-white text-sm font-bold flex items-center justify-center`}>
                 {getInitials()}
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-800">{user?.name}</p>
+                <p className="text-sm font-semibold text-[#131b2e]">{user?.name}</p>
                 <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider
                                  ${isTeacher ? 'bg-purple-100 text-purple-600' : 'bg-primary-100 text-primary-600'}`}>
                   {roleLabel}
@@ -247,7 +245,7 @@ export default function Navbar() {
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all
                     ${isActive
                       ? 'bg-primary-100 text-primary-600'
-                      : 'text-slate-600 hover:text-primary-600 hover:bg-primary-50'
+                      : 'text-[#3d494c] hover:text-primary-600 hover:bg-primary-50'
                     }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -256,7 +254,7 @@ export default function Navbar() {
               );
             })}
 
-            <div className="pt-2 border-t border-slate-100 mt-2">
+            <div className="pt-2 border-t border-[#bcc9cd]/25 mt-2">
               {isAuthenticated ? (
                 <button
                   onClick={handleLogout}

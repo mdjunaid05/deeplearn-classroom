@@ -78,6 +78,7 @@ def upload_video():
 
     filename        = secure_filename(file.filename)
     title           = request.form.get("title") or file.filename
+    print(f"[VIDEO_UPLOAD_STARTED] filename={filename}", flush=True)
     print(f"[UPLOAD_STARTED] filename={filename}", flush=True)
     print(f"[VIDEO_RECEIVED] route=upload-video filename={filename}")
     print(f"[CAPTION_REQUEST_STARTED] route=upload-video filename={filename}")
@@ -87,6 +88,7 @@ def upload_video():
 
     # ── Save to local disk first ──────────────────────────────────────────────
     file.save(input_path)
+    print(f"[VIDEO_UPLOAD_SUCCESS] filename={filename}", flush=True)
 
     if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
         return jsonify({"error": "Upload failed: file is empty or could not be saved"}), 500
@@ -122,6 +124,7 @@ def upload_video():
         video_id = cursor.lastrowid
         conn.commit()
         print("[DATABASE_SAVE_SUCCESS]", flush=True)
+        print(f"[VIDEO_SAVED_TO_DATABASE] video_id={video_id} filename={filename}", flush=True)
         print(f"[VIDEO_RECORD_CREATED] video_id={video_id}", flush=True)
     except Exception as db_err:
         conn.rollback()
@@ -142,6 +145,7 @@ def upload_video():
             cursor.execute("UPDATE videos SET original_url = ?, r2_url = ? WHERE video_id = ?", (url, url, video_id))
             conn.commit()
             print("[DATABASE_SAVE_SUCCESS]", flush=True)
+            print(f"[VIDEO_SAVED_TO_DATABASE] video_id={video_id} updated with r2_url", flush=True)
         except Exception as e:
             conn.rollback()
             print(f"Error updating original R2 URL in DB: {e}", flush=True)
@@ -171,6 +175,8 @@ def get_videos():
     """
     Return all videos from the database.
     """
+    student_id = request.args.get("student_id", type=int)
+    print(f"[VIDEO_FETCH_REQUEST] student_id={student_id}", flush=True)
     from database.db import get_db_connection
     conn = get_db_connection()
     cursor = conn.cursor()
@@ -201,6 +207,18 @@ def get_videos():
             # Add captions status based on status column
             video_dict["captions_status"] = "available" if video_dict.get("status") == "done" else "unavailable"
             
+            # Map local absolute paths to web-accessible URLs
+            auth_query = f"&student_id={student_id}" if student_id else ""
+            p_url = video_dict.get("processed_url")
+            if p_url and not is_r2_url(p_url):
+                rel_name = os.path.basename(p_url)
+                video_dict["processed_url"] = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel_name}{auth_query}"
+            
+            o_url = video_dict.get("original_url")
+            if o_url and not is_r2_url(o_url):
+                rel_name = os.path.basename(o_url)
+                video_dict["original_url"] = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel_name}{auth_query}"
+
             # Map values defensively to guarantee matches with both naming conventions
             video_dict["R2 URL"] = video_dict.get("r2_url") or video_dict.get("processed_url") or video_dict.get("original_url")
             video_dict["upload timestamp"] = video_dict.get("uploaded_at")
@@ -212,7 +230,24 @@ def get_videos():
             
             videos_list.append(video_dict)
             
+        if student_id:
+            try:
+                from routes.quiz_analytics import get_student_progress_list
+                _, lessons = get_student_progress_list(student_id)
+                lock_map = {les["lesson_id"]: les["is_locked"] for les in lessons}
+                for v in videos_list:
+                    lesson_id = f"v_{v['video_id']}"
+                    v["is_locked"] = lock_map.get(lesson_id, True)
+            except Exception as e:
+                print(f"Error setting video locks: {e}")
+                for v in videos_list:
+                    v["is_locked"] = False
+        else:
+            for v in videos_list:
+                v["is_locked"] = False
+
         print(f"[VIDEO_LIST_FETCHED] count={len(videos_list)}", flush=True)
+        print(f"[VIDEO_URL_RETURNED] count={len(videos_list)}", flush=True)
         return jsonify({"videos": videos_list})
     except Exception as e:
         print(f"Error fetching videos: {e}", flush=True)
@@ -280,15 +315,43 @@ def _find_video_url_in_db(video_id=None, filename=None):
     return None, None
 
 
+def is_video_locked_for_student(video_id, student_id, filename=None):
+    if not student_id:
+        return False
+    try:
+        from database.db import get_db_connection
+        if not video_id and filename:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT video_id FROM videos WHERE filename = ? OR title = ?", (filename, filename))
+            row = cursor.fetchone()
+            if row:
+                video_id = row[0]
+            conn.close()
+            
+        if not video_id:
+            return False
+            
+        from routes.quiz_analytics import get_student_progress_list
+        _, lessons = get_student_progress_list(student_id)
+        lesson_id = f"v_{video_id}"
+        for les in lessons:
+            if les["lesson_id"] == lesson_id:
+                return les["is_locked"]
+    except Exception as e:
+        print(f"Error checking lock status: {e}", flush=True)
+    return False
+
+
 # ── GET /download-signed-video ────────────────────────────────────────────────
 
 @video_bp.route("/download-signed-video", methods=["GET"])
 def download_signed_video():
     """
-    Return the processed video.
+    Return the processed video inline for browser streaming.
 
     If R2 is configured: 307 redirect → browser fetches directly from Cloudflare.
-    If local mode:       stream file via send_file() as before.
+    If local mode:       stream file inline via send_file(..., as_attachment=False, conditional=True).
 
     Query params:
         job_id   (optional) — used to look up the R2 URL from job state
@@ -298,6 +361,16 @@ def download_signed_video():
     job_id   = request.args.get("job_id")
     video_id = request.args.get("video_id", type=int)
     filename = request.args.get("filename", "")
+    student_id = request.args.get("student_id", type=int)
+    teacher_id = request.args.get("teacher_id", type=int)
+
+    print(f"[VIDEO_PLAY_REQUEST] video_id={video_id} filename={filename}", flush=True)
+
+    if not student_id and not teacher_id:
+        return jsonify({"error": "Unauthorized: student_id or teacher_id is required.", "locked": True}), 403
+
+    if student_id and is_video_locked_for_student(video_id, student_id, filename):
+        return jsonify({"error": "You must score at least 35% on the previous quiz to unlock this lesson.", "locked": True}), 403
 
     # 1. Prefer looking up R2 URL from job state
     if job_id:
@@ -312,14 +385,29 @@ def download_signed_video():
         if is_r2_url(db_url):
             return redirect(db_url, code=307)
         if os.path.exists(db_url):
-            return send_file(db_url, as_attachment=True)
+            print(f"[VIDEO_STREAM_STARTED] path={db_url}", flush=True)
+            try:
+                return send_file(db_url, as_attachment=False, conditional=True, mimetype="video/mp4")
+            except Exception as e:
+                print(f"[VIDEO_STREAM_FAILED] path={db_url} error={e}", flush=True)
+                raise
         if db_filename:
             local_processed = os.path.join(PROCESSED_FOLDER, f"signed_{db_filename}")
             if os.path.exists(local_processed):
-                return send_file(local_processed, as_attachment=True)
+                print(f"[VIDEO_STREAM_STARTED] path={local_processed}", flush=True)
+                try:
+                    return send_file(local_processed, as_attachment=False, conditional=True, mimetype="video/mp4")
+                except Exception as e:
+                    print(f"[VIDEO_STREAM_FAILED] path={local_processed} error={e}", flush=True)
+                    raise
             local_original = os.path.join(UPLOAD_FOLDER, db_filename)
             if os.path.exists(local_original):
-                return send_file(local_original, as_attachment=True)
+                print(f"[VIDEO_STREAM_STARTED] path={local_original}", flush=True)
+                try:
+                    return send_file(local_original, as_attachment=False, conditional=True, mimetype="video/mp4")
+                except Exception as e:
+                    print(f"[VIDEO_STREAM_FAILED] path={local_original} error={e}", flush=True)
+                    raise
 
     # 3. Fallback: construct URL from filename
     if not filename:
@@ -335,11 +423,22 @@ def download_signed_video():
                 return redirect(pub_url, code=307)
         local_path = os.path.join(PROCESSED_FOLDER, name)
         if os.path.exists(local_path):
-            return send_file(local_path, as_attachment=True)
+            print(f"[VIDEO_STREAM_STARTED] path={local_path}", flush=True)
+            try:
+                return send_file(local_path, as_attachment=False, conditional=True, mimetype="video/mp4")
+            except Exception as e:
+                print(f"[VIDEO_STREAM_FAILED] path={local_path} error={e}", flush=True)
+                raise
         local_upload_path = os.path.join(UPLOAD_FOLDER, name)
         if os.path.exists(local_upload_path):
-            return send_file(local_upload_path, as_attachment=True)
+            print(f"[VIDEO_STREAM_STARTED] path={local_upload_path}", flush=True)
+            try:
+                return send_file(local_upload_path, as_attachment=False, conditional=True, mimetype="video/mp4")
+            except Exception as e:
+                print(f"[VIDEO_STREAM_FAILED] path={local_upload_path} error={e}", flush=True)
+                raise
 
+    print(f"[VIDEO_STREAM_FAILED] file not found filename={filename}", flush=True)
     return jsonify({"error": "File not found. Processing may still be in progress."}), 404
 
 
@@ -358,36 +457,56 @@ def get_video_url():
     job_id   = request.args.get("job_id")
     video_id = request.args.get("video_id", type=int)
     filename = request.args.get("filename", "")
+    student_id = request.args.get("student_id", type=int)
+    teacher_id = request.args.get("teacher_id", type=int)
+
+    print(f"[VIDEO_FETCH_REQUEST] video_id={video_id} job_id={job_id} filename={filename}", flush=True)
+
+    if not student_id and not teacher_id:
+        return jsonify({"error": "Unauthorized: student_id or teacher_id is required.", "locked": True}), 403
+
+    if student_id and is_video_locked_for_student(video_id, student_id, filename):
+        return jsonify({"error": "You must score at least 35% on the previous quiz to unlock this lesson.", "locked": True}), 403
+
+    auth_query = f"&student_id={student_id}" if student_id else f"&teacher_id={teacher_id}"
 
     # 1. Prefer looking up R2 URL from job state
     if job_id:
         state = get_job_status(job_id)
         video_url = state.get("video_url", "")
         if video_url:
+            print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
             return jsonify({"video_url": video_url, "source": "job_state"})
 
     # 2. Try database lookup by video_id or filename
     db_url, db_filename = _find_video_url_in_db(video_id=video_id, filename=filename)
     if db_url:
         if is_r2_url(db_url):
+            print(f"[VIDEO_URL_RETURNED] video_url={db_url}", flush=True)
             return jsonify({"video_url": db_url, "source": "database_r2"})
         if os.path.exists(db_url):
             rel_name = os.path.basename(db_url)
+            video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel_name}{auth_query}"
+            print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
             return jsonify({
-                "video_url": f"/download-signed-video?filename={rel_name}",
+                "video_url": video_url,
                 "source": "database_local"
             })
         if db_filename:
             local_processed = os.path.join(PROCESSED_FOLDER, f"signed_{db_filename}")
             if os.path.exists(local_processed):
+                video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename=signed_{db_filename}{auth_query}"
+                print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
                 return jsonify({
-                    "video_url": f"/download-signed-video?filename=signed_{db_filename}",
+                    "video_url": video_url,
                     "source": "database_local_processed"
                 })
             local_original = os.path.join(UPLOAD_FOLDER, db_filename)
             if os.path.exists(local_original):
+                video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename={db_filename}{auth_query}"
+                print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
                 return jsonify({
-                    "video_url": f"/download-signed-video?filename={db_filename}",
+                    "video_url": video_url,
                     "source": "database_local_original"
                 })
 
@@ -401,18 +520,23 @@ def get_video_url():
         if _r2_enabled():
             r2_key  = make_r2_key("processed", name)
             pub_url = get_public_url(r2_key)
+            print(f"[VIDEO_URL_RETURNED] video_url={pub_url}", flush=True)
             return jsonify({"video_url": pub_url, "source": "r2"})
 
         local_path = os.path.join(PROCESSED_FOLDER, name)
         if os.path.exists(local_path):
+            video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename={name}{auth_query}"
+            print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
             return jsonify({
-                "video_url": f"/download-signed-video?filename={name}",
+                "video_url": video_url,
                 "source": "local_processed"
             })
         local_upload_path = os.path.join(UPLOAD_FOLDER, name)
         if os.path.exists(local_upload_path):
+            video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename={name}{auth_query}"
+            print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
             return jsonify({
-                "video_url": f"/download-signed-video?filename={name}",
+                "video_url": video_url,
                 "source": "local_original"
             })
 
@@ -442,12 +566,14 @@ def extract_captions():
 
     filename   = secure_filename(file.filename)
     title      = request.form.get("title") or file.filename
+    print(f"[VIDEO_UPLOAD_STARTED] filename={filename}", flush=True)
     print(f"[UPLOAD_STARTED] filename={filename}", flush=True)
     print(f"[VIDEO_RECEIVED] route=extract-captions filename={filename}")
     print(f"[CAPTION_REQUEST_STARTED] route=extract-captions filename={filename}")
     
     input_path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(input_path)
+    print(f"[VIDEO_UPLOAD_SUCCESS] filename={filename}", flush=True)
 
     if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
         return jsonify({"error": "Upload failed: file is empty or could not be saved"}), 500
@@ -482,6 +608,7 @@ def extract_captions():
         video_id = cursor.lastrowid
         conn.commit()
         print("[DATABASE_SAVE_SUCCESS]", flush=True)
+        print(f"[VIDEO_SAVED_TO_DATABASE] video_id={video_id} filename={filename}", flush=True)
         print(f"[VIDEO_RECORD_CREATED] video_id={video_id}", flush=True)
     except Exception as db_err:
         conn.rollback()
