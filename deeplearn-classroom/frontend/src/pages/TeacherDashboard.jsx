@@ -3,7 +3,8 @@ import {
   Users, BarChart3, TrendingUp, Filter, Search,
   ArrowUpRight, ArrowDownRight, Minus, Video, Brain,
   AlertTriangle, CheckCircle, Shield, Eye, Award, Activity,
-  RefreshCw, Download, FileSpreadsheet, FileText, ChevronRight, BookOpen, Trophy
+  RefreshCw, Download, FileSpreadsheet, FileText, ChevronRight, BookOpen, Trophy,
+  MoreVertical, Trash2, Pencil, X, Save, Archive, Play, Loader2, AlertCircle
 } from 'lucide-react';
 import { BehaviourBarChart, BehaviourPieChart } from '../components/BehaviourChart';
 import { EngagementAreaChart } from '../components/EngagementChart';
@@ -227,10 +228,90 @@ export default function TeacherDashboard() {
   };
 
   const [videos, setVideos] = useState([]);
+  const [videoActionMenu, setVideoActionMenu] = useState(null);   // video_id with open ⋮ menu
+  const [deleteConfirm, setDeleteConfirm]   = useState(null);     // video object awaiting confirm
+  const [deletingVideoId, setDeletingVideoId] = useState(null);   // video_id being deleted
+  const [editVideo, setEditVideo]           = useState(null);     // video object being edited
+  const [editForm, setEditForm]             = useState({});       // edit form state
+  const [savingEdit, setSavingEdit]         = useState(false);    // saving edit in progress
+  const [videoToast, setVideoToast]         = useState(null);     // {type:'success'|'error', msg}
+
+  // Get teacher_id from localStorage (set on login) — same approach used by VideoUpload.jsx
+  const getTeacherId = () => {
+    try {
+      const stored = localStorage.getItem('user') || localStorage.getItem('teacher');
+      if (stored) {
+        const u = JSON.parse(stored);
+        return u.teacher_id || u.id || u.user_id || 1;
+      }
+    } catch { /* ignore */ }
+    return 1;
+  };
+
+  const showVideoToast = (type, msg) => {
+    setVideoToast({ type, msg });
+    setTimeout(() => setVideoToast(null), 4000);
+  };
+
+  const handleDeleteVideo = async (video) => {
+    const teacherId = getTeacherId();
+    setDeletingVideoId(video.video_id);
+    try {
+      const res = await fetch(
+        `${API_BASE}/videos/${video.video_id}?teacher_id=${teacherId}`,
+        { method: 'DELETE' }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Delete failed (${res.status})`);
+      // Remove from local state immediately — no page reload needed
+      setVideos(prev => prev.filter(v => v.video_id !== video.video_id));
+      showVideoToast('success', 'Video deleted successfully.');
+      console.log(`[DELETE_VIDEO] video_id=${video.video_id} removed from UI`);
+    } catch (err) {
+      console.error('[DELETE_VIDEO] Error:', err.message);
+      showVideoToast('error', `Delete failed: ${err.message}`);
+    } finally {
+      setDeletingVideoId(null);
+      setDeleteConfirm(null);
+    }
+  };
+
+  const handleEditSave = async () => {
+    if (!editVideo) return;
+    const teacherId = getTeacherId();
+    setSavingEdit(true);
+    try {
+      const res = await fetch(
+        `${API_BASE}/videos/${editVideo.video_id}?teacher_id=${teacherId}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(editForm),
+        }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `Update failed (${res.status})`);
+      // Update the video card in-place
+      setVideos(prev => prev.map(v =>
+        v.video_id === editVideo.video_id
+          ? { ...v, ...editForm, title: editForm.title || v.title }
+          : v
+      ));
+      showVideoToast('success', 'Video details updated.');
+      setEditVideo(null);
+      setEditForm({});
+    } catch (err) {
+      console.error('[UPDATE_VIDEO] Error:', err.message);
+      showVideoToast('error', `Update failed: ${err.message}`);
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const fetchVideos = async () => {
     try {
-      const res = await fetch(`${API_BASE}/videos?teacher_id=1`);
+      const teacherId = getTeacherId();
+      const res = await fetch(`${API_BASE}/videos?teacher_id=${teacherId}`);
       if (res.ok) {
         const json = await res.json();
         setVideos(json.videos || []);
@@ -240,6 +321,7 @@ export default function TeacherDashboard() {
       console.error('Failed to fetch videos:', err);
     }
   };
+
 
   useEffect(() => {
     const loadingTimer = setTimeout(() => {
@@ -1128,69 +1210,197 @@ export default function TeacherDashboard() {
         </div>
       )}
 
-      {/* Video Upload & Processing Queue */}
-      <div className="mt-8 p-6 rounded-[24px] glass-panel mb-8 card-shadow border border-[#bcc9cd]/40 transition-all duration-300">
+      {/* ── Toast Notification ─────────────────────────────────────── */}
+      {videoToast && (
+        <div className={`fixed top-5 right-5 z-[200] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border text-sm font-semibold animate-fade-in transition-all duration-300 ${
+          videoToast.type === 'success'
+            ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+            : 'bg-red-50 border-red-200 text-red-700'
+        }`}>
+          {videoToast.type === 'success'
+            ? <CheckCircle className="w-4 h-4 shrink-0" />
+            : <AlertCircle className="w-4 h-4 shrink-0" />}
+          {videoToast.msg}
+          <button onClick={() => setVideoToast(null)} className="ml-2 opacity-60 hover:opacity-100">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
+      {/* ── Video Management Section ────────────────────────────────── */}
+      <div
+        className="mt-8 p-6 rounded-[24px] glass-panel mb-8 card-shadow border border-[#bcc9cd]/40 transition-all duration-300"
+        onClick={() => setVideoActionMenu(null)}
+      >
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-[#131b2e] flex items-center gap-2">
-            <Users className="w-5 h-5 text-purple-400" aria-hidden="true" />
-            Signed Video Processing Queue
+            <Video className="w-5 h-5 text-purple-400" aria-hidden="true" />
+            Video Library
+            {videos.length > 0 && (
+              <span className="ml-1 text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-bold">
+                {videos.length}
+              </span>
+            )}
           </h3>
           <div className="flex gap-3">
-            <a href="/recordings" className="px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+            <a
+              href="/recordings"
+              className="px-4 py-2 bg-primary-600 hover:bg-primary-500 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+            >
               <Video className="w-4 h-4" /> Recorded Classes
             </a>
-            <a href="/video-upload" className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-semibold transition-colors">
-              Upload New Video
+            <a
+              href="/video-upload"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+            >
+              <Archive className="w-4 h-4" /> Upload New Video
             </a>
           </div>
         </div>
 
         {videos.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-center bg-surface-800/30 rounded-xl border border-white/5 shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
-            <p className="text-[#3d494c] text-sm">No videos currently in processing queue.</p>
+          <div className="flex flex-col items-center justify-center py-12 text-center bg-surface-800/30 rounded-xl border border-white/5 shadow-lg">
+            <Video className="w-10 h-10 text-[#bcc9cd] mb-3" />
+            <p className="text-[#3d494c] text-sm font-medium">No videos uploaded yet.</p>
+            <p className="text-[#6d797d] text-xs mt-1">Click "Upload New Video" to get started.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {videos.map(video => (
-              <div key={video.video_id} className="glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden shadow-lg border border-[#bcc9cd]/40 p-5 flex flex-col justify-between hover:border-primary-400 transition-all duration-200">
+              <div
+                key={video.video_id}
+                className="relative glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-visible shadow-lg p-5 flex flex-col justify-between hover:border-primary-400 transition-all duration-200"
+              >
+                {/* ── Card Header ── */}
                 <div>
-                  <div className="flex justify-between items-start mb-3">
-                    <h4 className="font-bold text-[#131b2e] text-sm truncate max-w-[180px]" title={video.title}>
+                  <div className="flex justify-between items-start mb-3 gap-2">
+                    <h4
+                      className="font-bold text-[#131b2e] text-sm truncate max-w-[160px]"
+                      title={video.title}
+                    >
                       {video.title}
                     </h4>
-                    <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-                      video.status === 'done' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' :
-                      video.status === 'error' ? 'bg-red-500/10 text-red-600 border border-red-500/20' :
-                      'bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse'
-                    }`}>
-                      {video.status.toUpperCase()}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                        video.status === 'done'
+                          ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20'
+                          : video.status === 'error'
+                          ? 'bg-red-500/10 text-red-600 border border-red-500/20'
+                          : 'bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse'
+                      }`}>
+                        {(video.status || 'unknown').toUpperCase()}
+                      </span>
+
+                      {/* ── Three-dot Action Menu ── */}
+                      <div className="relative" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => setVideoActionMenu(
+                            videoActionMenu === video.video_id ? null : video.video_id
+                          )}
+                          className="p-1 rounded-lg hover:bg-slate-100 text-[#6d797d] hover:text-[#131b2e] transition-colors"
+                          aria-label="Video actions"
+                          title="Video actions"
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
+
+                        {videoActionMenu === video.video_id && (
+                          <div className="absolute right-0 top-8 z-50 w-48 bg-white rounded-xl shadow-2xl border border-slate-200 overflow-hidden py-1 animate-fade-in">
+                            {/* Play */}
+                            {video.status === 'done' && (
+                              <a
+                                href={`/classroom?video_id=${video.video_id}&filename=${encodeURIComponent(video.filename)}&teacher_id=${getTeacherId()}`}
+                                className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#131b2e] hover:bg-slate-50 transition-colors"
+                                onClick={() => setVideoActionMenu(null)}
+                              >
+                                <Play className="w-4 h-4 text-primary-500" />
+                                Play Video
+                              </a>
+                            )}
+                            {/* Edit Details */}
+                            <button
+                              onClick={() => {
+                                setEditVideo(video);
+                                setEditForm({
+                                  title: video.title || '',
+                                  description: video.description || '',
+                                  subject: video.subject || '',
+                                  chapter: video.chapter || '',
+                                });
+                                setVideoActionMenu(null);
+                              }}
+                              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-[#131b2e] hover:bg-slate-50 transition-colors text-left"
+                            >
+                              <Pencil className="w-4 h-4 text-blue-500" />
+                              Edit Details
+                            </button>
+                            {/* Divider */}
+                            <div className="border-t border-slate-100 my-1" />
+                            {/* Delete */}
+                            <button
+                              onClick={() => {
+                                setDeleteConfirm(video);
+                                setVideoActionMenu(null);
+                              }}
+                              className="flex items-center gap-2.5 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors text-left"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Delete Video
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-[#6d797d] truncate mb-1">File: {video.filename}</p>
-                  <p className="text-[10px] text-[#6d797d] mb-1">Uploaded: {new Date(video.uploaded_at).toLocaleString()}</p>
+
+                  <p className="text-[10px] text-[#6d797d] truncate mb-1" title={video.filename}>
+                    File: {video.filename}
+                  </p>
+                  <p className="text-[10px] text-[#6d797d] mb-1">
+                    Uploaded: {new Date(video.uploaded_at).toLocaleString()}
+                  </p>
+                  {video.subject && (
+                    <p className="text-[10px] text-purple-500 font-medium mt-0.5">
+                      {video.subject}{video.chapter ? ` › ${video.chapter}` : ''}
+                    </p>
+                  )}
+                  {video.description && (
+                    <p className="text-[10px] text-[#6d797d] mt-1 line-clamp-2" title={video.description}>
+                      {video.description}
+                    </p>
+                  )}
                 </div>
-                <div className="mt-4 pt-3 border-t border-[#bcc9cd]/25 flex items-center justify-between">
+
+                {/* ── Card Footer ── */}
+                <div className="mt-4 pt-3 border-t border-[#bcc9cd]/25 flex items-center justify-between gap-2">
                   {video.status === 'done' ? (
                     <>
-                      <a 
-                        href={`/classroom?video_id=${video.video_id}&filename=${encodeURIComponent(video.filename)}`} 
-                        className="text-xs font-semibold text-primary-600 hover:text-primary-700"
+                      <a
+                        href={`/classroom?video_id=${video.video_id}&filename=${encodeURIComponent(video.filename)}&teacher_id=${getTeacherId()}`}
+                        className="text-xs font-semibold text-primary-600 hover:text-primary-700 flex items-center gap-1"
                       >
-                        Watch Video
+                        <Play className="w-3 h-3" /> Watch Video
                       </a>
-                      {video.r2_url && (
-                        <a 
-                          href={video.r2_url} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          className="text-xs font-semibold text-[#6d797d] hover:text-[#131b2e]"
-                        >
-                          View R2 URL
-                        </a>
-                      )}
+                      <button
+                        onClick={() => {
+                          setDeleteConfirm(video);
+                          setVideoActionMenu(null);
+                        }}
+                        disabled={deletingVideoId === video.video_id}
+                        className="text-xs font-semibold text-red-500 hover:text-red-700 flex items-center gap-1 disabled:opacity-50"
+                        title="Delete this video"
+                      >
+                        {deletingVideoId === video.video_id
+                          ? <Loader2 className="w-3 h-3 animate-spin" />
+                          : <Trash2 className="w-3 h-3" />}
+                        Delete
+                      </button>
                     </>
                   ) : (
-                    <span className="text-[10px] text-[#6d797d]">Processing pipeline running...</span>
+                    <span className="text-[10px] text-[#6d797d] flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin text-amber-500" />
+                      Processing pipeline running…
+                    </span>
                   )}
                 </div>
               </div>
@@ -1198,6 +1408,177 @@ export default function TeacherDashboard() {
           </div>
         )}
       </div>
+
+      {/* ── Delete Confirmation Modal ─────────────────────────────────── */}
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => !deletingVideoId && setDeleteConfirm(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-200 p-7 relative animate-fade-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-4 mb-5">
+              <div className="w-12 h-12 rounded-2xl bg-red-100 flex items-center justify-center shrink-0">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-[#131b2e]">Delete Video?</h3>
+                <p className="text-xs text-[#6d797d] mt-0.5">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-200">
+              <p className="text-sm font-semibold text-[#131b2e] truncate">
+                "{deleteConfirm.title}"
+              </p>
+              <p className="text-xs text-[#6d797d] mt-1 truncate">{deleteConfirm.filename}</p>
+            </div>
+
+            <p className="text-sm text-[#3d494c] mb-6">
+              Are you sure you want to delete this video? The video file, captions, and all associated data will be permanently removed.
+            </p>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={!!deletingVideoId}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-[#3d494c] hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteVideo(deleteConfirm)}
+                disabled={!!deletingVideoId}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {deletingVideoId === deleteConfirm.video_id ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Deleting…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" /> Delete Video
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Details Modal ──────────────────────────────────────────── */}
+      {editVideo && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+          onClick={() => !savingEdit && (setEditVideo(null), setEditForm({}))}
+        >
+          <div
+            className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 p-7 relative animate-fade-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <Pencil className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#131b2e]">Edit Video Details</h3>
+                  <p className="text-xs text-[#6d797d] truncate max-w-[260px]">{editVideo.filename}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setEditVideo(null); setEditForm({}); }}
+                disabled={savingEdit}
+                className="p-2 rounded-xl hover:bg-slate-100 text-[#6d797d] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#3d494c] mb-1.5 uppercase tracking-wider">
+                  Title <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editForm.title || ''}
+                  onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                  placeholder="Enter video title…"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-[#131b2e] focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-[#3d494c] mb-1.5 uppercase tracking-wider">
+                  Description
+                </label>
+                <textarea
+                  value={editForm.description || ''}
+                  onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                  placeholder="Brief description of this video…"
+                  rows={3}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-[#131b2e] focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-[#3d494c] mb-1.5 uppercase tracking-wider">
+                    Subject
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.subject || ''}
+                    onChange={e => setEditForm(f => ({ ...f, subject: e.target.value }))}
+                    placeholder="e.g. Mathematics"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-[#131b2e] focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-[#3d494c] mb-1.5 uppercase tracking-wider">
+                    Chapter
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.chapter || ''}
+                    onChange={e => setEditForm(f => ({ ...f, chapter: e.target.value }))}
+                    placeholder="e.g. Chapter 1"
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-[#131b2e] focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-all"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-7">
+              <button
+                onClick={() => { setEditVideo(null); setEditForm({}); }}
+                disabled={savingEdit}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-[#3d494c] hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditSave}
+                disabled={savingEdit || !editForm.title?.trim()}
+                className="flex-1 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                {savingEdit ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" /> Saving…
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-4 h-4" /> Save Changes
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Student Report Modal */}
       {selectedStudent && studentReport && (

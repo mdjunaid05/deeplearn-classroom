@@ -852,3 +852,220 @@ def get_video_captions():
         }
     else:
         return jsonify({"video_id": video_id, "job_id": job_id, "filename": filename, "captions": captions})
+
+
+# ── DELETE /videos/<video_id> ─────────────────────────────────────────────────
+
+@video_bp.route("/videos/<int:video_id>", methods=["DELETE"])
+def delete_video(video_id):
+    """
+    Delete a video record and its associated files/captions.
+
+    Query params:
+        teacher_id (required) — must match the video's uploader for authorization
+
+    Cascade deletes:
+        - video_captions  (via FK ON DELETE CASCADE + explicit)
+        - video_views     (via FK ON DELETE CASCADE + explicit)
+        - videos          (the record itself)
+
+    Storage cleanup:
+        - R2: deletes uploads/<filename> and processed/signed_<filename>
+        - Local: removes files from uploads/ and processed_videos/ directories
+    """
+    teacher_id = request.args.get("teacher_id", type=int)
+    if not teacher_id:
+        return jsonify({"error": "teacher_id is required"}), 400
+
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Fetch video record and verify ownership
+        cursor.execute(
+            "SELECT video_id, teacher_id, filename, r2_url, original_url, processed_url "
+            "FROM videos WHERE video_id = ?",
+            (video_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Video not found"}), 404
+
+        cols = [d[0] for d in cursor.description]
+        video = dict(zip(cols, row))
+
+        if video["teacher_id"] != teacher_id:
+            return jsonify({"error": "Forbidden: you do not own this video"}), 403
+
+        filename = video.get("filename") or ""
+        r2_url   = video.get("r2_url") or ""
+
+        # ── Storage cleanup ────────────────────────────────────────────────
+        if r2_url and is_r2_url(r2_url):
+            # Delete both the original upload and the processed signed copy from R2
+            delete_file(make_r2_key("uploads", filename))
+            delete_file(make_r2_key("processed", f"signed_{filename}"))
+            print(f"[DELETE_VIDEO] R2 objects deleted for video_id={video_id}", flush=True)
+        else:
+            # Local filesystem cleanup
+            for folder, name in [
+                (UPLOAD_FOLDER, filename),
+                (PROCESSED_FOLDER, f"signed_{filename}"),
+                (UPLOAD_FOLDER, video.get("original_url", "")),
+                (PROCESSED_FOLDER, video.get("processed_url", "")),
+            ]:
+                for candidate in [os.path.join(folder, name), name]:
+                    if candidate and os.path.isfile(candidate):
+                        try:
+                            os.remove(candidate)
+                            print(f"[DELETE_VIDEO] Removed local file: {candidate}", flush=True)
+                        except OSError as oe:
+                            print(f"[DELETE_VIDEO] Could not remove {candidate}: {oe}", flush=True)
+
+        # ── Database cascade cleanup ───────────────────────────────────────
+        cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
+        cursor.execute("DELETE FROM video_views    WHERE video_id = ?", (video_id,))
+        cursor.execute("DELETE FROM videos         WHERE video_id = ?", (video_id,))
+        conn.commit()
+
+        print(f"[DELETE_VIDEO] video_id={video_id} deleted by teacher_id={teacher_id}", flush=True)
+        return jsonify({"success": True, "video_id": video_id, "message": "Video deleted successfully"})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"[DELETE_VIDEO] Error deleting video_id={video_id}: {e}", flush=True)
+        return jsonify({"error": f"Failed to delete video: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+# ── PUT /videos/<video_id> ────────────────────────────────────────────────────
+
+@video_bp.route("/videos/<int:video_id>", methods=["PUT"])
+def update_video(video_id):
+    """
+    Update video metadata (title, description, subject, chapter).
+
+    Body (JSON):
+        title       (str, optional)
+        description (str, optional)
+        subject     (str, optional)
+        chapter     (str, optional)
+
+    Query params:
+        teacher_id (required) — must match the video's uploader
+    """
+    teacher_id = request.args.get("teacher_id", type=int)
+    if not teacher_id:
+        return jsonify({"error": "teacher_id is required"}), 400
+
+    body = request.get_json(force=True, silent=True) or {}
+
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        # Verify ownership
+        cursor.execute(
+            "SELECT video_id, teacher_id FROM videos WHERE video_id = ?",
+            (video_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Video not found"}), 404
+
+        cols = [d[0] for d in cursor.description]
+        video = dict(zip(cols, row))
+        if video["teacher_id"] != teacher_id:
+            return jsonify({"error": "Forbidden: you do not own this video"}), 403
+
+        # Build dynamic UPDATE
+        allowed_fields = ["title", "description", "subject", "chapter"]
+        updates = {f: body[f] for f in allowed_fields if f in body}
+        if not updates:
+            return jsonify({"error": "No updatable fields provided"}), 400
+
+        set_clause = ", ".join(f"{f} = ?" for f in updates)
+        values = list(updates.values()) + [video_id]
+
+        # Use ALTER TABLE … ADD COLUMN IF NOT EXISTS (SQLite-safe via try/except)
+        for col, col_type in [("description", "TEXT"), ("subject", "VARCHAR(100)"), ("chapter", "VARCHAR(100)")]:
+            try:
+                cursor.execute(f"ALTER TABLE videos ADD COLUMN {col} {col_type} DEFAULT NULL")
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
+
+        cursor.execute(f"UPDATE videos SET {set_clause} WHERE video_id = ?", values)
+        conn.commit()
+
+        # Return updated record
+        cursor.execute(
+            "SELECT video_id, teacher_id, course_id, title, filename, r2_url, "
+            "original_url, processed_url, status, uploaded_at FROM videos WHERE video_id = ?",
+            (video_id,),
+        )
+        updated_row = cursor.fetchone()
+        updated_cols = [d[0] for d in cursor.description]
+        updated = dict(zip(updated_cols, updated_row))
+        if updated.get("uploaded_at") and not isinstance(updated["uploaded_at"], str):
+            updated["uploaded_at"] = updated["uploaded_at"].isoformat()
+
+        print(f"[UPDATE_VIDEO] video_id={video_id} updated by teacher_id={teacher_id} fields={list(updates.keys())}", flush=True)
+        return jsonify({"success": True, "video": updated})
+
+    except Exception as e:
+        conn.rollback()
+        print(f"[UPDATE_VIDEO] Error updating video_id={video_id}: {e}", flush=True)
+        return jsonify({"error": f"Failed to update video: {str(e)}"}), 500
+    finally:
+        conn.close()
+
+
+# ── GET /videos/<video_id> ────────────────────────────────────────────────────
+
+@video_bp.route("/videos/<int:video_id>", methods=["GET"])
+def get_video(video_id):
+    """
+    Fetch a single video record by ID.
+    """
+    teacher_id = request.args.get("teacher_id", type=int)
+    student_id = request.args.get("student_id", type=int)
+
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute(
+            "SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename, v.r2_url, "
+            "v.original_url, v.processed_url, v.status, v.uploaded_at, v.processed_at, "
+            "t.name as uploader "
+            "FROM videos v LEFT JOIN teachers t ON v.teacher_id = t.teacher_id "
+            "WHERE v.video_id = ?",
+            (video_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Video not found"}), 404
+
+        cols = [d[0] for d in cursor.description]
+        video = dict(zip(cols, row))
+        if video.get("uploaded_at") and not isinstance(video["uploaded_at"], str):
+            video["uploaded_at"] = video["uploaded_at"].isoformat()
+
+        auth_query = f"&teacher_id={teacher_id}" if teacher_id else (f"&student_id={student_id}" if student_id else "")
+        for url_key in ["processed_url", "original_url"]:
+            u = video.get(url_key)
+            if u and not is_r2_url(u):
+                rel = os.path.basename(u)
+                video[url_key] = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel}{auth_query}"
+
+        return jsonify({"video": video})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
