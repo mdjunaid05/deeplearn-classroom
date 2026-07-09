@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Sun, Moon, Sunrise, Sunset, Activity, RefreshCw } from 'lucide-react';
 import { EngagementAreaChart } from '../components/EngagementChart';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE } from '../utils/api';
 
 export default function EngagementAnalytics() {
   const [data, setData] = useState(null);

@@ -10,8 +10,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLiveCaption } from '../utils/useLiveCaption';
 import { useParticipants } from '../utils/useParticipants';
 import VisualAlertBanner from '../components/VisualAlertBanner';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE } from '../utils/api';
 
 const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 

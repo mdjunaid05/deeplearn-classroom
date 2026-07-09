@@ -19,11 +19,9 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { API_BASE } from './api';
 
 const POLL_INTERVAL_MS = 4000;
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
-// Deterministic avatar color from user id/name
 const AVATAR_COLORS = [
   '#06b6d4','#8b5cf6','#10b981','#f59e0b','#ef4444',
   '#3b82f6','#ec4899','#14b8a6','#f97316','#6366f1',

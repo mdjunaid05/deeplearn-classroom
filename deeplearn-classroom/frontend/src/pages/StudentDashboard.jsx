@@ -7,8 +7,7 @@ import { EngagementLineChart, EngagementGauge } from '../components/EngagementCh
 import ProgressBar from '../components/ProgressBar';
 import LiveBehaviourTracker from '../components/LiveBehaviourTracker';
 import AIRecommendations from '../components/AIRecommendations';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE } from '../utils/api';
 
 // Empty data for when backend is not running
 const EMPTY_DATA = {

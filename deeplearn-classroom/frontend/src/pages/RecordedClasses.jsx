@@ -2,8 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { Video, Play, Download, Trash2, Search, Clock, Calendar, AlertCircle } from 'lucide-react';
 import VisualAlertBanner from '../components/VisualAlertBanner';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE } from '../utils/api';
 
 export default function RecordedClasses() {
   const { user } = useAuth();

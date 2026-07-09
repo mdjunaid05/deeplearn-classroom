@@ -16,13 +16,27 @@ def create_app():
     app.config["MAX_CONTENT_LENGTH"] = 512 * 1024 * 1024
 
     # ── CORS ──
-    # Allow any origin (required for Vercel frontend → Render backend cross-domain requests).
-    # If you add cookie-based auth later, restrict origins to your Vercel domain.
-    allowed_origins = os.environ.get(
-        "CORS_ORIGINS",
-        "*",  # default: allow all (overridable via env var)
+    # CORS_ORIGINS accepts a comma-separated list of allowed origins, e.g.:
+    #   "https://deeplearn-classroom.vercel.app,http://localhost:3000"
+    # The wildcard "*" is also accepted for development convenience.
+    # Set this in the Render dashboard to your Vercel production URL.
+    cors_env = os.environ.get("CORS_ORIGINS", "*")
+
+    # Parse into a list if comma-separated; flask-cors accepts both a string
+    # and a list — a list is safer so wildcards don't shadow explicit origins.
+    if cors_env == "*":
+        allowed_origins = "*"
+    else:
+        allowed_origins = [o.strip().rstrip("/") for o in cors_env.split(",") if o.strip()]
+
+    CORS(
+        app,
+        resources={r"/*": {"origins": allowed_origins}},
+        supports_credentials=True,
+        expose_headers=["Content-Range", "Content-Disposition"],
+        allow_headers=["Content-Type", "Authorization", "Range"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
-    CORS(app, resources={r"/*": {"origins": allowed_origins}})
 
     # ── Register blueprints ──
     from routes.auth import auth_bp

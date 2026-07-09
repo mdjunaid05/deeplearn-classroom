@@ -26,8 +26,7 @@ import { useSignLanguage }        from '../utils/useSignLanguage';
 import CaptionOverlay             from '../components/CaptionOverlay';
 import VisualAlertBanner          from '../components/VisualAlertBanner';
 import SignAvatarOverlay          from '../components/SignAvatarOverlay';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE }               from '../utils/api';
 
 // ---------------------------------------------------------------------------
 // Fallback quiz used only if the video has no audible speech

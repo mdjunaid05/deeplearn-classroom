@@ -21,8 +21,7 @@ import { BehaviourTimeline, BehaviourBarChart, BehaviourPieChart } from '../comp
 import LiveBehaviourTracker from '../components/LiveBehaviourTracker';
 import AIRecommendations from '../components/AIRecommendations';
 import { useAuth } from '../contexts/AuthContext';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE } from '../utils/api';
 
 const BEHAVIOUR_CONFIG = {
   Focused:    { color: '#22c55e', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-600' },

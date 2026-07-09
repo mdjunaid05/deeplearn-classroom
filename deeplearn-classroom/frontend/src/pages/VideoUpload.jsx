@@ -4,8 +4,7 @@ import { UploadCloud, CheckCircle, Video, Download, AlertCircle, Loader2, Monito
 import SignAvatarOverlay from '../components/SignAvatarOverlay';
 import { useAuth } from '../contexts/AuthContext';
 import { saveVideo, saveCaptions } from '../utils/db';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE } from '../utils/api';
 
 export default function VideoUpload() {
   const { user } = useAuth();
@@ -81,7 +80,7 @@ export default function VideoUpload() {
     setStep('Uploading video for Deaf Signing Pipeline...');
     setError('');
 
-    const BACKEND_URL = API_BASE || 'http://localhost:5000';
+    const BACKEND_URL = API_BASE;
     try {
       const formData = new FormData();
       formData.append('video_file', file);
@@ -128,7 +127,7 @@ export default function VideoUpload() {
    * If the backend is not running, shows a clear error instead of fake captions.
    */
   const extractCaptionsLocally = async () => {
-    const BACKEND_URL = API_BASE || 'http://localhost:5000';
+    const BACKEND_URL = API_BASE;
 
     // Step 1: Upload
     setProgress(15);

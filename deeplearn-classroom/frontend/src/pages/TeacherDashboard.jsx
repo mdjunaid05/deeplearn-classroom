@@ -8,8 +8,7 @@ import {
 import { BehaviourBarChart, BehaviourPieChart } from '../components/BehaviourChart';
 import { EngagementAreaChart } from '../components/EngagementChart';
 import BehaviourHeatmap from '../components/BehaviourHeatmap';
-
-const API_BASE = import.meta.env.VITE_API_URL || '';
+import { API_BASE } from '../utils/api';
 
 const EMPTY_DATA = {
   total_students: 0,

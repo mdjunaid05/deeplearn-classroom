@@ -33,11 +33,12 @@ services:
       - key: WHISPER_MODEL
         value: tiny
 
-      # CORS: allow all origins by default.
-      # Change to your Vercel URL in production, e.g.:
-      #   https://deeplearn-classroom.vercel.app
+      # CORS: list your Vercel frontend URL so cross-origin requests succeed.
+      # Comma-separate multiple origins if needed, e.g.:
+      #   https://deeplearn-classroom.vercel.app,https://deeplearn-classroom-git-main.vercel.app
+      # The backend CORS parser in app.py splits on commas automatically.
       - key: CORS_ORIGINS
-        value: "*"
+        value: "https://deeplearn-classroom.vercel.app,https://deeplearn-classroom-git-main-mdjunaid05.vercel.app,http://localhost:3000"
 
       # Python optimizations for container environment
       - key: PYTHONUNBUFFERED
