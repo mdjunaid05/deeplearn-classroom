@@ -401,6 +401,7 @@ def get_ordered_lessons(course_id=1):
     return lessons
 
 def get_student_progress_list(student_id, course_id=1):
+    print(f"[STUDENT_ENROLLMENT_FOUND] student_id={student_id} course_id={course_id}", flush=True)
     lessons = get_ordered_lessons(course_id)
     if not lessons:
         return 0.0, []

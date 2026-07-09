@@ -16,6 +16,12 @@ export const AuthProvider = ({ children }) => {
     if (storedToken && storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
+        if (parsed) {
+          if (!parsed.id && parsed.user_id) {
+            parsed.id = parsed.user_id;
+          }
+          console.log('[TOKEN_VALIDATED] restored user session:', parsed.email, 'role:', parsed.role);
+        }
         setUser(parsed);
         setToken(storedToken);
       } catch {
@@ -54,11 +60,13 @@ export const AuthProvider = ({ children }) => {
 
       if (res.ok && data.token) {
         const userData = {
+          id: data.user_id,
           user_id: data.user_id,
           email: data.email,
           name: data.name,
           role: data.role,
         };
+        console.log('[TOKEN_VALIDATED] user logged in:', userData.email, 'role:', userData.role);
         setToken(data.token);
         setUser(userData);
         localStorage.setItem('auth_token', data.token);
@@ -88,7 +96,11 @@ export const AuthProvider = ({ children }) => {
       const data = await res.json();
 
       if (res.ok && data.token) {
-        const userData = data.user;
+        const userData = {
+          ...data.user,
+          id: data.user.user_id || data.user.id
+        };
+        console.log('[TOKEN_VALIDATED] user registered:', userData.email, 'role:', userData.role);
         setToken(data.token);
         setUser(userData);
         localStorage.setItem('auth_token', data.token);

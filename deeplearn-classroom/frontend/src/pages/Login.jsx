@@ -56,6 +56,9 @@ export default function Login() {
     const result = await login({ email: email.trim(), password, role });
 
     if (result.success) {
+      if (result.user.role === 'student') {
+        console.log('[STUDENT_LOGIN_SUCCESS] Student logged in successfully:', result.user.email);
+      }
       const dest = result.user.role === 'teacher' ? '/teacher' : '/student';
       navigate(dest, { replace: true });
     } else {

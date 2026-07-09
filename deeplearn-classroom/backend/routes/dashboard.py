@@ -47,6 +47,7 @@ def student_dashboard():
     student_data = df[df["student_id"] == student_id]
     if student_data.empty:
         return jsonify({"error": f"No data found for student_id={student_id}"}), 404
+    print(f"[STUDENT_ENROLLMENT_FOUND] student_id={student_id}", flush=True)
 
     # Performance history
     perf_history = student_data[["activity_id", "quiz_score", "time_taken",

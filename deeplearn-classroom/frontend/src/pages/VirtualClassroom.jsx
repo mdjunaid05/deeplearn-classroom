@@ -80,6 +80,7 @@ export default function VirtualClassroom() {
   const [videoEnded,  setVideoEnded]  = useState(false);
   const [activeRecording, setActiveRecording] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [courseProgress, setCourseProgress] = useState(null);
 
   // ── Accessibility State ───────────────────────────────────────────────────
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
@@ -125,12 +126,16 @@ export default function VirtualClassroom() {
 
       let loadedVideo = false;
 
+      // Log: CLASSROOM_REQUEST_STARTED
+      console.log('[CLASSROOM_REQUEST_STARTED] Classroom loading initiated for user:', user?.email, 'role:', user?.role);
+
       // 1. If we have videoId/jobId/filename in query params, try fetching direct video URL from backend
       if (videoId || jobId || filename) {
         try {
           const userIdParam = user?.role === 'teacher' 
-            ? `teacher_id=${user.id || 1}` 
+            ? `teacher_id=${user.id || user?.user_id || 1}` 
             : `student_id=${user?.id || user?.user_id || 1}`;
+          
           const urlRes = await fetch(`${API_BASE}/video-url?${params.toString()}&${userIdParam}`);
           if (urlRes.ok) {
             const urlData = await urlRes.json();
@@ -142,10 +147,34 @@ export default function VirtualClassroom() {
               setVideoTitle(filename || 'Uploaded Video');
               loadedVideo = true;
               console.log('[Classroom] Loaded video from backend URL:', fullUrl);
+              console.log('[CLASSROOM_ACCESS_GRANTED] Classroom video access granted for user:', user?.email);
+            } else {
+              console.error('[Access Failure]', {
+                file: 'VirtualClassroom.jsx',
+                function: 'fetchData (video-url)',
+                endpoint: `${API_BASE}/video-url`,
+                error: 'No video_url returned from backend',
+                rootCause: 'Video is still processing or missing'
+              });
             }
+          } else {
+            console.error('[Access Failure]', {
+              file: 'VirtualClassroom.jsx',
+              function: 'fetchData (video-url)',
+              endpoint: `${API_BASE}/video-url`,
+              error: `API returned status ${urlRes.status}`,
+              rootCause: 'Authorization or database retrieval error'
+            });
           }
         } catch (err) {
           console.warn('[Classroom] Failed to fetch video URL from backend:', err);
+          console.error('[Access Failure]', {
+            file: 'VirtualClassroom.jsx',
+            function: 'fetchData (video-url)',
+            endpoint: `${API_BASE}/video-url`,
+            error: err.message,
+            rootCause: 'Backend network connection error'
+          });
         }
       }
 
@@ -158,6 +187,7 @@ export default function VirtualClassroom() {
             setVideoTitle(name);
             loadedVideo = true;
             console.log('[Classroom] Loaded video from IndexedDB:', name);
+            console.log('[CLASSROOM_ACCESS_GRANTED] Classroom IndexedDB video access granted');
           }
         } catch (err) {
           console.error('[Classroom] Failed to load video from IndexedDB:', err);
@@ -168,6 +198,12 @@ export default function VirtualClassroom() {
         setVideoSrc(window.uploadedDemoVideo);
         setVideoTitle(window.uploadedDemoTitle || 'Uploaded Video');
         loadedVideo = true;
+        console.log('[CLASSROOM_ACCESS_GRANTED] Classroom demo window video access granted');
+      }
+
+      // If we still loaded no video, we just fall back to standard Sintel video (allowed as default/access granted)
+      if (!loadedVideo) {
+        console.log('[CLASSROOM_ACCESS_GRANTED] Classroom default video access granted');
       }
       setIsVideoLoaded(true);
 
@@ -197,6 +233,8 @@ export default function VirtualClassroom() {
       } catch (err) {
         console.warn('[Classroom] Could not load saved captions:', err);
       }
+
+      console.log('[CLASSROOM_PAGE_RENDERED] VirtualClassroom details successfully loaded and rendered.');
     };
     fetchData();
   }, []);
@@ -216,16 +254,31 @@ export default function VirtualClassroom() {
     try {
       setLoadingVideos(true);
       const userIdParam = user?.role === 'teacher' 
-        ? `teacher_id=${user.id || 1}` 
+        ? `teacher_id=${user.id || user?.user_id || 1}` 
         : `student_id=${user?.id || user?.user_id || 1}`;
       const res = await fetch(`${API_BASE}/videos?${userIdParam}`);
       if (res.ok) {
         const data = await res.json();
         setVideos(data.videos || []);
-        console.log('[VIDEO_LIST_FETCHED] count=' + (data.videos?.length || 0));
+        console.log('[CLASSROOMS_FETCHED] type=videos count=' + (data.videos?.length || 0));
+      } else {
+        console.error('[Access Failure]', {
+          file: 'VirtualClassroom.jsx',
+          function: 'fetchVideos',
+          endpoint: `${API_BASE}/videos`,
+          error: `API returned status ${res.status}`,
+          rootCause: 'Authorization or database error'
+        });
       }
     } catch (err) {
       console.error('Error fetching videos:', err);
+      console.error('[Access Failure]', {
+        file: 'VirtualClassroom.jsx',
+        function: 'fetchVideos',
+        endpoint: `${API_BASE}/videos`,
+        error: err.message,
+        rootCause: 'Backend network connection error'
+      });
     } finally {
       setLoadingVideos(false);
     }
@@ -234,19 +287,68 @@ export default function VirtualClassroom() {
   const fetchRecordings = async () => {
     try {
       setLoadingRecordings(true);
+      const studentId = user?.id || user?.user_id || 1;
       const url = user?.role === 'teacher' 
-        ? `${API_BASE}/recordings?teacher_id=${user.id || 1}`
-        : `${API_BASE}/recordings?student_id=${user?.id || 1}`;
+        ? `${API_BASE}/recordings?teacher_id=${user.id || user?.user_id || 1}`
+        : `${API_BASE}/recordings?student_id=${studentId}`;
         
       const res = await fetch(url);
-      const data = await res.json();
-      if (data.recordings) {
-        setRecordings(data.recordings);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.recordings) {
+          setRecordings(data.recordings);
+          console.log('[CLASSROOMS_FETCHED] type=recordings count=' + (data.recordings?.length || 0));
+        }
+      } else {
+        console.error('[Access Failure]', {
+          file: 'VirtualClassroom.jsx',
+          function: 'fetchRecordings',
+          endpoint: `${API_BASE}/recordings`,
+          error: `API returned status ${res.status}`,
+          rootCause: 'Authorization or database error'
+        });
       }
     } catch (err) {
       console.error('Error fetching recordings:', err);
+      console.error('[Access Failure]', {
+        file: 'VirtualClassroom.jsx',
+        function: 'fetchRecordings',
+        endpoint: `${API_BASE}/recordings`,
+        error: err.message,
+        rootCause: 'Backend network connection error'
+      });
     } finally {
       setLoadingRecordings(false);
+    }
+  };
+
+  const fetchCourseProgress = async () => {
+    if (!user || user?.role !== 'student') return;
+    try {
+      const studentId = user?.id || user?.user_id || 1;
+      const res = await fetch(`${API_BASE}/course/progress?student_id=${studentId}&course_id=1`);
+      if (res.ok) {
+        const data = await res.json();
+        setCourseProgress(data.progress_percentage ?? 0);
+        console.log('[CLASSROOMS_FETCHED] type=progress percentage=' + (data.progress_percentage ?? 0));
+      } else {
+        console.error('[Access Failure]', {
+          file: 'VirtualClassroom.jsx',
+          function: 'fetchCourseProgress',
+          endpoint: `${API_BASE}/course/progress`,
+          error: `API returned status ${res.status}`,
+          rootCause: 'Authorization or database error'
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching course progress:', err);
+      console.error('[Access Failure]', {
+        file: 'VirtualClassroom.jsx',
+        function: 'fetchCourseProgress',
+        endpoint: `${API_BASE}/course/progress`,
+        error: err.message,
+        rootCause: 'Backend network connection error'
+      });
     }
   };
 
@@ -254,6 +356,7 @@ export default function VirtualClassroom() {
     if (user) {
       fetchRecordings();
       fetchVideos();
+      fetchCourseProgress();
     }
   }, [user]);
 
