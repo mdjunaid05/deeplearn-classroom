@@ -80,6 +80,13 @@ def _r2_enabled() -> bool:
     return bool(R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY)
 
 
+# -- Startup credential verification -------------------------------------------
+if _r2_enabled():
+    print(f"[Storage] R2 credentials detected - Account={R2_ACCOUNT_ID[:8]}... Bucket={R2_BUCKET_NAME} PublicURL={R2_PUBLIC_URL or '(presigned)'}")
+else:
+    print("[Storage] R2 credentials NOT configured - using local disk storage (files will be lost on redeploy)")
+
+
 # ── Lazy boto3 client (created once, reused) ──────────────────────────────────
 
 _s3_client = None
@@ -132,7 +139,7 @@ def verify_bucket_access() -> bool:
     try:
         client = _get_client()
         client.head_bucket(Bucket=R2_BUCKET_NAME)
-        print(f"[R2_BUCKET_VERIFIED] bucket={R2_BUCKET_NAME} ✅ accessible", flush=True)
+        print(f"[R2_BUCKET_VERIFIED] bucket={R2_BUCKET_NAME} accessible", flush=True)
         return True
     except Exception as e:
         _log_r2_error("R2_BUCKET_VERIFY_FAILED", e, bucket=R2_BUCKET_NAME)
@@ -203,7 +210,7 @@ def upload_file(local_path: str, r2_key: str, content_type: str = None) -> str:
     """
     if not _r2_enabled():
         # Local fallback — file stays where it is
-        print(f"[Storage] R2 not configured — keeping file locally: {local_path}", flush=True)
+        print(f"[Storage] R2 not configured - keeping file locally: {local_path}", flush=True)
         if _missing_vars:
             print(f"[Storage] Missing env vars: {', '.join(_missing_vars)}", flush=True)
         return local_path
@@ -294,7 +301,7 @@ def download_file(r2_key: str, local_path: str) -> bool:
         client = _get_client()
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         client.download_file(R2_BUCKET_NAME, r2_key, local_path)
-        print(f"[Storage] Downloaded from R2: {r2_key} → {local_path}", flush=True)
+        print(f"[Storage] Downloaded from R2: {r2_key} -> {local_path}", flush=True)
         return True
     except Exception as e:
         _log_r2_error("R2_DOWNLOAD_FAILED", e, key=r2_key, local_path=local_path)

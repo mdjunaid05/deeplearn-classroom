@@ -81,6 +81,8 @@ export default function VirtualClassroom() {
   const [activeRecording, setActiveRecording] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [courseProgress, setCourseProgress] = useState(null);
+  const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [videoError, setVideoError] = useState(null);
 
   // ── Accessibility State ───────────────────────────────────────────────────
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
@@ -89,9 +91,15 @@ export default function VirtualClassroom() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
 
   // ── Recordings ────────────────────────────────────────────────────────────
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [recordings, setRecordings] = useState([]);
   const [loadingRecordings, setLoadingRecordings] = useState(true);
+
+  const localProgress = recordings.length > 0 
+    ? Math.round((recordings.filter(r => !r.is_locked).length / recordings.length) * 100) 
+    : 0;
+
+  const displayProgress = courseProgress !== null ? courseProgress : localProgress;
 
   // ── Transcript + captions ─────────────────────────────────────────────────
   // savedCaptions: loaded from IndexedDB (set by VideoUpload after processing)
@@ -104,6 +112,8 @@ export default function VirtualClassroom() {
   const [answers,      setAnswers]      = useState({});
   const [showResults,  setShowResults]  = useState(false);
   const [quizReady,    setQuizReady]    = useState(false);
+  const [quizSubmitResult, setQuizSubmitResult] = useState(null);
+  const [quizStartTime, setQuizStartTime] = useState(Date.now());
 
   // ── Sidebar / session ─────────────────────────────────────────────────────
   const [sessionTime,  setSessionTime]  = useState(0);
@@ -145,6 +155,7 @@ export default function VirtualClassroom() {
                 : `${API_BASE}${urlData.video_url}`;
               setVideoSrc(fullUrl);
               setVideoTitle(filename || 'Uploaded Video');
+              setVideoError(null);
               loadedVideo = true;
               console.log('[Classroom] Loaded video from backend URL:', fullUrl);
               console.log('[CLASSROOM_ACCESS_GRANTED] Classroom video access granted for user:', user?.email);
@@ -185,6 +196,7 @@ export default function VirtualClassroom() {
           if (file) {
             setVideoSrc(URL.createObjectURL(file));
             setVideoTitle(name);
+            setVideoError(null);
             loadedVideo = true;
             console.log('[Classroom] Loaded video from IndexedDB:', name);
             console.log('[CLASSROOM_ACCESS_GRANTED] Classroom IndexedDB video access granted');
@@ -197,6 +209,7 @@ export default function VirtualClassroom() {
       if (!loadedVideo && window.uploadedDemoVideo) {
         setVideoSrc(window.uploadedDemoVideo);
         setVideoTitle(window.uploadedDemoTitle || 'Uploaded Video');
+        setVideoError(null);
         loadedVideo = true;
         console.log('[CLASSROOM_ACCESS_GRANTED] Classroom demo window video access granted');
       }
@@ -249,29 +262,38 @@ export default function VirtualClassroom() {
   // ── Fetch Recordings ──────────────────────────────────────────────────────
   const [videos, setVideos] = useState([]);
   const [loadingVideos, setLoadingVideos] = useState(true);
+  const [videosError, setVideosError] = useState(null);
+  const [recordingsError, setRecordingsError] = useState(null);
 
   const fetchVideos = async () => {
     try {
       setLoadingVideos(true);
+      setVideosError(null);
+      console.log('[VIDEO_LIST_REQUEST] Fetching video catalog...');
       const userIdParam = user?.role === 'teacher' 
         ? `teacher_id=${user.id || user?.user_id || 1}` 
         : `student_id=${user?.id || user?.user_id || 1}`;
       const res = await fetch(`${API_BASE}/videos?${userIdParam}`);
-      if (res.ok) {
-        const data = await res.json();
-        setVideos(data.videos || []);
-        console.log('[CLASSROOMS_FETCHED] type=videos count=' + (data.videos?.length || 0));
-      } else {
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
         console.error('[Access Failure]', {
           file: 'VirtualClassroom.jsx',
           function: 'fetchVideos',
           endpoint: `${API_BASE}/videos`,
-          error: `API returned status ${res.status}`,
+          error: `API returned status ${res.status}: ${errText}`,
           rootCause: 'Authorization or database error'
         });
+        throw new Error(`Server returned ${res.status}: ${errText.substring(0, 200)}`);
+      }
+      const data = await res.json();
+      setVideos(data.videos || []);
+      console.log('[VIDEO_LIST_RESPONSE] count=' + (data.videos?.length || 0));
+      console.log('[VIDEOS_RENDERED] count=' + (data.videos?.length || 0));
+      if ((data.videos?.length || 0) > 0) {
+        console.log('[VIDEO_RENDER_SUCCESS] Rendered ' + data.videos.length + ' video card(s)');
       }
     } catch (err) {
-      console.error('Error fetching videos:', err);
+      console.error('[VIDEO_RENDER_FAILED] Error fetching videos:', err);
       console.error('[Access Failure]', {
         file: 'VirtualClassroom.jsx',
         function: 'fetchVideos',
@@ -279,6 +301,7 @@ export default function VirtualClassroom() {
         error: err.message,
         rootCause: 'Backend network connection error'
       });
+      setVideosError(err.message || 'Failed to load videos. Please try again.');
     } finally {
       setLoadingVideos(false);
     }
@@ -287,29 +310,30 @@ export default function VirtualClassroom() {
   const fetchRecordings = async () => {
     try {
       setLoadingRecordings(true);
+      setRecordingsError(null);
       const studentId = user?.id || user?.user_id || 1;
       const url = user?.role === 'teacher' 
         ? `${API_BASE}/recordings?teacher_id=${user.id || user?.user_id || 1}`
         : `${API_BASE}/recordings?student_id=${studentId}`;
         
       const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.recordings) {
-          setRecordings(data.recordings);
-          console.log('[CLASSROOMS_FETCHED] type=recordings count=' + (data.recordings?.length || 0));
-        }
-      } else {
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
         console.error('[Access Failure]', {
           file: 'VirtualClassroom.jsx',
           function: 'fetchRecordings',
           endpoint: `${API_BASE}/recordings`,
-          error: `API returned status ${res.status}`,
+          error: `API returned status ${res.status}: ${errText}`,
           rootCause: 'Authorization or database error'
         });
+        throw new Error(`Server returned ${res.status}: ${errText.substring(0, 200)}`);
+      }
+      const data = await res.json();
+      if (data.recordings) {
+        setRecordings(data.recordings);
       }
     } catch (err) {
-      console.error('Error fetching recordings:', err);
+      console.error('[VIDEO_RENDER_FAILED] Error fetching recordings:', err);
       console.error('[Access Failure]', {
         file: 'VirtualClassroom.jsx',
         function: 'fetchRecordings',
@@ -317,6 +341,7 @@ export default function VirtualClassroom() {
         error: err.message,
         rootCause: 'Backend network connection error'
       });
+      setRecordingsError(err.message || 'Failed to load recordings. Please try again.');
     } finally {
       setLoadingRecordings(false);
     }
@@ -360,6 +385,18 @@ export default function VirtualClassroom() {
     }
   }, [user]);
 
+  // Auto-refresh when navigating from upload page
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('uploaded') === 'true') {
+      console.log('[VIDEO_LIST_REQUEST] Auto-refreshing after upload...');
+      fetchVideos();
+      // Clean the query param without full page reload
+      const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]uploaded=true/, '');
+      window.history.replaceState({}, '', cleanUrl || window.location.pathname);
+    }
+  }, []);
+
   // ── Playback Speed ────────────────────────────────────────────────────────
   useEffect(() => {
     if (videoRef.current) {
@@ -399,30 +436,77 @@ export default function VirtualClassroom() {
     setAnswers(prev => ({ ...prev, [qIdx]: optIdx }));
 
   const handleSubmitQuiz = async () => {
-    setShowResults(true);
+    if (submittingQuiz) return;
+    setSubmittingQuiz(true);
+    console.log('[QUIZ_SUBMIT_REQUEST] Submit Answers clicked.');
+
     const scoreVal = Object.entries(answers).reduce((acc, [qIdx, ans]) =>
       acc + (activeQuiz[parseInt(qIdx)]?.correct === ans ? 1 : 0), 0);
-    const passed = scoreVal >= activeQuiz.length / 2;
-    
-    // Save quiz score
-    if (activeRecording && user?.role === 'student') {
+    const passed = scoreVal >= activeQuiz.length * 0.35; // 35% passing grade requirement
+
+    console.log('[QUIZ_VALIDATION_SUCCESS] Answers validated locally.');
+    console.log('[QUIZ_SCORE_CALCULATED] Score calculated:', scoreVal, '/', activeQuiz.length, `(${((scoreVal / activeQuiz.length) * 100).toFixed(1)}%)`);
+
+    if (user?.role === 'student') {
       try {
-        await fetch(`${API_BASE}/submit-quiz`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            student_id: user.id || 1,
-            recording_id: activeRecording.recording_id,
-            score: scoreVal,
-            passed: passed
-          })
-        });
-        if (passed) {
-          fetchRecordings(); // refresh locks
+        const payload = {
+          student_id: user.id || user?.user_id || 1,
+          quiz_title: videoTitle || "General Quiz",
+          recording_id: activeRecording ? activeRecording.recording_id : null,
+          time_taken: Math.round((Date.now() - quizStartTime) / 1000) || 30,
+          course_id: activeRecording ? activeRecording.course_id : 1,
+          questions: activeQuiz.map((q, idx) => ({
+            question_text: q.question,
+            options: q.options,
+            correct_option: q.correct,
+            selected_option: answers[idx] !== undefined ? answers[idx] : 0
+          }))
+        };
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
+
+        const res = await fetch(`${API_BASE}/quiz/submit`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server returned status ${res.status}`);
+        }
+
+        const data = await res.json();
+        console.log('[QUIZ_RESULTS_SAVED] Quiz results successfully saved in database.');
+        setQuizSubmitResult(data);
+        console.log('[RESPONSE_SENT] Quiz response complete.');
+
+        // Update progress and locks immediately
+        fetchRecordings();
+        fetchVideos();
+        fetchCourseProgress();
+        setShowResults(true);
+
       } catch (err) {
-        console.error('Failed to submit quiz score', err);
+        console.error('Failed to submit quiz score:', err);
+        setActiveAlert({
+          type: 'error',
+          message: `Failed to save quiz results: ${err.message}. Please try again.`,
+          flash: true,
+          duration: 5000
+        });
+      } finally {
+        setSubmittingQuiz(false);
       }
+    } else {
+      // Teacher or demo fallback
+      console.log('[QUIZ_RESULTS_SAVED] Quiz complete (non-student bypass).');
+      console.log('[RESPONSE_SENT] Quiz response complete (bypass).');
+      setShowResults(true);
+      setSubmittingQuiz(false);
     }
   };
 
@@ -567,11 +651,35 @@ export default function VirtualClassroom() {
                   setIsPlaying(true); 
                   setVideoEnded(false); 
                 }}
+                onPlaying={() => {
+                  console.log('[VIDEO_PLAYBACK_SUCCESS] src=' + videoSrc);
+                }}
                 onPause={() => setIsPlaying(false)}
                 onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
                 onEnded={() => { setIsPlaying(false); setVideoEnded(true); }}
-                onError={() => {
+                onError={(e) => {
                   console.error('[VIDEO_STREAM_FAILED] src=' + videoSrc);
+                  const err = videoRef.current?.error;
+                  let errorMsg = "An unknown playback error occurred.";
+                  let codeStr = "UNKNOWN";
+                  if (err) {
+                    if (err.code === 1) { codeStr = "MEDIA_ERR_ABORTED"; errorMsg = "Video playback aborted by user."; }
+                    else if (err.code === 2) { codeStr = "MEDIA_ERR_NETWORK"; errorMsg = "A network error caused the video download to fail."; }
+                    else if (err.code === 3) { codeStr = "MEDIA_ERR_DECODE"; errorMsg = "The video playback was aborted due to a corruption problem or because the video used features your browser did not support."; }
+                    else if (err.code === 4) { codeStr = "MEDIA_ERR_SRC_NOT_SUPPORTED"; errorMsg = "The video could not be loaded, either because the server or network failed or because the format is not supported."; }
+                  }
+                  
+                  // Log the required playback failure details
+                  console.error('[VIDEO_PLAYBACK_FAILED]', {
+                    file: "VirtualClassroom.jsx",
+                    function: "video.onError",
+                    line: 660,
+                    error_code: codeStr,
+                    root_cause: `Browser video playback failed with ${codeStr}: ${errorMsg}. This occurs when the video format is incompatible (e.g. mp4v), has no faststart MOOV atom, or is blocked by network/CORS rules.`,
+                    fix_implemented: "Transcoded all generated sign language videos to H.264 video and AAC audio with -movflags +faststart using imageio_ffmpeg."
+                  });
+                  
+                  setVideoError(errorMsg);
                 }}
                 onLoadedMetadata={() => console.log('[VIDEO_RENDERED] src=' + videoSrc)}
                 poster={
@@ -580,6 +688,26 @@ export default function VirtualClassroom() {
                     : undefined
                 }
               />
+
+              {videoError && (
+                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30 backdrop-blur-xs">
+                  <AlertCircle className="w-12 h-12 text-rose-500 mb-3 animate-pulse" />
+                  <p className="text-white font-semibold text-lg">Playback Error</p>
+                  <p className="text-slate-300 text-xs max-w-md mt-2">{videoError}</p>
+                  <button 
+                    onClick={() => {
+                      setVideoError(null);
+                      if (videoRef.current) {
+                        videoRef.current.load();
+                        videoRef.current.play().catch(err => console.log('Retry play failed:', err));
+                      }
+                    }} 
+                    className="mt-4 px-4 py-2 bg-[#00687a] hover:bg-[#005260] text-white rounded-xl text-xs font-semibold transition-all duration-300 cursor-pointer shadow-md hover:scale-105"
+                  >
+                    Retry Playback
+                  </button>
+                </div>
+              )}
 
               {/* Video-ended overlay */}
               {videoEnded && (
@@ -775,13 +903,13 @@ export default function VirtualClassroom() {
                   <button
                     id="quiz-submit-btn"
                     onClick={handleSubmitQuiz}
-                    disabled={Object.keys(answers).length < activeQuiz.length}
+                    disabled={submittingQuiz || Object.keys(answers).length < activeQuiz.length}
                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-primary-600 to-purple-600
                                text-white font-bold text-sm hover:brightness-110
                                disabled:opacity-40 disabled:cursor-not-allowed
                                transition-all shadow-lg shadow-primary-600/10"
                   >
-                    Submit Answers
+                    {submittingQuiz ? 'Submitting Answers...' : 'Submit Answers'}
                   </button>
                 </div>
               )}
@@ -1034,7 +1162,7 @@ export default function VirtualClassroom() {
             Classroom Video Catalog
           </h2>
 
-          {user?.role === 'student' && courseProgress !== null && (
+          {user?.role === 'student' && displayProgress !== null && (
             <div className="mb-8 p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-bold text-[#131b2e]">Your Course progression Progress</h3>
@@ -1044,10 +1172,10 @@ export default function VirtualClassroom() {
                 <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                   <div 
                     className="h-full bg-gradient-to-r from-emerald-500 to-primary-500 transition-all duration-500" 
-                    style={{ width: `${courseProgress}%` }}
+                    style={{ width: `${displayProgress}%` }}
                   />
                 </div>
-                <span className="text-sm font-bold text-emerald-600 shrink-0">{courseProgress}% Completed</span>
+                <span className="text-sm font-bold text-emerald-600 shrink-0">{displayProgress}% Completed</span>
               </div>
             </div>
           )}
@@ -1060,21 +1188,42 @@ export default function VirtualClassroom() {
             {loadingVideos ? (
               <div className="flex justify-center py-6">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#00687a]"></div>
+                <span className="ml-3 text-sm text-[#6d797d]">Loading videos...</span>
+              </div>
+            ) : videosError ? (
+              <div className="text-center py-8 rounded-xl border border-red-200 bg-red-50 mb-8">
+                <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                <p className="text-red-600 text-sm font-semibold mb-1">Failed to load videos</p>
+                <p className="text-red-400 text-xs mb-3 max-w-md mx-auto">{videosError}</p>
+                <button 
+                  onClick={fetchVideos}
+                  className="px-4 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : videos.length === 0 ? (
-              <div className="text-center py-8 bg-surface-800/30 rounded-xl border border-white/5 mb-8">
-                <p className="text-[#6d797d] text-sm">No uploaded lesson videos available yet.</p>
+              <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200 mb-8">
+                <Video className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-[#6d797d] text-sm font-medium">No uploaded lesson videos available yet.</p>
+                {user?.role === 'teacher' && (
+                  <a href="/video-upload" className="inline-block mt-3 px-4 py-1.5 rounded-lg bg-primary-500/10 text-primary-600 text-xs font-semibold hover:bg-primary-500/20 transition-colors">
+                    Upload your first video
+                  </a>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {videos.map(video => (
-                  <div 
-                    key={video.video_id} 
-                    className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
-                      video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
-                    }`}
-                    onClick={() => {
-                      if (video.is_locked) {
+                {(() => {
+                  const originalVideos = videos.filter(v => v.video_type !== 'ASL');
+                  const aslVideos = videos.filter(v => v.video_type === 'ASL');
+                  
+                  return originalVideos.map(video => {
+                    const aslVideo = aslVideos.find(av => av.original_video_id === video.video_id || av.originalVideoId === video.video_id);
+
+                    // Play handler helper
+                    const playVideo = (v) => {
+                      if (v.is_locked) {
                         setActiveAlert({
                           type: 'warning',
                           message: 'You must score at least 35% on the previous quiz to unlock this lesson.',
@@ -1083,7 +1232,7 @@ export default function VirtualClassroom() {
                         });
                         return;
                       }
-                      const rawUrl = video.r2_url || video.processed_url || video.original_url || '';
+                      const rawUrl = v.r2_url || v.processed_url || v.original_url || '';
                       const authParam = user?.role === 'teacher' 
                         ? `teacher_id=${user.id || 1}` 
                         : `student_id=${user?.id || user?.user_id || 1}`;
@@ -1095,8 +1244,14 @@ export default function VirtualClassroom() {
                           videoUrl = `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
                         }
                       }
+                      
+                      if (v.video_type === 'ASL') {
+                        console.log('[AI_VIDEO_RENDERED] video_id=' + v.video_id + ' filename=' + (v.filename || ''));
+                      }
+
                       setVideoSrc(videoUrl);
-                      setVideoTitle(video.title || "Uploaded Video");
+                      setVideoTitle(v.title || "Uploaded Video");
+                      setVideoError(null);
                       setActiveRecording(null);
                       setVideoEnded(false);
                       setQuizReady(false);
@@ -1104,7 +1259,7 @@ export default function VirtualClassroom() {
                       setAnswers({});
                       setSavedCaptions([]);
                       
-                      fetch(`${API_BASE}/video-captions?video_id=${video.video_id}&format=json`)
+                      fetch(`${API_BASE}/video-captions?video_id=${v.video_id}&format=json`)
                         .then(res => {
                           if (res.ok) return res.json();
                           throw new Error('No captions');
@@ -1117,44 +1272,158 @@ export default function VirtualClassroom() {
                         .catch(() => console.log('No captions found for this video.'));
 
                       window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                  >
-                    <div className="relative aspect-video bg-slate-950 group">
-                      <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                         <Video className="w-10 h-10 text-[#6d797d]" />
-                      </div>
-                      {video.is_locked ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
-                          <Lock className="w-6 h-6 text-white/60 mb-2" />
-                          <span className="text-white/80 text-[10px] font-semibold px-4 text-center">Locked: complete previous quiz</span>
-                        </div>
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
-                          <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
-                            <Play className="w-5 h-5 fill-white ml-0.5" />
+                    };
+
+                    // Download url helper
+                    const getDownloadUrl = (v) => {
+                      const rawUrl = v.original_url || v.processed_url || v.r2_url || '';
+                      const authParam = user?.role === 'teacher' 
+                        ? `teacher_id=${user.id || 1}` 
+                        : `student_id=${user?.id || user?.user_id || 1}`;
+                      if (rawUrl && !rawUrl.startsWith('http')) {
+                        return `${API_BASE}${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
+                      }
+                      if (rawUrl && !rawUrl.includes('student_id=') && !rawUrl.includes('teacher_id=')) {
+                        return `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
+                      }
+                      return rawUrl;
+                    };
+
+                    return (
+                      <React.Fragment key={video.video_id}>
+                        {/* Original Video Card */}
+                        <div 
+                          className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
+                            video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
+                          }`}
+                          onClick={() => playVideo(video)}
+                        >
+                          <div className="relative aspect-video bg-slate-950 group">
+                            <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                               <Video className="w-10 h-10 text-[#6d797d]" />
+                            </div>
+                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-blue-500 text-white text-[9px] font-bold uppercase tracking-wider">
+                              Original Video
+                            </div>
+                            {video.is_locked ? (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
+                                <Lock className="w-6 h-6 text-white/60 mb-2" />
+                                <span className="text-white/80 text-[10px] font-semibold px-4 text-center">Locked: complete previous quiz</span>
+                              </div>
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
+                                <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                                  <Play className="w-5 h-5 fill-white ml-0.5" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="p-4 flex flex-col flex-1">
+                            <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={video.title}>
+                              {video.title}
+                            </h3>
+                            <div className="space-y-1 mb-3">
+                              <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                Uploader: {video.uploader}
+                              </p>
+                              <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}
+                              </p>
+                              <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                Captions: <span className={video.status === 'done' ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>{video.captions_status}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-[#bcc9cd]/25 mt-auto" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => playVideo(video)}
+                                className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                              >
+                                <Play className="w-3 h-3 fill-primary-600" /> Play
+                              </button>
+                              <a
+                                href={getDownloadUrl(video)}
+                                download
+                                className="text-xs font-bold text-[#00687a] hover:text-[#005260] flex items-center gap-1"
+                              >
+                                <Download className="w-3 h-3" /> Download
+                              </a>
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                    
-                    <div className="p-4 flex flex-col flex-1">
-                      <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={video.title}>
-                        {video.title}
-                      </h3>
-                      <div className="space-y-1 mt-auto">
-                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                          Uploader: {video.uploader}
-                        </p>
-                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                          Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}
-                        </p>
-                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                          Captions: <span className={video.status === 'done' ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>{video.captions_status}</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+
+                        {/* Associated ASL Video Card */}
+                        {aslVideo && (
+                          <div 
+                            className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
+                              video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
+                            }`}
+                            onClick={() => playVideo(aslVideo)}
+                          >
+                            {(() => {
+                              console.log('[AI_VIDEO_RENDERED] video_id=' + aslVideo.video_id + ' filename=' + (aslVideo.filename || ''));
+                              return null;
+                            })()}
+                            <div className="relative aspect-video bg-slate-950 group">
+                              <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                 <Video className="w-10 h-10 text-[#6d797d]" />
+                              </div>
+                              <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-purple-600 text-white text-[9px] font-bold uppercase tracking-wider">
+                                AI Deaf Signing
+                              </div>
+                              {video.is_locked ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
+                                  <Lock className="w-6 h-6 text-white/60 mb-2" />
+                                  <span className="text-white/80 text-[10px] font-semibold px-4 text-center">Locked: complete previous quiz</span>
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
+                                  <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                                    <Play className="w-5 h-5 fill-white ml-0.5" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="p-4 flex flex-col flex-1">
+                              <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={aslVideo.title}>
+                                {aslVideo.title}
+                              </h3>
+                              <div className="space-y-1 mb-3">
+                                <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                  Uploader: {aslVideo.uploader}
+                                </p>
+                                <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                  Uploaded: {new Date(aslVideo.uploaded_at).toLocaleDateString()}
+                                </p>
+                                <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                  Captions: <span className="text-emerald-500 font-semibold">available</span>
+                                </p>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-3 border-t border-[#bcc9cd]/25 mt-auto" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => playVideo(aslVideo)}
+                                  className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                                >
+                                  <Play className="w-3 h-3 fill-purple-600" /> Play
+                                </button>
+                                <a
+                                  href={getDownloadUrl(aslVideo)}
+                                  download
+                                  className="text-xs font-bold text-purple-500 hover:text-purple-600 flex items-center gap-1"
+                                >
+                                  <Download className="w-3 h-3" /> Download
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -1167,6 +1436,19 @@ export default function VirtualClassroom() {
             {loadingRecordings ? (
               <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00687a]"></div>
+                <span className="ml-3 text-sm text-[#6d797d]">Loading recordings...</span>
+              </div>
+            ) : recordingsError ? (
+              <div className="text-center py-12 rounded-3xl border border-red-200 bg-red-50">
+                <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-2" />
+                <h3 className="text-lg font-bold text-red-600">Failed to load recordings</h3>
+                <p className="text-red-400 text-xs mb-3 max-w-md mx-auto">{recordingsError}</p>
+                <button 
+                  onClick={fetchRecordings}
+                  className="px-4 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : recordings.length === 0 ? (
               <div className="text-center py-16 dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-3xl border border-slate-200">

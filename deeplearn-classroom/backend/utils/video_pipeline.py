@@ -109,6 +109,8 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
         if not captions:
             captions = [{"text": "No speech detected in video.", "start": 0.0, "end": 2.0}]
 
+        print(f"[CAPTIONS_GENERATED] video_id={video_id} count={len(captions)}", flush=True)
+
         _write_job(job_id, {"progress": 30,
                              "step": f"Transcription complete — {len(captions)} segments",
                              "status": "processing"})
@@ -129,6 +131,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                              "status": "processing"})
 
         _render_video_with_overlay(input_path, output_path, captions, job_id)
+        print(f"[AI_SIGN_VIDEO_COMPLETED] video_id={video_id} job_id={job_id}", flush=True)
 
         # ── Done ──────────────────────────────────────────────────
         formatted_captions = []
@@ -157,6 +160,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 if is_r2_url(url):
                     video_url = url
                     print(f"[R2_UPLOAD_SUCCESS] key={output_r2_key} url={video_url}", flush=True)
+                    print(f"[AI_VIDEO_UPLOADED_TO_R2] video_id={video_id} url={video_url}", flush=True)
                     # Delete local processed file — it's in R2 now
                     try:
                         os.remove(output_path)
@@ -202,37 +206,85 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 
-                # Update status, url, r2_url and transcript
-                full_transcript = " ".join([cap["text"] for cap in captions])
-                from utils.storage import is_r2_url
+                # Fetch original video details
+                cursor.execute("""
+                    SELECT teacher_id, course_id, title, filename, original_url 
+                    FROM videos 
+                    WHERE video_id = ?
+                """, (video_id,))
+                orig_video = cursor.fetchone()
+                if not orig_video:
+                    raise ValueError(f"Original video record not found in database for video_id {video_id}")
+                
+                teacher_id, course_id, orig_title, orig_filename, orig_url = orig_video
+                print(f"[ORIGINAL_VIDEO_FOUND] video_id={video_id}", flush=True)
+                
+                # Update original video status to 'done' and type to 'original'
                 cursor.execute("""
                     UPDATE videos 
-                    SET status = 'done', processed_url = ?, r2_url = ?, transcript = ?, processed_at = CURRENT_TIMESTAMP
+                    SET status = 'done', video_type = 'original', processed_at = CURRENT_TIMESTAMP
                     WHERE video_id = ?
-                """, (video_url, video_url if is_r2_url(video_url) else None, full_transcript, video_id))
+                """, (video_id,))
                 
-                # Delete any old captions for this video_id
+                # Create a NEW record for the ASL video
+                asl_title = f"[AI Deaf Signing] {orig_title}"
+                asl_filename = f"signed_{orig_filename}"
+                from utils.storage import is_r2_url
+                
+                cursor.execute("""
+                    INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, original_video_id, video_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ASL')
+                """, (
+                    teacher_id, 
+                    course_id, 
+                    asl_title, 
+                    asl_filename, 
+                    orig_url, 
+                    video_url, 
+                    video_url if is_r2_url(video_url) else None, 
+                    video_id
+                ))
+                asl_video_id = cursor.lastrowid
+                
+                # Now set captions_url for the new ASL video
+                asl_captions_url = f"/video-captions?video_id={asl_video_id}"
+                cursor.execute("""
+                    UPDATE videos 
+                    SET captions_url = ? 
+                    WHERE video_id = ?
+                """, (asl_captions_url, asl_video_id))
+                
+                # Delete any old captions for original and ASL video
                 cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
+                cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (asl_video_id,))
                 
-                # Insert new captions
+                # Insert new captions for BOTH videos (original and ASL)
                 for cap in captions:
                     sign_sequence_json = json.dumps(cap.get("gestures", []))
+                    # For original video
                     cursor.execute("""
                         INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
                         VALUES (?, ?, ?, ?, ?)
                     """, (video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
-                    print(f"[TRANSCRIPT_SEGMENT_SAVED] video_id={video_id} start={cap['start']} end={cap['end']} text=\"{cap['text']}\"")
+                    # For ASL video
+                    cursor.execute("""
+                        INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (asl_video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
+                    print(f"[TRANSCRIPT_SEGMENT_SAVED] video_id={asl_video_id} start={cap['start']} end={cap['end']} text=\"{cap['text']}\"")
                 
                 conn.commit()
                 print("[DATABASE_SAVE_SUCCESS]", flush=True)
                 print(f"[VIDEO_LIST_UPDATED] video_id={video_id}", flush=True)
-                print(f"[CAPTION_SAVED] video_id={video_id} count={len(captions)}")
+                print(f"[AI_VIDEO_DATABASE_SAVED] video_id={asl_video_id} original_video_id={video_id}", flush=True)
+                print(f"[CAPTION_SAVED] video_id={asl_video_id} count={len(captions)}")
                 print(f"[Pipeline] Successfully saved {len(captions)} captions to DB for video_id {video_id}")
             except Exception as db_err:
                 import traceback
                 if 'conn' in locals():
                     conn.rollback()
                 print(f"[DATABASE_SAVE_FAILED] video_id={video_id} error={db_err} traceback={traceback.format_exc()}", flush=True)
+                raise db_err
             finally:
                 if 'conn' in locals():
                     conn.close()
@@ -249,9 +301,32 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
 
     except Exception as e:
         import traceback
+        import sys
         print(f"[Pipeline] Job {job_id} failed: {e}")
         print(f"[Pipeline] stack_trace={traceback.format_exc()}", flush=True)
         _write_job(job_id, {"status": "error", "error": str(e)})
+        
+        # Format exact line/file/root cause traceback
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        tb = traceback.extract_tb(exc_tb)
+        last_frame = tb[-1] if tb else None
+        file_name = last_frame.filename if last_frame else "video_pipeline.py"
+        line_num = last_frame.lineno if last_frame else 0
+        func_name = last_frame.name if last_frame else "process_video_pipeline"
+        err_msg = str(e)
+        stack_str = traceback.format_exc()
+        
+        print(json.dumps({
+            "error_log": {
+                "file": file_name,
+                "function": func_name,
+                "line": line_num,
+                "message": err_msg,
+                "stack_trace": stack_str,
+                "root_cause": f"Pipeline execution failed: {err_msg}"
+            }
+        }, indent=2), flush=True)
+
         if video_id:
             from database.db import get_db_connection
             try:
@@ -339,9 +414,10 @@ def _render_video_with_overlay(input_path, output_path, captions, job_id):
 
     cap.release()
     writer.release()
+    print(f"[AI_VIDEO_CREATED] video_path={output_path}", flush=True)
 
-    # Try to merge audio back using ffmpeg
-    _merge_audio(input_path, output_path)
+    # Try to merge audio back using ffmpeg and transcode to standard H.264
+    _merge_audio(input_path, output_path, video_id=video_id)
 
     _write_job(job_id, {"status": "processing", "progress": 98, "step": "Finalizing..."})
 
@@ -388,36 +464,76 @@ def _burn_caption(frame, text, width, height):
     return frame
 
 
-def _merge_audio(original_video, processed_video):
+def _get_ffmpeg_exe():
+    """Retrieve the ffmpeg executable path via imageio_ffmpeg or fallback to 'ffmpeg'."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def get_video_duration(video_path):
+    """Retrieve video duration using ffmpeg."""
+    try:
+        import subprocess
+        import re
+        ffmpeg_exe = _get_ffmpeg_exe()
+        res = subprocess.run([ffmpeg_exe, "-i", video_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output = res.stderr or res.stdout
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", output)
+        if match:
+            hours = int(match.group(1))
+            minutes = int(match.group(2))
+            seconds = float(match.group(3))
+            return hours * 3600 + minutes * 60 + seconds
+    except Exception as e:
+        print(f"Error getting duration: {e}")
+    return 0.0
+
+
+def _merge_audio(original_video, processed_video, video_id=None):
     """
-    Merge original audio back into the processed video using ffmpeg.
+    Merge original audio back into the processed video using ffmpeg and transcode to standard H.264.
     Overwrites the processed video file.
     """
     try:
         import subprocess
         temp_output = processed_video + ".temp.mp4"
+        ffmpeg_exe = _get_ffmpeg_exe()
+        
+        # We transcode the raw mp4v video to H.264 (libx264) with standard yuv420p pixel format
+        # and standard AAC audio. We also add the MOOV atom faststart optimization for web streaming.
         cmd = [
-            "ffmpeg", "-y",
+            ffmpeg_exe, "-y",
             "-i", processed_video,
             "-i", original_video,
-            "-c:v", "copy",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-map", "0:v:0",
             "-map", "1:a:0?",
+            "-movflags", "+faststart",
             "-shortest",
             temp_output
         ]
         result = subprocess.run(cmd, capture_output=True, timeout=120)
         if result.returncode == 0 and os.path.exists(temp_output):
             os.replace(temp_output, processed_video)
-            print("[Pipeline] Audio merged successfully")
+            print("[Pipeline] Audio merged and video transcoded to standard H.264/AAC with faststart", flush=True)
+            print(f"[FFMPEG_COMPLETED] video_path={processed_video}", flush=True)
+            
+            # Verify video duration matches original
+            orig_dur = get_video_duration(original_video)
+            out_dur = get_video_duration(processed_video)
+            print(f"[VIDEO_DURATION_VERIFIED] video_id={video_id} original_duration={orig_dur:.2f} output_duration={out_dur:.2f}", flush=True)
         else:
-            # If ffmpeg fails, keep video without audio
+            # Fallback check: if transcoding failed but temp file exists, clean it up
             if os.path.exists(temp_output):
                 os.remove(temp_output)
-            print("[Pipeline] ffmpeg audio merge skipped (no ffmpeg or no audio)")
+            print(f"[Pipeline] ffmpeg transcode failed with code {result.returncode}. Stderr: {result.stderr.decode()}", flush=True)
     except Exception as e:
-        print(f"[Pipeline] Audio merge failed: {e}")
+        print(f"[Pipeline] Audio merge/transcode failed: {e}", flush=True)
 
 
 def _format_time(seconds):

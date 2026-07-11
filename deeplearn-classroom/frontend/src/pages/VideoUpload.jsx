@@ -67,6 +67,7 @@ export default function VideoUpload() {
     setProgress(5);
     setStep('Uploading video...');
     setError('');
+    console.log('[UPLOAD_REQUEST_RECEIVED] filename=' + file.name + ' size=' + file.size);
 
     // Fast processing: Only extract captions
     await extractCaptionsLocally();
@@ -79,8 +80,8 @@ export default function VideoUpload() {
     setProgress(5);
     setStep('Uploading video for Deaf Signing Pipeline...');
     setError('');
+    console.log('[UPLOAD_REQUEST_RECEIVED] pipeline=full filename=' + file.name + ' size=' + file.size);
 
-    const BACKEND_URL = API_BASE;
     try {
       const formData = new FormData();
       formData.append('video_file', file);
@@ -89,7 +90,7 @@ export default function VideoUpload() {
       formData.append('title', file.name);
       formData.append('filename', file.name);
 
-      const res = await fetch(`${BACKEND_URL}/upload-video`, {
+      const res = await fetch(`${API_BASE}/upload-video`, {
         method: 'POST',
         body: formData,
       });
@@ -100,6 +101,7 @@ export default function VideoUpload() {
       }
       
       const data = await res.json();
+      console.log('[UPLOAD_COMPLETED] job_id=' + data.job_id + ' video_id=' + data.video_id);
       setJobId(data.job_id);
       setFilename(data.filename);
       startPolling(data.job_id);
@@ -109,7 +111,7 @@ export default function VideoUpload() {
       const userMessage = isNetworkError
         ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
           ? `Could not reach the local backend. Make sure the Flask server is running:\n  cd backend && python app.py\n\nThen try again.`
-          : `Could not reach the backend API at ${BACKEND_URL}. Ensure that the VITE_API_URL environment variable is configured in the Vercel dashboard and your Render backend service is running.`)
+          : `Could not reach the backend API. Ensure that the VITE_API_URL environment variable is configured in the Vercel dashboard and your Render backend service is running.`)
         : `Full pipeline failed: ${err.message}`;
       setStatus('error');
       setError(userMessage);
@@ -127,8 +129,6 @@ export default function VideoUpload() {
    * If the backend is not running, shows a clear error instead of fake captions.
    */
   const extractCaptionsLocally = async () => {
-    const BACKEND_URL = API_BASE;
-
     // Step 1: Upload
     setProgress(15);
     setStep('Step 1/4: Sending video to backend...');
@@ -150,7 +150,7 @@ export default function VideoUpload() {
       setProgress(30);
       setStep('Step 2/4: Extracting audio track from video...');
 
-      const res = await fetch(`${BACKEND_URL}/extract-captions`, {
+      const res = await fetch(`${API_BASE}/extract-captions`, {
         method: 'POST',
         body: formData,
       });
@@ -190,6 +190,7 @@ export default function VideoUpload() {
       setCaptions(realCaptions);
       setStatus('done');
       setUploading(false);
+      console.log('[UPLOAD_COMPLETED] captions=' + realCaptions.length + ' filename=' + file.name);
 
       // Dispatch event so other pages (TeacherDashboard, VirtualClassroom) can refresh
       window.dispatchEvent(new CustomEvent('video-list-updated'));
@@ -202,7 +203,7 @@ export default function VideoUpload() {
       const userMessage = isNetworkError
         ? (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
           ? `Could not reach the local backend. Make sure the Flask server is running:\n  cd backend && python app.py\n\nThen try again.`
-          : `Could not reach the backend API at ${BACKEND_URL}. Ensure that the VITE_API_URL environment variable is configured in the Vercel dashboard and your Render backend service is running.`)
+          : `Could not reach the backend API. Ensure that the VITE_API_URL environment variable is configured in the Vercel dashboard and your Render backend service is running.`)
         : `Caption extraction failed: ${err.message}`;
 
       setStatus('error');
@@ -429,7 +430,7 @@ export default function VideoUpload() {
                       window.uploadedDemoVideo = `${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}${jobId ? `&job_id=${jobId}` : ''}${authParam}`;
                       window.uploadedDemoTitle = file?.name || 'Uploaded Video';
                     }
-                    navigate(`/classroom?${params.toString()}`);
+                    navigate(`/classroom?${params.toString()}&uploaded=true`);
                   }}
                 >
                   <MonitorPlay className="w-5 h-5" aria-hidden="true" />

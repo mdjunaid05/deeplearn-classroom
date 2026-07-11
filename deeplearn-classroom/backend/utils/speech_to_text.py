@@ -18,8 +18,14 @@ def extract_audio_from_video(video_path):
     audio_path = temp_audio.name
     temp_audio.close()
     
+    try:
+        import imageio_ffmpeg
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        ffmpeg_exe = "ffmpeg"
+    
     command = [
-        "ffmpeg", "-y",
+        ffmpeg_exe, "-y",
         "-i", video_path,
         "-vn",
         "-acodec", "pcm_s16le",
@@ -29,33 +35,43 @@ def extract_audio_from_video(video_path):
     ]
     
     try:
-        # Check if the video file has an audio track
-        ffprobe_cmd = [
-            "ffprobe", "-v", "error",
-            "-select_streams", "a",
-            "-show_entries", "stream=codec_type",
-            "-of", "csv=p=0",
-            video_path
-        ]
-        probe_res = subprocess.run(ffprobe_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if "audio" in probe_res.stdout:
-            print(f"[AUDIO_TRACK_DETECTED] video_path={video_path}")
+        # Check if the video file has an audio track using ffmpeg -i stream information
+        probe_res = subprocess.run([ffmpeg_exe, "-i", video_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        probe_output = probe_res.stderr or probe_res.stdout
+        
+        if "Audio:" in probe_output:
+            print(f"[AUDIO_TRACK_DETECTED] video_path={video_path}", flush=True)
         else:
-            print(f"[STT] Warning: No audio stream detected in {video_path}")
+            print(f"[STT] Warning: No audio stream detected in {video_path}", flush=True)
 
         subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as e:
         if os.path.exists(audio_path):
             os.remove(audio_path)
-        raise RuntimeError(f"FFmpeg failed: {e.stderr.decode()}")
+        err_msg = e.stderr.decode() if e.stderr else str(e)
+        if "does not contain any stream" in err_msg or "Output file" in err_msg:
+            print(f"[STT] Creating silent audio fallback for silent video: {video_path}", flush=True)
+            try:
+                silent_cmd = [
+                    ffmpeg_exe, "-y",
+                    "-f", "lavfi", "-i", "anullsrc=r=16000:cl=mono",
+                    "-t", "1.0",
+                    audio_path
+                ]
+                subprocess.run(silent_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            except Exception as silent_err:
+                print(f"[STT] Failed to create silent audio fallback: {silent_err}", flush=True)
+                raise RuntimeError(f"FFmpeg audio extraction failed: {err_msg}")
+        else:
+            raise RuntimeError(f"FFmpeg failed: {err_msg}")
     except FileNotFoundError:
         if os.path.exists(audio_path):
             os.remove(audio_path)
         raise RuntimeError("FFmpeg is not installed or not in PATH")
         
     file_size = os.path.getsize(audio_path)
-    print(f"[STT] Audio file size: {file_size} bytes")
-    print(f"[AUDIO_EXTRACTED] audio_path={audio_path} size={file_size}")
+    print(f"[STT] Audio file size: {file_size} bytes", flush=True)
+    print(f"[AUDIO_EXTRACTED] audio_path={audio_path} size={file_size}", flush=True)
     
     if file_size == 0:
         if os.path.exists(audio_path):

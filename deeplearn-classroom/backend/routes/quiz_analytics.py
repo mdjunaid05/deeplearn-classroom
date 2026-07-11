@@ -4,9 +4,11 @@ Provides API endpoints for student quiz submissions and teacher analytics dashbo
 """
 
 import json
+import traceback
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from database.db import get_db_connection, query_db
+from routes.auth import require_auth
 
 quiz_analytics_bp = Blueprint("quiz_analytics", __name__)
 
@@ -29,6 +31,7 @@ def get_val(row, key_or_index):
     return None
 
 @quiz_analytics_bp.route("/quiz/submit", methods=["POST"])
+@require_auth
 def submit_quiz():
     """
     POST /quiz/submit
@@ -36,318 +39,382 @@ def submit_quiz():
     updates legacy quiz_scores, updates quiz analytics report, and updates
     student progress & unlocks next lesson based on 35% pass mark.
     """
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"error": "Request body must be valid JSON"}), 400
-
-    student_id = data.get("student_id")
-    quiz_title = data.get("quiz_title", "General Quiz").strip()
-    recording_id = data.get("recording_id")
-    time_taken = data.get("time_taken", 0) # in seconds
-    questions = data.get("questions", [])
-    course_id = data.get("course_id", 1)
-
-    if not student_id:
-        return jsonify({"error": "Missing student_id"}), 400
-    if not questions:
-        return jsonify({"error": "No questions submitted"}), 400
-
-    # Calculate Score, Correct, Incorrect, Percentage
-    total_questions = len(questions)
-    correct_answers = 0
-    incorrect_answers = 0
-    evaluated_questions = []
-
-    # Format incorrect answers and weak areas
-    incorrect_list = []
-    weak_areas = set()
-
-    for idx, q in enumerate(questions):
-        question_text = q.get("question_text", "").strip()
-        options = q.get("options", [])
-        correct_option = q.get("correct_option", 0)
-        selected_option = q.get("selected_option", 0)
-        
-        is_correct = (selected_option == correct_option)
-        if is_correct:
-            correct_answers += 1
-        else:
-            incorrect_answers += 1
-            incorrect_list.append({
-                "question_text": question_text,
-                "selected_option": selected_option,
-                "correct_option": correct_option,
-                "options": options
-            })
-            
-            # Map topics/weak areas
-            q_text_lower = question_text.lower()
-            if "activation" in q_text_lower:
-                weak_areas.add("Activation Functions")
-            elif "loss" in q_text_lower or "cost" in q_text_lower:
-                weak_areas.add("Loss Functions")
-            elif "overfit" in q_text_lower or "regulariz" in q_text_lower:
-                weak_areas.add("Overfitting and Regularization")
-            elif "gradient" in q_text_lower or "descent" in q_text_lower:
-                weak_areas.add("Optimization & Gradient Descent")
-            elif "network" in q_text_lower or "layer" in q_text_lower:
-                weak_areas.add("Network Architecture")
-            else:
-                weak_areas.add("General Concepts")
-
-        evaluated_questions.append({
-            "question_text": question_text,
-            "options": options,
-            "correct_option": correct_option,
-            "selected_option": selected_option,
-            "is_correct": is_correct
-        })
-
-    percentage = (correct_answers / total_questions * 100) if total_questions > 0 else 0
-    passed = percentage >= 35 # PASSING REQUIREMENT IS 35%
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    attempt_id = None
-    unlocked_next = False
-    next_lesson_id = None
-    attempts_count = 1
+    data = request.get_json(silent=True) or {}
+    
+    # ── LOG: QUIZ_SUBMIT_REQUEST ─────────────────────────────────────────────
+    print(f"[QUIZ_SUBMIT_REQUEST] Endpoint called by user. Payload={json.dumps({k: v for k, v in data.items() if k != 'questions'})}", flush=True)
 
     try:
-        # 1. Ensure Quiz exists
-        cursor.execute(
-            "SELECT quiz_id FROM quizzes WHERE title = ? AND (recording_id = ? OR (? IS NULL AND recording_id IS NULL))",
-            (quiz_title, recording_id, recording_id)
-        )
-        quiz_row = cursor.fetchone()
-        if quiz_row:
-            quiz_id = get_val(quiz_row, 0)
-        else:
-            cursor.execute(
-                "INSERT INTO quizzes (title, recording_id) VALUES (?, ?)",
-                (quiz_title, recording_id)
-            )
-            quiz_id = cursor.lastrowid
-
-        # 2. Ensure Questions exist and link them to question_ids
-        question_ids = []
-        for eq in evaluated_questions:
-            options_json = json.dumps(eq["options"])
-            cursor.execute(
-                "SELECT question_id FROM questions WHERE quiz_id = ? AND question_text = ?",
-                (quiz_id, eq["question_text"])
-            )
-            q_row = cursor.fetchone()
-            if q_row:
-                q_id = get_val(q_row, 0)
-            else:
-                cursor.execute(
-                    "INSERT INTO questions (quiz_id, question_text, options, correct_option) VALUES (?, ?, ?, ?)",
-                    (quiz_id, eq["question_text"], options_json, eq["correct_option"])
-                )
-                q_id = cursor.lastrowid
-            question_ids.append(q_id)
-
-        # 3. Create Quiz Attempt
-        cursor.execute(
-            """
-            INSERT INTO quiz_attempts (student_id, quiz_id, score, total_questions, correct_answers, incorrect_answers, percentage, time_taken)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (student_id, quiz_id, correct_answers, total_questions, correct_answers, incorrect_answers, percentage, time_taken)
-        )
-        attempt_id = cursor.lastrowid
-
-        # 4. Insert Student Responses
-        for idx, eq in enumerate(evaluated_questions):
-            q_id = question_ids[idx]
-            cursor.execute(
-                """
-                INSERT INTO student_responses (attempt_id, question_id, selected_option, is_correct)
-                VALUES (?, ?, ?, ?)
-                """,
-                (attempt_id, q_id, eq["selected_option"], 1 if eq["is_correct"] else 0)
-            )
-
-        # 5. Backward compatibility with legacy quiz_scores table
-        if recording_id:
-            cursor.execute(
-                "SELECT score_id FROM quiz_scores WHERE student_id = ? AND recording_id = ?",
-                (student_id, recording_id)
-            )
-            score_row = cursor.fetchone()
-            if score_row:
-                cursor.execute(
-                    "UPDATE quiz_scores SET score = ?, passed = ? WHERE student_id = ? AND recording_id = ?",
-                    (correct_answers, 1 if passed else 0, student_id, recording_id)
-                )
-            else:
-                cursor.execute(
-                    "INSERT INTO quiz_scores (student_id, recording_id, score, passed) VALUES (?, ?, ?, ?)",
-                    (student_id, recording_id, correct_answers, 1 if passed else 0)
-                )
-
-        # 6. Recalculate and update Analytics Report for this quiz
-        cursor.execute(
-            "SELECT percentage, student_id FROM quiz_attempts WHERE quiz_id = ?",
-            (quiz_id,)
-        )
-        attempts = cursor.fetchall()
+        user = request.current_user
+        student_id = user.get("user_id")
         
-        percentages = [get_val(att, 0) for att in attempts]
-        class_avg = sum(percentages) / len(percentages) if percentages else 0
-        highest = max(percentages) if percentages else 0
-        lowest = min(percentages) if percentages else 0
-        pass_cnt = sum(1 for p in percentages if p >= 35) # Pass mark is 35%
-        fail_cnt = len(percentages) - pass_cnt
-
-        cursor.execute("SELECT COUNT(*) FROM students")
-        total_students_row = cursor.fetchone()
-        total_students = get_val(total_students_row, 0) or 1
-
-        unique_students = len(set(get_val(att, 1) for att in attempts))
-        participation_rate = (unique_students / total_students * 100)
-
-        cursor.execute(
-            "SELECT report_id FROM analytics_reports WHERE quiz_id = ?",
-            (quiz_id,)
-        )
-        rep_row = cursor.fetchone()
-        if rep_row:
-            cursor.execute(
-                """
-                UPDATE analytics_reports 
-                SET class_average = ?, highest_score = ?, lowest_score = ?, pass_count = ?, fail_count = ?, participation_rate = ?, updated_at = CURRENT_TIMESTAMP
-                WHERE quiz_id = ?
-                """,
-                (class_avg, highest, lowest, pass_cnt, fail_cnt, participation_rate, quiz_id)
-            )
-        else:
-            cursor.execute(
-                """
-                INSERT INTO analytics_reports (quiz_id, class_average, highest_score, lowest_score, pass_count, fail_count, participation_rate)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """,
-                (quiz_id, class_avg, highest, lowest, pass_cnt, fail_cnt, participation_rate)
-            )
-
-        # 7. Unify progression logic: resolve lesson_id
-        lesson_id = None
-        if recording_id:
-            lesson_id = f"r_{recording_id}"
-        else:
-            cursor.execute("SELECT video_id FROM videos WHERE title = ?", (quiz_title,))
-            v_row = cursor.fetchone()
-            if v_row:
-                lesson_id = f"v_{get_val(v_row, 0)}"
-            else:
-                # Try filename fallback
-                cursor.execute("SELECT video_id FROM videos WHERE filename = ?", (quiz_title,))
-                v_row2 = cursor.fetchone()
-                if v_row2:
-                    lesson_id = f"v_{get_val(v_row2, 0)}"
-
-        if lesson_id:
-            # Check existing progression
-            cursor.execute(
-                "SELECT progress_id, attempts, quiz_score, passed FROM student_progress WHERE student_id = ? AND course_id = ? AND lesson_id = ?",
-                (student_id, course_id, lesson_id)
-            )
-            prog_row = cursor.fetchone()
-            if prog_row:
-                prog_id = get_val(prog_row, 0)
-                prev_attempts = get_val(prog_row, 1) or 0
-                prev_score = get_val(prog_row, 2) or 0.0
-                prev_passed = bool(get_val(prog_row, 3))
-                
-                attempts_count = prev_attempts + 1
-                new_passed = prev_passed or passed
-                new_score = max(prev_score, percentage)
-                
-                cursor.execute(
-                    """
-                    UPDATE student_progress
-                    SET quiz_score = ?, passed = ?, attempts = ?, completed_at = ?
-                    WHERE progress_id = ?
-                    """,
-                    (new_score, 1 if new_passed else 0, attempts_count, datetime.now() if passed and not prev_passed else None, prog_id)
-                )
-            else:
-                cursor.execute(
-                    """
-                    INSERT INTO student_progress (student_id, course_id, lesson_id, quiz_score, passed, attempts, unlocked, completed_at)
-                    VALUES (?, ?, ?, ?, ?, 1, 1, ?)
-                    """,
-                    (student_id, course_id, lesson_id, percentage, 1 if passed else 0, datetime.now() if passed else None)
-                )
+        # ── INPUT VALIDATION & SANITIZATION ─────────────────────────────────────
+        if not student_id:
+            print("[QUIZ_ERROR] Missing student_id in authenticated context", flush=True)
+            return jsonify({"error": "Missing student_id in authentication context"}), 400
             
-            # If passed, unlock next lesson in sequence
-            if passed:
-                # Need sequence
-                cursor.execute("SELECT video_id FROM videos WHERE course_id = ? ORDER BY uploaded_at ASC, video_id ASC", (course_id,))
-                v_rows = cursor.fetchall()
-                cursor.execute("SELECT recording_id FROM recordings WHERE course_id = ? ORDER BY recording_timestamp ASC, recording_id ASC", (course_id,))
-                r_rows = cursor.fetchall()
+        try:
+            student_id = int(student_id)
+        except (ValueError, TypeError):
+            return jsonify({"error": "Invalid student_id format"}), 400
+
+        quiz_title = data.get("quiz_title", "General Quiz").strip()
+        recording_id = data.get("recording_id")
+        try:
+            recording_id = int(recording_id) if recording_id else None
+        except (ValueError, TypeError):
+            recording_id = None
+
+        try:
+            course_id = int(data.get("course_id", 1))
+        except (ValueError, TypeError):
+            course_id = 1
+
+        try:
+            time_taken = float(data.get("time_taken", 0))
+        except (ValueError, TypeError):
+            time_taken = 0.0
+
+        questions = data.get("questions", [])
+        if not questions:
+            print("[QUIZ_ERROR] No questions submitted in payload", flush=True)
+            return jsonify({"error": "No questions submitted"}), 400
+
+        # ── LOG: QUIZ_VALIDATION_SUCCESS ─────────────────────────────────────────
+        print(f"[QUIZ_VALIDATION_SUCCESS] Student={student_id} Quiz='{quiz_title}' Course={course_id} Questions={len(questions)}", flush=True)
+
+        # Calculate Score, Correct, Incorrect, Percentage
+        total_questions = len(questions)
+        correct_answers = 0
+        incorrect_answers = 0
+        evaluated_questions = []
+
+        incorrect_list = []
+        weak_areas = set()
+
+        for idx, q in enumerate(questions):
+            question_text = q.get("question_text", "").strip()
+            options = q.get("options", [])
+            
+            try:
+                correct_option = int(q.get("correct_option", 0))
+            except (ValueError, TypeError):
+                correct_option = 0
                 
-                ordered_ids = []
-                for vr in v_rows:
-                    ordered_ids.append(f"v_{get_val(vr, 0)}")
-                for rr in r_rows:
-                    ordered_ids.append(f"r_{get_val(rr, 0)}")
+            try:
+                selected_option = int(q.get("selected_option", 0))
+            except (ValueError, TypeError):
+                selected_option = 0
+            
+            is_correct = (selected_option == correct_option)
+            if is_correct:
+                correct_answers += 1
+            else:
+                incorrect_answers += 1
+                incorrect_list.append({
+                    "question_text": question_text,
+                    "selected_option": selected_option,
+                    "correct_option": correct_option,
+                    "options": options
+                })
+                
+                # Map topics/weak areas
+                q_text_lower = question_text.lower()
+                if "activation" in q_text_lower:
+                    weak_areas.add("Activation Functions")
+                elif "loss" in q_text_lower or "cost" in q_text_lower:
+                    weak_areas.add("Loss Functions")
+                elif "overfit" in q_text_lower or "regulariz" in q_text_lower:
+                    weak_areas.add("Overfitting and Regularization")
+                elif "gradient" in q_text_lower or "descent" in q_text_lower:
+                    weak_areas.add("Optimization & Gradient Descent")
+                elif "network" in q_text_lower or "layer" in q_text_lower:
+                    weak_areas.add("Network Architecture")
+                else:
+                    weak_areas.add("General Concepts")
+
+            evaluated_questions.append({
+                "question_text": question_text,
+                "options": options,
+                "correct_option": correct_option,
+                "selected_option": selected_option,
+                "is_correct": is_correct
+            })
+
+        percentage = (correct_answers / total_questions * 100) if total_questions > 0 else 0
+        passed = percentage >= 35 # PASSING MARK IS 35%
+
+        # ── LOG: QUIZ_SCORE_CALCULATED ───────────────────────────────────────────
+        print(f"[QUIZ_SCORE_CALCULATED] Student={student_id} Score={correct_answers}/{total_questions} ({percentage:.1f}%) Passed={passed}", flush=True)
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        attempt_id = None
+        unlocked_next = False
+        next_lesson_id = None
+        attempts_count = 1
+
+        try:
+            # 1. Ensure Quiz exists
+            cursor.execute(
+                "SELECT quiz_id FROM quizzes WHERE title = ? AND (recording_id = ? OR (? IS NULL AND recording_id IS NULL))",
+                (quiz_title, recording_id, recording_id)
+            )
+            quiz_row = cursor.fetchone()
+            if quiz_row:
+                quiz_id = get_val(quiz_row, 0)
+            else:
+                cursor.execute(
+                    "INSERT INTO quizzes (title, recording_id) VALUES (?, ?)",
+                    (quiz_title, recording_id)
+                )
+                quiz_id = cursor.lastrowid
+
+            # 2. Ensure Questions exist and link them to question_ids
+            question_ids = []
+            for eq in evaluated_questions:
+                options_json = json.dumps(eq["options"])
+                cursor.execute(
+                    "SELECT question_id FROM questions WHERE quiz_id = ? AND question_text = ?",
+                    (quiz_id, eq["question_text"])
+                )
+                q_row = cursor.fetchone()
+                if q_row:
+                    q_id = get_val(q_row, 0)
+                else:
+                    cursor.execute(
+                        "INSERT INTO questions (quiz_id, question_text, options, correct_option) VALUES (?, ?, ?, ?)",
+                        (quiz_id, eq["question_text"], options_json, eq["correct_option"])
+                    )
+                    q_id = cursor.lastrowid
+                question_ids.append(q_id)
+
+            # 3. Create Quiz Attempt
+            cursor.execute(
+                """
+                INSERT INTO quiz_attempts (student_id, quiz_id, score, total_questions, correct_answers, incorrect_answers, percentage, time_taken)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (student_id, quiz_id, correct_answers, total_questions, correct_answers, incorrect_answers, percentage, time_taken)
+            )
+            attempt_id = cursor.lastrowid
+
+            # 4. Insert Student Responses
+            for idx, eq in enumerate(evaluated_questions):
+                q_id = question_ids[idx]
+                cursor.execute(
+                    """
+                    INSERT INTO student_responses (attempt_id, question_id, selected_option, is_correct)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (attempt_id, q_id, eq["selected_option"], 1 if eq["is_correct"] else 0)
+                )
+
+            # 5. Backward compatibility with legacy quiz_scores table
+            if recording_id:
+                cursor.execute(
+                    "SELECT score_id FROM quiz_scores WHERE student_id = ? AND recording_id = ?",
+                    (student_id, recording_id)
+                )
+                score_row = cursor.fetchone()
+                if score_row:
+                    cursor.execute(
+                        "UPDATE quiz_scores SET score = ?, passed = ? WHERE student_id = ? AND recording_id = ?",
+                        (correct_answers, 1 if passed else 0, student_id, recording_id)
+                    )
+                else:
+                    cursor.execute(
+                        "INSERT INTO quiz_scores (student_id, recording_id, score, passed) VALUES (?, ?, ?, ?)",
+                        (student_id, recording_id, correct_answers, 1 if passed else 0)
+                    )
+
+            # ── LOG: QUIZ_RESULTS_SAVED ──────────────────────────────────────────────
+            print(f"[QUIZ_RESULTS_SAVED] Quiz results successfully saved. Attempt ID: {attempt_id}", flush=True)
+
+            # 6. Recalculate and update Analytics Report for this quiz
+            cursor.execute(
+                "SELECT percentage, student_id FROM quiz_attempts WHERE quiz_id = ?",
+                (quiz_id,)
+            )
+            attempts = cursor.fetchall()
+            
+            percentages = [float(get_val(att, 0) or 0.0) for att in attempts]
+            class_avg = sum(percentages) / len(percentages) if percentages else 0
+            highest = max(percentages) if percentages else 0
+            lowest = min(percentages) if percentages else 0
+            pass_cnt = sum(1 for p in percentages if p >= 35) # Pass mark is 35%
+            fail_cnt = len(percentages) - pass_cnt
+
+            cursor.execute("SELECT COUNT(*) FROM students")
+            total_students_row = cursor.fetchone()
+            total_students = int(get_val(total_students_row, 0) or 1)
+
+            unique_students = len(set(int(get_val(att, 1)) for att in attempts if get_val(att, 1) is not None))
+            participation_rate = (unique_students / total_students * 100)
+
+            cursor.execute(
+                "SELECT report_id FROM analytics_reports WHERE quiz_id = ?",
+                (quiz_id,)
+            )
+            rep_row = cursor.fetchone()
+            if rep_row:
+                cursor.execute(
+                    """
+                    UPDATE analytics_reports 
+                    SET class_average = ?, highest_score = ?, lowest_score = ?, pass_count = ?, fail_count = ?, participation_rate = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE quiz_id = ?
+                    """,
+                    (class_avg, highest, lowest, pass_cnt, fail_cnt, participation_rate, quiz_id)
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO analytics_reports (quiz_id, class_average, highest_score, lowest_score, pass_count, fail_count, participation_rate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (quiz_id, class_avg, highest, lowest, pass_cnt, fail_cnt, participation_rate)
+                )
+
+            # 7. Unify progression logic: resolve lesson_id
+            lesson_id = None
+            if recording_id:
+                lesson_id = f"r_{recording_id}"
+            else:
+                cursor.execute("SELECT video_id FROM videos WHERE title = ? OR filename = ? OR filename = ? OR title = ?", (quiz_title, quiz_title, f"signed_{quiz_title}", quiz_title.replace("signed_", "")))
+                v_row = cursor.fetchone()
+                if v_row:
+                    lesson_id = f"v_{get_val(v_row, 0)}"
+                else:
+                    cursor.execute("SELECT video_id FROM videos WHERE title LIKE ?", (f"%{quiz_title}%",))
+                    v_row = cursor.fetchone()
+                    if v_row:
+                        lesson_id = f"v_{get_val(v_row, 0)}"
+
+            if lesson_id:
+                # Check existing progression
+                cursor.execute(
+                    "SELECT progress_id, attempts, quiz_score, passed FROM student_progress WHERE student_id = ? AND course_id = ? AND lesson_id = ?",
+                    (student_id, course_id, lesson_id)
+                )
+                prog_row = cursor.fetchone()
+                if prog_row:
+                    prog_id = get_val(prog_row, 0)
+                    prev_attempts = get_val(prog_row, 1) or 0
+                    prev_score = get_val(prog_row, 2) or 0.0
+                    prev_passed = bool(get_val(prog_row, 3))
                     
-                if lesson_id in ordered_ids:
-                    curr_idx = ordered_ids.index(lesson_id)
-                    if curr_idx < len(ordered_ids) - 1:
-                        next_lesson_id = ordered_ids[curr_idx + 1]
+                    attempts_count = prev_attempts + 1
+                    new_passed = prev_passed or passed
+                    new_score = max(prev_score, percentage)
+                    
+                    cursor.execute(
+                        """
+                        UPDATE student_progress
+                        SET quiz_score = ?, passed = ?, attempts = ?, completed_at = ?
+                        WHERE progress_id = ?
+                        """,
+                        (new_score, 1 if new_passed else 0, attempts_count, datetime.now() if passed and not prev_passed else None, prog_id)
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        INSERT INTO student_progress (student_id, course_id, lesson_id, quiz_score, passed, attempts, unlocked, completed_at)
+                        VALUES (?, ?, ?, ?, ?, 1, 1, ?)
+                        """,
+                        (student_id, course_id, lesson_id, percentage, 1 if passed else 0, datetime.now() if passed else None)
+                    )
+                
+                # ── LOG: STUDENT_PROGRESS_UPDATED ────────────────────────────────────────
+                print(f"[STUDENT_PROGRESS_UPDATED] Student={student_id} Lesson={lesson_id} Score={max(prev_score if prog_row else 0.0, percentage):.1f}% Passed={passed or (prev_passed if prog_row else False)}", flush=True)
+
+                # If passed, unlock next lesson in sequence
+                if passed:
+                    cursor.execute("SELECT video_id FROM videos WHERE course_id = ? ORDER BY uploaded_at ASC, video_id ASC", (course_id,))
+                    v_rows = cursor.fetchall()
+                    cursor.execute("SELECT recording_id FROM recordings WHERE course_id = ? ORDER BY recording_timestamp ASC, recording_id ASC", (course_id,))
+                    r_rows = cursor.fetchall()
+                    
+                    ordered_ids = []
+                    for vr in v_rows:
+                        ordered_ids.append(f"v_{get_val(vr, 0)}")
+                    for rr in r_rows:
+                        ordered_ids.append(f"r_{get_val(rr, 0)}")
                         
-                        # Set next lesson unlocked in student_progress
-                        cursor.execute(
-                            "SELECT progress_id FROM student_progress WHERE student_id = ? AND course_id = ? AND lesson_id = ?",
-                            (student_id, course_id, next_lesson_id)
-                        )
-                        next_prog_row = cursor.fetchone()
-                        if next_prog_row:
+                    if lesson_id in ordered_ids:
+                        curr_idx = ordered_ids.index(lesson_id)
+                        if curr_idx < len(ordered_ids) - 1:
+                            next_lesson_id = ordered_ids[curr_idx + 1]
+                            
                             cursor.execute(
-                                "UPDATE student_progress SET unlocked = 1 WHERE progress_id = ?",
-                                (get_val(next_prog_row, 0),)
-                            )
-                        else:
-                            cursor.execute(
-                                "INSERT INTO student_progress (student_id, course_id, lesson_id, unlocked) VALUES (?, ?, ?, 1)",
+                                "SELECT progress_id FROM student_progress WHERE student_id = ? AND course_id = ? AND lesson_id = ?",
                                 (student_id, course_id, next_lesson_id)
                             )
-                        unlocked_next = True
+                            next_prog_row = cursor.fetchone()
+                            if next_prog_row:
+                                cursor.execute(
+                                    "UPDATE student_progress SET unlocked = 1 WHERE progress_id = ?",
+                                    (get_val(next_prog_row, 0),)
+                                )
+                            else:
+                                cursor.execute(
+                                    "INSERT INTO student_progress (student_id, course_id, lesson_id, unlocked) VALUES (?, ?, ?, 1)",
+                                    (student_id, course_id, next_lesson_id)
+                                )
+                            unlocked_next = True
+                            
+                            # ── LOG: NEXT_LESSON_UNLOCKED ────────────────────────────────
+                            print(f"[NEXT_LESSON_UNLOCKED] Unlocked lesson: {next_lesson_id} for Student={student_id}", flush=True)
 
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        return jsonify({"error": f"Failed to save quiz attempt: {str(e)}"}), 500
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
 
-    conn.close()
+        feedback_msg = "Success! Lesson completed and next video unlocked automatically." if passed else "You must score at least 35% to unlock the next lesson."
 
-    feedback_msg = "Success! Lesson completed and next video unlocked automatically." if passed else "You must score at least 35% to unlock the next lesson."
+        # ── LOG: RESPONSE_SENT ───────────────────────────────────────────────────
+        print(f"[RESPONSE_SENT] Quiz submission processed successfully. Score={correct_answers}/{total_questions}", flush=True)
 
-    return jsonify({
-        "status": "success",
-        "message": feedback_msg,
-        "attempt": {
-            "attempt_id": attempt_id,
-            "score": correct_answers,
-            "total_questions": total_questions,
-            "correct_answers": correct_answers,
-            "incorrect_answers": incorrect_answers,
-            "percentage": percentage,
-            "time_taken": time_taken,
-            "passed": passed,
-            "attempts": attempts_count,
-            "unlocked_next": unlocked_next,
-            "next_lesson_id": next_lesson_id
-        },
-        "incorrect_questions": incorrect_list,
-        "weak_areas": list(weak_areas)
-    }), 200
+        return jsonify({
+            "status": "success",
+            "message": feedback_msg,
+            "attempt": {
+                "attempt_id": attempt_id,
+                "score": correct_answers,
+                "total_questions": total_questions,
+                "correct_answers": correct_answers,
+                "incorrect_answers": incorrect_answers,
+                "percentage": percentage,
+                "time_taken": time_taken,
+                "passed": passed,
+                "attempts": attempts_count,
+                "unlocked_next": unlocked_next,
+                "next_lesson_id": next_lesson_id
+            },
+            "incorrect_questions": incorrect_list,
+            "weak_areas": list(weak_areas)
+        }), 200
+
+    except Exception as err:
+        # ── ERROR LOGGING ────────────────────────────────────────────────────────
+        tb = traceback.format_exc()
+        safe_payload = {k: v for k, v in data.items() if k != 'questions'} if isinstance(data, dict) else {}
+        error_context = {
+            "error": str(err),
+            "stack_trace": tb.split("\n"),
+            "api_endpoint": "/quiz/submit",
+            "function_name": "submit_quiz",
+            "file_name": "quiz_analytics.py",
+            "http_status_code": 500,
+            "payload": safe_payload
+        }
+        print(f"[QUIZ_SUBMIT_ERROR] Exception occurred: {json.dumps(error_context)}", flush=True)
+        return jsonify({
+            "error": "Failed to submit quiz due to a server error. Our engineering team has been notified."
+        }), 500
 
 def get_ordered_lessons(course_id=1):
     """

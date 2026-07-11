@@ -127,8 +127,14 @@ def upload_recording():
 
     # Convert webm to mp4
     try:
+        try:
+            import imageio_ffmpeg
+            ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        except Exception:
+            ffmpeg_exe = 'ffmpeg'
+
         subprocess.run([
-            'ffmpeg', '-i', raw_filepath, 
+            ffmpeg_exe, '-i', raw_filepath, 
             '-c:v', 'libx264', '-preset', 'fast', '-crf', '22',
             '-c:a', 'aac', '-b:a', '128k',
             output_filepath, '-y'
@@ -136,13 +142,13 @@ def upload_recording():
         
         # Generate thumbnail
         subprocess.run([
-            'ffmpeg', '-i', output_filepath,
+            ffmpeg_exe, '-i', output_filepath,
             '-ss', '00:00:01.000', '-vframes', '1',
             thumbnail_filepath, '-y'
         ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     except subprocess.CalledProcessError as e:
-        print(f"FFmpeg Error: {e.stderr.decode()}")
+        print(f"FFmpeg Error: {e.stderr.decode() if e.stderr else str(e)}", flush=True)
         # Fallback to raw if ffmpeg fails
         output_filepath = raw_filepath
         output_filename = raw_filename

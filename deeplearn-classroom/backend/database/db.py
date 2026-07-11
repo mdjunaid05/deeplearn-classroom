@@ -160,6 +160,24 @@ def _init_mysql(conn):
             if "r2_url" not in cols:
                 cursor.execute("ALTER TABLE videos ADD COLUMN r2_url VARCHAR(512)")
                 altered = True
+            if "description" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN description TEXT DEFAULT NULL")
+                altered = True
+            if "thumbnail" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN thumbnail VARCHAR(512) DEFAULT NULL")
+                altered = True
+            if "visibility" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN visibility VARCHAR(50) DEFAULT 'Published'")
+                altered = True
+            if "hidden" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN hidden TINYINT(1) DEFAULT 0")
+                altered = True
+            if "deleted" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN deleted TINYINT(1) DEFAULT 0")
+                altered = True
+            if "archived" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN archived TINYINT(1) DEFAULT 0")
+                altered = True
             if altered:
                 conn.commit()
                 print("[Database] MySQL columns migrated successfully.")
@@ -394,6 +412,15 @@ def _init_sqlite(conn):
             status         TEXT DEFAULT 'uploaded',
             uploaded_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
             processed_at   DATETIME,
+            original_video_id INTEGER DEFAULT NULL,
+            video_type     TEXT DEFAULT 'original',
+            captions_url   TEXT DEFAULT NULL,
+            description    TEXT DEFAULT NULL,
+            thumbnail      TEXT DEFAULT NULL,
+            visibility     TEXT DEFAULT 'Published',
+            hidden         INTEGER DEFAULT 0,
+            deleted        INTEGER DEFAULT 0,
+            archived       INTEGER DEFAULT 0,
             FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id),
             FOREIGN KEY (course_id) REFERENCES courses(course_id)
         );
@@ -597,6 +624,33 @@ def _init_sqlite(conn):
             altered = True
         if "r2_url" not in cols:
             cursor.execute("ALTER TABLE videos ADD COLUMN r2_url TEXT")
+            altered = True
+        if "original_video_id" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN original_video_id INTEGER DEFAULT NULL")
+            altered = True
+        if "video_type" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN video_type TEXT DEFAULT 'original'")
+            altered = True
+        if "captions_url" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN captions_url TEXT DEFAULT NULL")
+            altered = True
+        if "description" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN description TEXT DEFAULT NULL")
+            altered = True
+        if "thumbnail" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN thumbnail TEXT DEFAULT NULL")
+            altered = True
+        if "visibility" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN visibility TEXT DEFAULT 'Published'")
+            altered = True
+        if "hidden" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN hidden INTEGER DEFAULT 0")
+            altered = True
+        if "deleted" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN deleted INTEGER DEFAULT 0")
+            altered = True
+        if "archived" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN archived INTEGER DEFAULT 0")
             altered = True
         if altered:
             conn.commit()
