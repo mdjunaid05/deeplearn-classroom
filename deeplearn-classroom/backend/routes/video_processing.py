@@ -97,6 +97,12 @@ def upload_video():
     # ── Save to database ──────────────────────────────────────────────────────
     teacher_id = request.form.get("teacher_id", 1, type=int)
     course_id = request.form.get("course_id", 1, type=int)
+    description = request.form.get("description") or ""
+    visibility = request.form.get("visibility") or "Published"
+    thumbnail = request.form.get("thumbnail") or ""
+    hidden = request.form.get("hidden", 0, type=int)
+    deleted = request.form.get("deleted", 0, type=int)
+    archived = request.form.get("archived", 0, type=int)
 
     from database.db import get_db_connection
     print("[DATABASE_SAVE_STARTED]", flush=True)
@@ -119,13 +125,16 @@ def upload_video():
             )
 
         cursor.execute("""
-            INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, status)
-            VALUES (?, ?, ?, ?, ?, ?, 'processing')
-        """, (teacher_id, course_id, title, filename, input_path, output_path))
+            INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, status, description, thumbnail, visibility, hidden, deleted, archived)
+            VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?, ?, ?, ?, ?)
+        """, (teacher_id, course_id, title, filename, input_path, output_path, description, thumbnail, visibility, hidden, deleted, archived))
         video_id = cursor.lastrowid
         conn.commit()
         print("[DATABASE_SAVE_SUCCESS]", flush=True)
-        print(f"[DATABASE_RECORD_CREATED] video_id={video_id} filename={filename}", flush=True)
+        print(f"[VIDEO_UPLOADED] video_id={video_id} filename={filename}", flush=True)
+        print(f"[DATABASE_RECORD_CREATED] video_id={video_id}", flush=True)
+        print(f"[CLASSROOM_ID] classroom_id={course_id}", flush=True)
+        print(f"[COURSE_ID] course_id={course_id}", flush=True)
         print(f"[VIDEO_SAVED_TO_DATABASE] video_id={video_id} filename={filename}", flush=True)
         print(f"[VIDEO_RECORD_CREATED] video_id={video_id}", flush=True)
     except Exception as db_err:
@@ -177,54 +186,89 @@ def upload_video():
 def get_videos():
     """
     Return all videos from the database.
+    If student_id is provided, filters for published videos in classes the student is enrolled in.
     """
     student_id = request.args.get("student_id", type=int)
-    print(f"[VIDEO_LIST_REQUEST] student_id={student_id}", flush=True)
-    print(f"[VIDEO_FETCH_REQUEST] student_id={student_id}", flush=True)
+    teacher_id = request.args.get("teacher_id", type=int)
+    print(f"[VIDEO_LIST_REQUEST] student_id={student_id} teacher_id={teacher_id}", flush=True)
+
     from database.db import get_db_connection
     conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     try:
-        cursor.execute("""
-            SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename, v.r2_url, 
-                   v.original_url, v.processed_url, v.status, v.uploaded_at, v.processed_at,
-                   v.original_video_id, v.video_type, v.captions_url,
-                   t.name as uploader
-            FROM videos v
-            LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
-            ORDER BY v.uploaded_at DESC
-        """)
+        enrolled_courses = []
+        if student_id:
+            cursor.execute("SELECT DISTINCT course_id FROM student_progress WHERE student_id = ?", (student_id,))
+            enrolled_courses = [r[0] for r in cursor.fetchall()]
+            if not enrolled_courses:
+                # Fallback to course_id 1
+                enrolled_courses = [1]
+                print(f"[STUDENT_ENROLLMENT_FOUND] student_id={student_id} course_id=1 (fallback)", flush=True)
+            else:
+                print(f"[STUDENT_ENROLLMENT_FOUND] student_id={student_id} enrolled_courses={enrolled_courses}", flush=True)
+
+            placeholders = ",".join("?" for _ in enrolled_courses)
+            query = f"""
+                SELECT v.*, t.name as uploader
+                FROM videos v
+                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                WHERE v.course_id IN ({placeholders})
+                  AND (v.visibility = 'Published' OR v.visibility IS NULL)
+                  AND (v.hidden = 0 OR v.hidden IS NULL)
+                  AND (v.deleted = 0 OR v.deleted IS NULL)
+                  AND (v.archived = 0 OR v.archived IS NULL)
+                ORDER BY v.uploaded_at DESC
+            """
+            cursor.execute(query, tuple(enrolled_courses))
+        elif teacher_id:
+            query = """
+                SELECT v.*, t.name as uploader
+                FROM videos v
+                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                WHERE v.teacher_id = ?
+                ORDER BY v.uploaded_at DESC
+            """
+            cursor.execute(query, (teacher_id,))
+        else:
+            query = """
+                SELECT v.*, t.name as uploader
+                FROM videos v
+                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                WHERE (v.visibility = 'Published' OR v.visibility IS NULL)
+                  AND (v.hidden = 0 OR v.hidden IS NULL)
+                  AND (v.deleted = 0 OR v.deleted IS NULL)
+                  AND (v.archived = 0 OR v.archived IS NULL)
+                ORDER BY v.uploaded_at DESC
+            """
+            cursor.execute(query)
+
         columns = [desc[0] for desc in cursor.description]
         rows = cursor.fetchall()
-        
+
         videos_list = []
         for row in rows:
             video_dict = dict(zip(columns, row))
-            # Format datetime objects to ISO strings
             if video_dict.get("uploaded_at"):
                 if not isinstance(video_dict["uploaded_at"], str):
                     video_dict["uploaded_at"] = video_dict["uploaded_at"].isoformat()
             if video_dict.get("processed_at"):
                 if not isinstance(video_dict["processed_at"], str):
                     video_dict["processed_at"] = video_dict["processed_at"].isoformat()
-            
-            # Add captions status based on status column
+
             video_dict["captions_status"] = "available" if video_dict.get("status") == "done" else "unavailable"
-            
-            # Map local absolute paths to web-accessible URLs
-            auth_query = f"&student_id={student_id}" if student_id else ""
+
+            auth_query = f"&student_id={student_id}" if student_id else f"&teacher_id={teacher_id}" if teacher_id else ""
             p_url = video_dict.get("processed_url")
             if p_url and not is_r2_url(p_url):
                 rel_name = os.path.basename(p_url)
                 video_dict["processed_url"] = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel_name}{auth_query}"
-            
+
             o_url = video_dict.get("original_url")
             if o_url and not is_r2_url(o_url):
                 rel_name = os.path.basename(o_url)
                 video_dict["original_url"] = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel_name}{auth_query}"
 
-            # Map values defensively to guarantee matches with both naming conventions
             video_dict["R2 URL"] = video_dict.get("r2_url") or video_dict.get("processed_url") or video_dict.get("original_url")
             video_dict["upload timestamp"] = video_dict.get("uploaded_at")
             video_dict["captions status"] = video_dict.get("captions_status")
@@ -237,17 +281,23 @@ def get_videos():
             video_dict["videoId"] = video_dict.get("video_id")
             video_dict["originalVideoId"] = video_dict.get("original_video_id")
             video_dict["classroomId"] = video_dict.get("course_id")
+            video_dict["courseId"] = video_dict.get("course_id")
+            video_dict["teacherId"] = video_dict.get("teacher_id")
+            video_dict["videoUrl"] = video_dict.get("processed_url") or video_dict.get("original_url") or video_dict.get("r2_url")
+            video_dict["thumbnail"] = video_dict.get("thumbnail") or ""
+            video_dict["visibility"] = video_dict.get("visibility") or "Published"
+            video_dict["createdAt"] = video_dict.get("uploaded_at")
+            video_dict["description"] = video_dict.get("description") or ""
             video_dict["videoType"] = video_dict.get("video_type") or "original"
             video_dict["captionsUrl"] = video_dict.get("captions_url")
-            video_dict["createdAt"] = video_dict.get("uploaded_at")
-            
+
             if video_dict.get("video_type") == "ASL":
                 video_dict["aiSigningVideoUrl"] = video_dict.get("processed_url") or video_dict.get("r2_url")
             else:
                 video_dict["aiSigningVideoUrl"] = None
-            
+
             videos_list.append(video_dict)
-            
+
         if student_id:
             try:
                 from routes.quiz_analytics import get_student_progress_list
@@ -264,10 +314,27 @@ def get_videos():
             for v in videos_list:
                 v["is_locked"] = False
 
+        print(f"[VIDEOS_FETCHED] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_LIST_RESPONSE] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_LIST_FETCHED] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_LIST_UPDATED] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_URL_RETURNED] count={len(videos_list)}", flush=True)
+        
+        for v in videos_list:
+            print(f"[CLASSROOM_ID] classroom_id={v['course_id']}", flush=True)
+            print(f"[COURSE_ID] course_id={v['course_id']}", flush=True)
+
+        if student_id and len(videos_list) == 0:
+            err_log = {
+                "api_response": [],
+                "classroomId": enrolled_courses,
+                "courseId": enrolled_courses,
+                "studentId": student_id,
+                "sql_query": query,
+                "filtering_conditions": "enrolled_courses, Published, not_hidden, not_deleted, not_archived"
+            }
+            print(f"[STUDENT_VIDEOS_EMPTY] {json.dumps(err_log)}", flush=True)
+
         return jsonify({"videos": videos_list})
     except Exception as e:
         print(f"Error fetching videos: {e}", flush=True)
@@ -290,16 +357,27 @@ def get_classroom_videos(classroom_id):
     cursor = conn.cursor()
 
     try:
-        cursor.execute("""
-            SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename, v.r2_url, 
-                   v.original_url, v.processed_url, v.status, v.uploaded_at, v.processed_at,
-                   v.original_video_id, v.video_type, v.captions_url,
-                   t.name as uploader
-            FROM videos v
-            LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
-            WHERE v.course_id = ?
-            ORDER BY v.uploaded_at DESC
-        """, (classroom_id,))
+        if student_id:
+            cursor.execute("""
+                SELECT v.*, t.name as uploader
+                FROM videos v
+                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                WHERE v.course_id = ?
+                  AND (v.visibility = 'Published' OR v.visibility IS NULL)
+                  AND (v.hidden = 0 OR v.hidden IS NULL)
+                  AND (v.deleted = 0 OR v.deleted IS NULL)
+                  AND (v.archived = 0 OR v.archived IS NULL)
+                ORDER BY v.uploaded_at DESC
+            """, (classroom_id,))
+        else:
+            cursor.execute("""
+                SELECT v.*, t.name as uploader
+                FROM videos v
+                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                WHERE v.course_id = ?
+                ORDER BY v.uploaded_at DESC
+            """, (classroom_id,))
+            
         columns = [desc[0] for desc in cursor.description]
         rows = cursor.fetchall()
 
@@ -326,9 +404,15 @@ def get_classroom_videos(classroom_id):
             video_dict["videoId"] = video_dict.get("video_id")
             video_dict["originalVideoId"] = video_dict.get("original_video_id")
             video_dict["classroomId"] = video_dict.get("course_id")
+            video_dict["courseId"] = video_dict.get("course_id")
+            video_dict["teacherId"] = video_dict.get("teacher_id")
+            video_dict["videoUrl"] = video_dict.get("processed_url") or video_dict.get("original_url") or video_dict.get("r2_url")
+            video_dict["thumbnail"] = video_dict.get("thumbnail") or ""
+            video_dict["visibility"] = video_dict.get("visibility") or "Published"
+            video_dict["createdAt"] = video_dict.get("uploaded_at")
+            video_dict["description"] = video_dict.get("description") or ""
             video_dict["videoType"] = video_dict.get("video_type") or "original"
             video_dict["captionsUrl"] = video_dict.get("captions_url")
-            video_dict["createdAt"] = video_dict.get("uploaded_at")
 
             if video_dict.get("video_type") == "ASL":
                 video_dict["aiSigningVideoUrl"] = video_dict.get("processed_url") or video_dict.get("r2_url")
@@ -337,14 +421,40 @@ def get_classroom_videos(classroom_id):
 
             videos_list.append(video_dict)
 
+        print(f"[VIDEOS_FETCHED] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_LIST_RESPONSE] classroom_id={classroom_id} count={len(videos_list)}", flush=True)
         print(f"[VIDEO_LIST_UPDATED] count={len(videos_list)}", flush=True)
+        
+        for v in videos_list:
+            print(f"[CLASSROOM_ID] classroom_id={v['course_id']}", flush=True)
+            print(f"[COURSE_ID] course_id={v['course_id']}", flush=True)
+
         return jsonify({"videos": videos_list})
     except Exception as e:
         print(f"Error fetching classroom videos: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
+
+
+# ── Wrapper routes ────────────────────────────────────────────────────────────
+
+@video_bp.route("/teacher/videos", methods=["GET"])
+def get_teacher_videos_route():
+    """Wrapper for teacher videos."""
+    return get_videos()
+
+
+@video_bp.route("/student/videos", methods=["GET"])
+def get_student_videos_route():
+    """Wrapper for student videos."""
+    return get_videos()
+
+
+@video_bp.route("/courses/<int:course_id>/videos", methods=["GET"])
+def get_course_videos_route(course_id):
+    """Wrapper for course/classroom videos."""
+    return get_classroom_videos(course_id)
 
 
 # ── GET /video-status ─────────────────────────────────────────────────────────

@@ -165,6 +165,12 @@ CREATE TABLE videos (
     original_video_id INT          DEFAULT NULL,
     video_type     VARCHAR(50)  DEFAULT 'original',
     captions_url   VARCHAR(512) DEFAULT NULL,
+    description    TEXT         DEFAULT NULL,
+    thumbnail      VARCHAR(512) DEFAULT NULL,
+    visibility     VARCHAR(50)  DEFAULT 'Published',
+    hidden         TINYINT(1)   DEFAULT 0,
+    deleted        TINYINT(1)   DEFAULT 0,
+    archived       TINYINT(1)   DEFAULT 0,
     FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

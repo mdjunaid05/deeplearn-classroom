@@ -288,6 +288,7 @@ export default function VirtualClassroom() {
       const data = await res.json();
       setVideos(data.videos || []);
       console.log('[VIDEO_LIST_RESPONSE] count=' + (data.videos?.length || 0));
+      console.log('[VIDEOS_RENDERED] count=' + (data.videos?.length || 0));
       if ((data.videos?.length || 0) > 0) {
         console.log('[VIDEO_RENDER_SUCCESS] Rendered ' + data.videos.length + ' video card(s)');
       }

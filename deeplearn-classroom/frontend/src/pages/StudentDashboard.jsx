@@ -67,6 +67,7 @@ export default function StudentDashboard() {
         const json = await res.json();
         setVideos(json.videos || []);
         console.log('[VIDEO_LIST_FETCHED] count=' + (json.videos?.length || 0));
+        console.log('[VIDEOS_RENDERED] count=' + (json.videos?.length || 0));
       }
     } catch (err) {
       console.error('Failed to fetch videos:', err);
