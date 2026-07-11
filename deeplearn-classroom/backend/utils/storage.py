@@ -48,6 +48,13 @@ def _r2_enabled() -> bool:
     return bool(R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY)
 
 
+# ── Startup credential verification ───────────────────────────────────────────
+if _r2_enabled():
+    print(f"[Storage] R2 credentials detected ─ Account={R2_ACCOUNT_ID[:8]}... Bucket={R2_BUCKET_NAME} PublicURL={R2_PUBLIC_URL or '(presigned)'}")
+else:
+    print("[Storage] R2 credentials NOT configured ─ using local disk storage (files will be lost on redeploy)")
+
+
 # ── Lazy boto3 client (created once, reused) ──────────────────────────────────
 
 _s3_client = None
@@ -105,6 +112,7 @@ def upload_file(local_path: str, r2_key: str, content_type: str = "video/mp4") -
         client.upload_file(local_path, R2_BUCKET_NAME, r2_key, ExtraArgs=extra_args)
         url = get_public_url(r2_key)
         print(f"[Storage] Uploaded to R2: {r2_key} → {url}")
+        print(f"[R2_UPLOAD_SUCCESS] key={r2_key} url={url}")
         return url
     except Exception as e:
         print(f"[Storage] R2 upload failed for {r2_key}: {e} — keeping file locally")

@@ -66,6 +66,7 @@ def upload_video():
     """
     if "video_file" not in request.files:
         return jsonify({"error": "No video_file provided"}), 400
+    print(f"[UPLOAD_REQUEST_RECEIVED] route=upload-video", flush=True)
 
     file = request.files["video_file"]
     if not file or file.filename == "":
@@ -124,6 +125,7 @@ def upload_video():
         video_id = cursor.lastrowid
         conn.commit()
         print("[DATABASE_SAVE_SUCCESS]", flush=True)
+        print(f"[DATABASE_RECORD_CREATED] video_id={video_id} filename={filename}", flush=True)
         print(f"[VIDEO_SAVED_TO_DATABASE] video_id={video_id} filename={filename}", flush=True)
         print(f"[VIDEO_RECORD_CREATED] video_id={video_id}", flush=True)
     except Exception as db_err:
@@ -176,6 +178,7 @@ def get_videos():
     Return all videos from the database.
     """
     student_id = request.args.get("student_id", type=int)
+    print(f"[VIDEO_LIST_REQUEST] student_id={student_id}", flush=True)
     print(f"[VIDEO_FETCH_REQUEST] student_id={student_id}", flush=True)
     from database.db import get_db_connection
     conn = get_db_connection()
@@ -246,11 +249,67 @@ def get_videos():
             for v in videos_list:
                 v["is_locked"] = False
 
+        print(f"[VIDEO_LIST_RESPONSE] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_LIST_FETCHED] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_URL_RETURNED] count={len(videos_list)}", flush=True)
         return jsonify({"videos": videos_list})
     except Exception as e:
         print(f"Error fetching videos: {e}", flush=True)
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()
+
+
+# ── GET /classrooms/<id>/videos ──────────────────────────────────────────────
+
+@video_bp.route("/classrooms/<int:classroom_id>/videos", methods=["GET"])
+def get_classroom_videos(classroom_id):
+    """
+    Return all videos for a specific classroom/course.
+    """
+    student_id = request.args.get("student_id", type=int)
+    print(f"[VIDEO_LIST_REQUEST] classroom_id={classroom_id} student_id={student_id}", flush=True)
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute("""
+            SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename, v.r2_url, 
+                   v.original_url, v.processed_url, v.status, v.uploaded_at, v.processed_at,
+                   t.name as uploader
+            FROM videos v
+            LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+            WHERE v.course_id = ?
+            ORDER BY v.uploaded_at DESC
+        """, (classroom_id,))
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+
+        videos_list = []
+        for row in rows:
+            video_dict = dict(zip(columns, row))
+            if video_dict.get("uploaded_at"):
+                if not isinstance(video_dict["uploaded_at"], str):
+                    video_dict["uploaded_at"] = video_dict["uploaded_at"].isoformat()
+            if video_dict.get("processed_at"):
+                if not isinstance(video_dict["processed_at"], str):
+                    video_dict["processed_at"] = video_dict["processed_at"].isoformat()
+
+            video_dict["captions_status"] = "available" if video_dict.get("status") == "done" else "unavailable"
+            video_dict["R2 URL"] = video_dict.get("r2_url") or video_dict.get("processed_url") or video_dict.get("original_url")
+            video_dict["upload timestamp"] = video_dict.get("uploaded_at")
+            if not video_dict.get("title"):
+                video_dict["title"] = video_dict.get("filename") or "Untitled"
+            if not video_dict.get("uploader"):
+                video_dict["uploader"] = "Teacher"
+            video_dict["is_locked"] = False
+            videos_list.append(video_dict)
+
+        print(f"[VIDEO_LIST_RESPONSE] classroom_id={classroom_id} count={len(videos_list)}", flush=True)
+        return jsonify({"videos": videos_list})
+    except Exception as e:
+        print(f"Error fetching classroom videos: {e}", flush=True)
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()

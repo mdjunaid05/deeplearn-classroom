@@ -93,6 +93,10 @@ export default function VirtualClassroom() {
   const [recordings, setRecordings] = useState([]);
   const [loadingRecordings, setLoadingRecordings] = useState(true);
 
+  const courseProgress = recordings.length > 0 
+    ? Math.round((recordings.filter(r => !r.is_locked).length / recordings.length) * 100) 
+    : 0;
+
   // ── Transcript + captions ─────────────────────────────────────────────────
   // savedCaptions: loaded from IndexedDB (set by VideoUpload after processing)
   // These are displayed immediately before the live speech hook produces any results.
@@ -104,6 +108,8 @@ export default function VirtualClassroom() {
   const [answers,      setAnswers]      = useState({});
   const [showResults,  setShowResults]  = useState(false);
   const [quizReady,    setQuizReady]    = useState(false);
+  const [quizSubmitResult, setQuizSubmitResult] = useState(null);
+  const [quizStartTime, setQuizStartTime] = useState(Date.now());
 
   // ── Sidebar / session ─────────────────────────────────────────────────────
   const [sessionTime,  setSessionTime]  = useState(0);
@@ -249,29 +255,37 @@ export default function VirtualClassroom() {
   // ── Fetch Recordings ──────────────────────────────────────────────────────
   const [videos, setVideos] = useState([]);
   const [loadingVideos, setLoadingVideos] = useState(true);
+  const [videosError, setVideosError] = useState(null);
+  const [recordingsError, setRecordingsError] = useState(null);
 
   const fetchVideos = async () => {
     try {
       setLoadingVideos(true);
+      setVideosError(null);
+      console.log('[VIDEO_LIST_REQUEST] Fetching video catalog...');
       const userIdParam = user?.role === 'teacher' 
         ? `teacher_id=${user.id || user?.user_id || 1}` 
         : `student_id=${user?.id || user?.user_id || 1}`;
       const res = await fetch(`${API_BASE}/videos?${userIdParam}`);
-      if (res.ok) {
-        const data = await res.json();
-        setVideos(data.videos || []);
-        console.log('[CLASSROOMS_FETCHED] type=videos count=' + (data.videos?.length || 0));
-      } else {
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
         console.error('[Access Failure]', {
           file: 'VirtualClassroom.jsx',
           function: 'fetchVideos',
           endpoint: `${API_BASE}/videos`,
-          error: `API returned status ${res.status}`,
+          error: `API returned status ${res.status}: ${errText}`,
           rootCause: 'Authorization or database error'
         });
+        throw new Error(`Server returned ${res.status}: ${errText.substring(0, 200)}`);
+      }
+      const data = await res.json();
+      setVideos(data.videos || []);
+      console.log('[VIDEO_LIST_RESPONSE] count=' + (data.videos?.length || 0));
+      if ((data.videos?.length || 0) > 0) {
+        console.log('[VIDEO_RENDER_SUCCESS] Rendered ' + data.videos.length + ' video card(s)');
       }
     } catch (err) {
-      console.error('Error fetching videos:', err);
+      console.error('[VIDEO_RENDER_FAILED] Error fetching videos:', err);
       console.error('[Access Failure]', {
         file: 'VirtualClassroom.jsx',
         function: 'fetchVideos',
@@ -279,6 +293,7 @@ export default function VirtualClassroom() {
         error: err.message,
         rootCause: 'Backend network connection error'
       });
+      setVideosError(err.message || 'Failed to load videos. Please try again.');
     } finally {
       setLoadingVideos(false);
     }
@@ -287,29 +302,30 @@ export default function VirtualClassroom() {
   const fetchRecordings = async () => {
     try {
       setLoadingRecordings(true);
+      setRecordingsError(null);
       const studentId = user?.id || user?.user_id || 1;
       const url = user?.role === 'teacher' 
         ? `${API_BASE}/recordings?teacher_id=${user.id || user?.user_id || 1}`
         : `${API_BASE}/recordings?student_id=${studentId}`;
         
       const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.recordings) {
-          setRecordings(data.recordings);
-          console.log('[CLASSROOMS_FETCHED] type=recordings count=' + (data.recordings?.length || 0));
-        }
-      } else {
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '');
         console.error('[Access Failure]', {
           file: 'VirtualClassroom.jsx',
           function: 'fetchRecordings',
           endpoint: `${API_BASE}/recordings`,
-          error: `API returned status ${res.status}`,
+          error: `API returned status ${res.status}: ${errText}`,
           rootCause: 'Authorization or database error'
         });
+        throw new Error(`Server returned ${res.status}: ${errText.substring(0, 200)}`);
+      }
+      const data = await res.json();
+      if (data.recordings) {
+        setRecordings(data.recordings);
       }
     } catch (err) {
-      console.error('Error fetching recordings:', err);
+      console.error('[VIDEO_RENDER_FAILED] Error fetching recordings:', err);
       console.error('[Access Failure]', {
         file: 'VirtualClassroom.jsx',
         function: 'fetchRecordings',
@@ -317,6 +333,7 @@ export default function VirtualClassroom() {
         error: err.message,
         rootCause: 'Backend network connection error'
       });
+      setRecordingsError(err.message || 'Failed to load recordings. Please try again.');
     } finally {
       setLoadingRecordings(false);
     }
@@ -359,6 +376,18 @@ export default function VirtualClassroom() {
       fetchCourseProgress();
     }
   }, [user]);
+
+  // Auto-refresh when navigating from upload page
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('uploaded') === 'true') {
+      console.log('[VIDEO_LIST_REQUEST] Auto-refreshing after upload...');
+      fetchVideos();
+      // Clean the query param without full page reload
+      const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]uploaded=true/, '');
+      window.history.replaceState({}, '', cleanUrl || window.location.pathname);
+    }
+  }, []);
 
   // ── Playback Speed ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1060,10 +1089,29 @@ export default function VirtualClassroom() {
             {loadingVideos ? (
               <div className="flex justify-center py-6">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#00687a]"></div>
+                <span className="ml-3 text-sm text-[#6d797d]">Loading videos...</span>
+              </div>
+            ) : videosError ? (
+              <div className="text-center py-8 rounded-xl border border-red-200 bg-red-50 mb-8">
+                <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+                <p className="text-red-600 text-sm font-semibold mb-1">Failed to load videos</p>
+                <p className="text-red-400 text-xs mb-3 max-w-md mx-auto">{videosError}</p>
+                <button 
+                  onClick={fetchVideos}
+                  className="px-4 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : videos.length === 0 ? (
-              <div className="text-center py-8 bg-surface-800/30 rounded-xl border border-white/5 mb-8">
-                <p className="text-[#6d797d] text-sm">No uploaded lesson videos available yet.</p>
+              <div className="text-center py-8 bg-slate-50 rounded-xl border border-slate-200 mb-8">
+                <Video className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                <p className="text-[#6d797d] text-sm font-medium">No uploaded lesson videos available yet.</p>
+                {user?.role === 'teacher' && (
+                  <a href="/video-upload" className="inline-block mt-3 px-4 py-1.5 rounded-lg bg-primary-500/10 text-primary-600 text-xs font-semibold hover:bg-primary-500/20 transition-colors">
+                    Upload your first video
+                  </a>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1167,6 +1215,19 @@ export default function VirtualClassroom() {
             {loadingRecordings ? (
               <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00687a]"></div>
+                <span className="ml-3 text-sm text-[#6d797d]">Loading recordings...</span>
+              </div>
+            ) : recordingsError ? (
+              <div className="text-center py-12 rounded-3xl border border-red-200 bg-red-50">
+                <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-2" />
+                <h3 className="text-lg font-bold text-red-600">Failed to load recordings</h3>
+                <p className="text-red-400 text-xs mb-3 max-w-md mx-auto">{recordingsError}</p>
+                <button 
+                  onClick={fetchRecordings}
+                  className="px-4 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             ) : recordings.length === 0 ? (
               <div className="text-center py-16 dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-3xl border border-slate-200">
