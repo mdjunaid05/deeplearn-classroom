@@ -139,6 +139,7 @@ def upload_video():
     url = upload_file(input_path, r2_input_key)
     if url and (url.startswith("http://") or url.startswith("https://")):
         print(f"[R2_UPLOAD_SUCCESS] key={r2_input_key} url={url}", flush=True)
+        print(f"[VIDEO_UPLOADED] video_id={video_id} url={url}", flush=True)
         # Update the DB record with original R2 URL
         print("[DATABASE_SAVE_STARTED]", flush=True)
         conn = get_db_connection()
@@ -455,6 +456,7 @@ def download_signed_video():
     teacher_id = request.args.get("teacher_id", type=int)
 
     print(f"[VIDEO_PLAY_REQUEST] video_id={video_id} filename={filename}", flush=True)
+    print(f"[VIDEO_STREAM_REQUEST] video_id={video_id} filename={filename}", flush=True)
 
     if not student_id and not teacher_id:
         return jsonify({"error": "Unauthorized: student_id or teacher_id is required.", "locked": True}), 403
@@ -467,12 +469,14 @@ def download_signed_video():
         state = get_job_status(job_id)
         video_url = state.get("video_url", "")
         if video_url and is_r2_url(video_url):
+            print(f"[VIDEO_STREAM_STARTED] video_id={video_id} job_id={job_id} url={video_url}", flush=True)
             return redirect(video_url, code=307)
 
     # 2. Try database lookup by video_id or filename
     db_url, db_filename = _find_video_url_in_db(video_id=video_id, filename=filename)
     if db_url:
         if is_r2_url(db_url):
+            print(f"[VIDEO_STREAM_STARTED] video_id={video_id} url={db_url}", flush=True)
             return redirect(db_url, code=307)
         if os.path.exists(db_url):
             print(f"[VIDEO_STREAM_STARTED] path={db_url}", flush=True)
@@ -1323,6 +1327,7 @@ def upload_generated_video():
             video_url = url
             print(f"[R2_UPLOAD_SUCCESS] key={output_r2_key} url={video_url}", flush=True)
             print(f"[AI_VIDEO_UPLOADED_TO_R2] video_id={video_id} url={video_url}", flush=True)
+            print(f"[VIDEO_UPLOADED] video_id={video_id} url={video_url}", flush=True)
 
         # Create database record
         asl_title = f"[AI Deaf Signing] {orig_title}"

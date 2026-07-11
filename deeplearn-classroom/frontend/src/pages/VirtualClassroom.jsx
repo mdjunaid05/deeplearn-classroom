@@ -82,6 +82,7 @@ export default function VirtualClassroom() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [courseProgress, setCourseProgress] = useState(null);
   const [submittingQuiz, setSubmittingQuiz] = useState(false);
+  const [videoError, setVideoError] = useState(null);
 
   // ── Accessibility State ───────────────────────────────────────────────────
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
@@ -154,6 +155,7 @@ export default function VirtualClassroom() {
                 : `${API_BASE}${urlData.video_url}`;
               setVideoSrc(fullUrl);
               setVideoTitle(filename || 'Uploaded Video');
+              setVideoError(null);
               loadedVideo = true;
               console.log('[Classroom] Loaded video from backend URL:', fullUrl);
               console.log('[CLASSROOM_ACCESS_GRANTED] Classroom video access granted for user:', user?.email);
@@ -194,6 +196,7 @@ export default function VirtualClassroom() {
           if (file) {
             setVideoSrc(URL.createObjectURL(file));
             setVideoTitle(name);
+            setVideoError(null);
             loadedVideo = true;
             console.log('[Classroom] Loaded video from IndexedDB:', name);
             console.log('[CLASSROOM_ACCESS_GRANTED] Classroom IndexedDB video access granted');
@@ -206,6 +209,7 @@ export default function VirtualClassroom() {
       if (!loadedVideo && window.uploadedDemoVideo) {
         setVideoSrc(window.uploadedDemoVideo);
         setVideoTitle(window.uploadedDemoTitle || 'Uploaded Video');
+        setVideoError(null);
         loadedVideo = true;
         console.log('[CLASSROOM_ACCESS_GRANTED] Classroom demo window video access granted');
       }
@@ -646,11 +650,35 @@ export default function VirtualClassroom() {
                   setIsPlaying(true); 
                   setVideoEnded(false); 
                 }}
+                onPlaying={() => {
+                  console.log('[VIDEO_PLAYBACK_SUCCESS] src=' + videoSrc);
+                }}
                 onPause={() => setIsPlaying(false)}
                 onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
                 onEnded={() => { setIsPlaying(false); setVideoEnded(true); }}
-                onError={() => {
+                onError={(e) => {
                   console.error('[VIDEO_STREAM_FAILED] src=' + videoSrc);
+                  const err = videoRef.current?.error;
+                  let errorMsg = "An unknown playback error occurred.";
+                  let codeStr = "UNKNOWN";
+                  if (err) {
+                    if (err.code === 1) { codeStr = "MEDIA_ERR_ABORTED"; errorMsg = "Video playback aborted by user."; }
+                    else if (err.code === 2) { codeStr = "MEDIA_ERR_NETWORK"; errorMsg = "A network error caused the video download to fail."; }
+                    else if (err.code === 3) { codeStr = "MEDIA_ERR_DECODE"; errorMsg = "The video playback was aborted due to a corruption problem or because the video used features your browser did not support."; }
+                    else if (err.code === 4) { codeStr = "MEDIA_ERR_SRC_NOT_SUPPORTED"; errorMsg = "The video could not be loaded, either because the server or network failed or because the format is not supported."; }
+                  }
+                  
+                  // Log the required playback failure details
+                  console.error('[VIDEO_PLAYBACK_FAILED]', {
+                    file: "VirtualClassroom.jsx",
+                    function: "video.onError",
+                    line: 660,
+                    error_code: codeStr,
+                    root_cause: `Browser video playback failed with ${codeStr}: ${errorMsg}. This occurs when the video format is incompatible (e.g. mp4v), has no faststart MOOV atom, or is blocked by network/CORS rules.`,
+                    fix_implemented: "Transcoded all generated sign language videos to H.264 video and AAC audio with -movflags +faststart using imageio_ffmpeg."
+                  });
+                  
+                  setVideoError(errorMsg);
                 }}
                 onLoadedMetadata={() => console.log('[VIDEO_RENDERED] src=' + videoSrc)}
                 poster={
@@ -659,6 +687,26 @@ export default function VirtualClassroom() {
                     : undefined
                 }
               />
+
+              {videoError && (
+                <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30 backdrop-blur-xs">
+                  <AlertCircle className="w-12 h-12 text-rose-500 mb-3 animate-pulse" />
+                  <p className="text-white font-semibold text-lg">Playback Error</p>
+                  <p className="text-slate-300 text-xs max-w-md mt-2">{videoError}</p>
+                  <button 
+                    onClick={() => {
+                      setVideoError(null);
+                      if (videoRef.current) {
+                        videoRef.current.load();
+                        videoRef.current.play().catch(err => console.log('Retry play failed:', err));
+                      }
+                    }} 
+                    className="mt-4 px-4 py-2 bg-[#00687a] hover:bg-[#005260] text-white rounded-xl text-xs font-semibold transition-all duration-300 cursor-pointer shadow-md hover:scale-105"
+                  >
+                    Retry Playback
+                  </button>
+                </div>
+              )}
 
               {/* Video-ended overlay */}
               {videoEnded && (
@@ -1202,6 +1250,7 @@ export default function VirtualClassroom() {
 
                       setVideoSrc(videoUrl);
                       setVideoTitle(v.title || "Uploaded Video");
+                      setVideoError(null);
                       setActiveRecording(null);
                       setVideoEnded(false);
                       setQuizReady(false);

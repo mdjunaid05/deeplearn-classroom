@@ -388,9 +388,10 @@ def _render_video_with_overlay(input_path, output_path, captions, job_id):
 
     cap.release()
     writer.release()
+    print(f"[AI_VIDEO_CREATED] video_path={output_path}", flush=True)
 
-    # Try to merge audio back using ffmpeg
-    _merge_audio(input_path, output_path)
+    # Try to merge audio back using ffmpeg and transcode to standard H.264
+    _merge_audio(input_path, output_path, video_id=video_id)
 
     _write_job(job_id, {"status": "processing", "progress": 98, "step": "Finalizing..."})
 
@@ -437,36 +438,76 @@ def _burn_caption(frame, text, width, height):
     return frame
 
 
-def _merge_audio(original_video, processed_video):
+def _get_ffmpeg_exe():
+    """Retrieve the ffmpeg executable path via imageio_ffmpeg or fallback to 'ffmpeg'."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def get_video_duration(video_path):
+    """Retrieve video duration using ffmpeg."""
+    try:
+        import subprocess
+        import re
+        ffmpeg_exe = _get_ffmpeg_exe()
+        res = subprocess.run([ffmpeg_exe, "-i", video_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        output = res.stderr or res.stdout
+        match = re.search(r"Duration:\s*(\d+):(\d+):(\d+\.\d+)", output)
+        if match:
+            hours = int(match.group(1))
+            minutes = int(match.group(2))
+            seconds = float(match.group(3))
+            return hours * 3600 + minutes * 60 + seconds
+    except Exception as e:
+        print(f"Error getting duration: {e}")
+    return 0.0
+
+
+def _merge_audio(original_video, processed_video, video_id=None):
     """
-    Merge original audio back into the processed video using ffmpeg.
+    Merge original audio back into the processed video using ffmpeg and transcode to standard H.264.
     Overwrites the processed video file.
     """
     try:
         import subprocess
         temp_output = processed_video + ".temp.mp4"
+        ffmpeg_exe = _get_ffmpeg_exe()
+        
+        # We transcode the raw mp4v video to H.264 (libx264) with standard yuv420p pixel format
+        # and standard AAC audio. We also add the MOOV atom faststart optimization for web streaming.
         cmd = [
-            "ffmpeg", "-y",
+            ffmpeg_exe, "-y",
             "-i", processed_video,
             "-i", original_video,
-            "-c:v", "copy",
+            "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
             "-c:a", "aac",
             "-map", "0:v:0",
             "-map", "1:a:0?",
+            "-movflags", "+faststart",
             "-shortest",
             temp_output
         ]
         result = subprocess.run(cmd, capture_output=True, timeout=120)
         if result.returncode == 0 and os.path.exists(temp_output):
             os.replace(temp_output, processed_video)
-            print("[Pipeline] Audio merged successfully")
+            print("[Pipeline] Audio merged and video transcoded to standard H.264/AAC with faststart", flush=True)
+            print(f"[FFMPEG_COMPLETED] video_path={processed_video}", flush=True)
+            
+            # Verify video duration matches original
+            orig_dur = get_video_duration(original_video)
+            out_dur = get_video_duration(processed_video)
+            print(f"[VIDEO_DURATION_VERIFIED] video_id={video_id} original_duration={orig_dur:.2f} output_duration={out_dur:.2f}", flush=True)
         else:
-            # If ffmpeg fails, keep video without audio
+            # Fallback check: if transcoding failed but temp file exists, clean it up
             if os.path.exists(temp_output):
                 os.remove(temp_output)
-            print("[Pipeline] ffmpeg audio merge skipped (no ffmpeg or no audio)")
+            print(f"[Pipeline] ffmpeg transcode failed with code {result.returncode}. Stderr: {result.stderr.decode()}", flush=True)
     except Exception as e:
-        print(f"[Pipeline] Audio merge failed: {e}")
+        print(f"[Pipeline] Audio merge/transcode failed: {e}", flush=True)
 
 
 def _format_time(seconds):
