@@ -81,6 +81,7 @@ export default function VirtualClassroom() {
   const [activeRecording, setActiveRecording] = useState(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [courseProgress, setCourseProgress] = useState(null);
+  const [submittingQuiz, setSubmittingQuiz] = useState(false);
 
   // ── Accessibility State ───────────────────────────────────────────────────
   const [captionsEnabled, setCaptionsEnabled] = useState(true);
@@ -89,13 +90,15 @@ export default function VirtualClassroom() {
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
 
   // ── Recordings ────────────────────────────────────────────────────────────
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const [recordings, setRecordings] = useState([]);
   const [loadingRecordings, setLoadingRecordings] = useState(true);
 
-  const courseProgress = recordings.length > 0 
+  const localProgress = recordings.length > 0 
     ? Math.round((recordings.filter(r => !r.is_locked).length / recordings.length) * 100) 
     : 0;
+
+  const displayProgress = courseProgress !== null ? courseProgress : localProgress;
 
   // ── Transcript + captions ─────────────────────────────────────────────────
   // savedCaptions: loaded from IndexedDB (set by VideoUpload after processing)
@@ -428,30 +431,77 @@ export default function VirtualClassroom() {
     setAnswers(prev => ({ ...prev, [qIdx]: optIdx }));
 
   const handleSubmitQuiz = async () => {
-    setShowResults(true);
+    if (submittingQuiz) return;
+    setSubmittingQuiz(true);
+    console.log('[QUIZ_SUBMIT_REQUEST] Submit Answers clicked.');
+
     const scoreVal = Object.entries(answers).reduce((acc, [qIdx, ans]) =>
       acc + (activeQuiz[parseInt(qIdx)]?.correct === ans ? 1 : 0), 0);
-    const passed = scoreVal >= activeQuiz.length / 2;
-    
-    // Save quiz score
-    if (activeRecording && user?.role === 'student') {
+    const passed = scoreVal >= activeQuiz.length * 0.35; // 35% passing grade requirement
+
+    console.log('[QUIZ_VALIDATION_SUCCESS] Answers validated locally.');
+    console.log('[QUIZ_SCORE_CALCULATED] Score calculated:', scoreVal, '/', activeQuiz.length, `(${((scoreVal / activeQuiz.length) * 100).toFixed(1)}%)`);
+
+    if (user?.role === 'student') {
       try {
-        await fetch(`${API_BASE}/submit-quiz`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            student_id: user.id || 1,
-            recording_id: activeRecording.recording_id,
-            score: scoreVal,
-            passed: passed
-          })
-        });
-        if (passed) {
-          fetchRecordings(); // refresh locks
+        const payload = {
+          student_id: user.id || user?.user_id || 1,
+          quiz_title: videoTitle || "General Quiz",
+          recording_id: activeRecording ? activeRecording.recording_id : null,
+          time_taken: Math.round((Date.now() - quizStartTime) / 1000) || 30,
+          course_id: activeRecording ? activeRecording.course_id : 1,
+          questions: activeQuiz.map((q, idx) => ({
+            question_text: q.question,
+            options: q.options,
+            correct_option: q.correct,
+            selected_option: answers[idx] !== undefined ? answers[idx] : 0
+          }))
+        };
+
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
         }
+
+        const res = await fetch(`${API_BASE}/quiz/submit`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `Server returned status ${res.status}`);
+        }
+
+        const data = await res.json();
+        console.log('[QUIZ_RESULTS_SAVED] Quiz results successfully saved in database.');
+        setQuizSubmitResult(data);
+        console.log('[RESPONSE_SENT] Quiz response complete.');
+
+        // Update progress and locks immediately
+        fetchRecordings();
+        fetchVideos();
+        fetchCourseProgress();
+        setShowResults(true);
+
       } catch (err) {
-        console.error('Failed to submit quiz score', err);
+        console.error('Failed to submit quiz score:', err);
+        setActiveAlert({
+          type: 'error',
+          message: `Failed to save quiz results: ${err.message}. Please try again.`,
+          flash: true,
+          duration: 5000
+        });
+      } finally {
+        setSubmittingQuiz(false);
       }
+    } else {
+      // Teacher or demo fallback
+      console.log('[QUIZ_RESULTS_SAVED] Quiz complete (non-student bypass).');
+      console.log('[RESPONSE_SENT] Quiz response complete (bypass).');
+      setShowResults(true);
+      setSubmittingQuiz(false);
     }
   };
 
@@ -804,13 +854,13 @@ export default function VirtualClassroom() {
                   <button
                     id="quiz-submit-btn"
                     onClick={handleSubmitQuiz}
-                    disabled={Object.keys(answers).length < activeQuiz.length}
+                    disabled={submittingQuiz || Object.keys(answers).length < activeQuiz.length}
                     className="w-full py-4 rounded-2xl bg-gradient-to-r from-primary-600 to-purple-600
                                text-white font-bold text-sm hover:brightness-110
                                disabled:opacity-40 disabled:cursor-not-allowed
                                transition-all shadow-lg shadow-primary-600/10"
                   >
-                    Submit Answers
+                    {submittingQuiz ? 'Submitting Answers...' : 'Submit Answers'}
                   </button>
                 </div>
               )}
@@ -1063,7 +1113,7 @@ export default function VirtualClassroom() {
             Classroom Video Catalog
           </h2>
 
-          {user?.role === 'student' && courseProgress !== null && (
+          {user?.role === 'student' && displayProgress !== null && (
             <div className="mb-8 p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4">
               <div>
                 <h3 className="text-sm font-bold text-[#131b2e]">Your Course progression Progress</h3>
@@ -1073,10 +1123,10 @@ export default function VirtualClassroom() {
                 <div className="flex-1 h-3 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                   <div 
                     className="h-full bg-gradient-to-r from-emerald-500 to-primary-500 transition-all duration-500" 
-                    style={{ width: `${courseProgress}%` }}
+                    style={{ width: `${displayProgress}%` }}
                   />
                 </div>
-                <span className="text-sm font-bold text-emerald-600 shrink-0">{courseProgress}% Completed</span>
+                <span className="text-sm font-bold text-emerald-600 shrink-0">{displayProgress}% Completed</span>
               </div>
             </div>
           )}

@@ -48,11 +48,11 @@ def _r2_enabled() -> bool:
     return bool(R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY)
 
 
-# ── Startup credential verification ───────────────────────────────────────────
+# -- Startup credential verification -------------------------------------------
 if _r2_enabled():
-    print(f"[Storage] R2 credentials detected ─ Account={R2_ACCOUNT_ID[:8]}... Bucket={R2_BUCKET_NAME} PublicURL={R2_PUBLIC_URL or '(presigned)'}")
+    print(f"[Storage] R2 credentials detected - Account={R2_ACCOUNT_ID[:8]}... Bucket={R2_BUCKET_NAME} PublicURL={R2_PUBLIC_URL or '(presigned)'}")
 else:
-    print("[Storage] R2 credentials NOT configured ─ using local disk storage (files will be lost on redeploy)")
+    print("[Storage] R2 credentials NOT configured - using local disk storage (files will be lost on redeploy)")
 
 
 # ── Lazy boto3 client (created once, reused) ──────────────────────────────────
@@ -77,7 +77,7 @@ def _get_client():
             aws_secret_access_key=R2_SECRET_ACCESS_KEY,
             region_name="auto",  # R2 uses "auto" region
         )
-        print(f"[Storage] R2 client initialized → {_R2_ENDPOINT} / {R2_BUCKET_NAME}")
+        print(f"[Storage] R2 client initialized -> {_R2_ENDPOINT} / {R2_BUCKET_NAME}")
         return _s3_client
 
 
@@ -97,7 +97,7 @@ def upload_file(local_path: str, r2_key: str, content_type: str = "video/mp4") -
     """
     if not _r2_enabled():
         # Local fallback — file stays where it is
-        print(f"[Storage] R2 not configured — keeping file locally: {local_path}")
+        print(f"[Storage] R2 not configured - keeping file locally: {local_path}")
         return local_path
 
     try:
@@ -111,11 +111,11 @@ def upload_file(local_path: str, r2_key: str, content_type: str = "video/mp4") -
 
         client.upload_file(local_path, R2_BUCKET_NAME, r2_key, ExtraArgs=extra_args)
         url = get_public_url(r2_key)
-        print(f"[Storage] Uploaded to R2: {r2_key} → {url}")
+        print(f"[Storage] Uploaded to R2: {r2_key} -> {url}")
         print(f"[R2_UPLOAD_SUCCESS] key={r2_key} url={url}")
         return url
     except Exception as e:
-        print(f"[Storage] R2 upload failed for {r2_key}: {e} — keeping file locally")
+        print(f"[Storage] R2 upload failed for {r2_key}: {e} - keeping file locally")
         return local_path
 
 
@@ -134,7 +134,7 @@ def download_file(r2_key: str, local_path: str) -> bool:
         client = _get_client()
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         client.download_file(R2_BUCKET_NAME, r2_key, local_path)
-        print(f"[Storage] Downloaded from R2: {r2_key} → {local_path}")
+        print(f"[Storage] Downloaded from R2: {r2_key} -> {local_path}")
         return True
     except Exception as e:
         print(f"[Storage] R2 download failed for {r2_key}: {e}")
