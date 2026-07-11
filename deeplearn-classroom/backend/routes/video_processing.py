@@ -13,6 +13,8 @@ Storage Strategy:
 """
 import os
 import json
+import mimetypes
+import traceback
 from flask import Blueprint, request, jsonify, send_file, redirect
 from werkzeug.utils import secure_filename
 from utils.video_pipeline import start_pipeline, get_job_status
@@ -33,6 +35,20 @@ os.makedirs(PROCESSED_FOLDER, exist_ok=True)
 
 ALLOWED_EXTENSIONS  = {".mp4", ".avi", ".mov", ".webm", ".mkv"}
 MAX_UPLOAD_BYTES    = 512 * 1024 * 1024  # 512 MB
+
+# MIME type map for video content-type detection
+VIDEO_CONTENT_TYPES = {
+    ".mp4": "video/mp4",
+    ".avi": "video/x-msvideo",
+    ".mov": "video/quicktime",
+    ".webm": "video/webm",
+    ".mkv": "video/x-matroska",
+}
+
+def _detect_video_content_type(filename: str) -> str:
+    """Detect the content type from a video filename."""
+    ext = os.path.splitext(filename)[1].lower()
+    return VIDEO_CONTENT_TYPES.get(ext, "video/mp4")
 
 
 def _allowed_file(filename: str) -> bool:
@@ -64,7 +80,10 @@ def upload_video():
           "filename": "signed_<original>.mp4"
         }
     """
+    print(f"[UPLOAD_REQUEST_RECEIVED] route=upload-video method={request.method} content_type={request.content_type}", flush=True)
+
     if "video_file" not in request.files:
+        print("[UPLOAD_REQUEST_RECEIVED] ERROR: No video_file field in multipart form", flush=True)
         return jsonify({"error": "No video_file provided"}), 400
 
     file = request.files["video_file"]
@@ -78,20 +97,27 @@ def upload_video():
 
     filename        = secure_filename(file.filename)
     title           = request.form.get("title") or file.filename
+    content_type    = _detect_video_content_type(filename)
+
+    print(f"[FILE_VALIDATED] filename={filename} content_type={content_type}", flush=True)
     print(f"[VIDEO_UPLOAD_STARTED] filename={filename}", flush=True)
-    print(f"[UPLOAD_STARTED] filename={filename}", flush=True)
-    print(f"[VIDEO_RECEIVED] route=upload-video filename={filename}")
-    print(f"[CAPTION_REQUEST_STARTED] route=upload-video filename={filename}")
+
     input_path      = os.path.join(UPLOAD_FOLDER, filename)
     output_filename = f"signed_{filename}"
     output_path     = os.path.join(PROCESSED_FOLDER, output_filename)
 
     # ── Save to local disk first ──────────────────────────────────────────────
     file.save(input_path)
-    print(f"[VIDEO_UPLOAD_SUCCESS] filename={filename}", flush=True)
+    file_size = os.path.getsize(input_path) if os.path.exists(input_path) else 0
+    print(f"[VIDEO_UPLOAD_SUCCESS] filename={filename} size={file_size}", flush=True)
 
-    if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
+    if not os.path.exists(input_path) or file_size == 0:
+        print(f"[R2_UPLOAD_FAILED] File empty or missing after save: {input_path}", flush=True)
         return jsonify({"error": "Upload failed: file is empty or could not be saved"}), 500
+
+    if file_size > MAX_UPLOAD_BYTES:
+        _cleanup_local(input_path)
+        return jsonify({"error": f"File too large ({file_size / (1024*1024):.1f} MB). Maximum is {MAX_UPLOAD_BYTES / (1024*1024):.0f} MB."}), 413
 
     # ── Save to database ──────────────────────────────────────────────────────
     teacher_id = request.form.get("teacher_id", 1, type=int)
@@ -128,14 +154,14 @@ def upload_video():
         print(f"[VIDEO_RECORD_CREATED] video_id={video_id}", flush=True)
     except Exception as db_err:
         conn.rollback()
-        print(f"[Upload] Database insertion failed: {db_err}")
+        print(f"[DATABASE_SAVE_FAILED] error={db_err} traceback={traceback.format_exc()}", flush=True)
     finally:
         conn.close()
 
     # ── Upload original to R2 (non-blocking — happens before pipeline) ────────
     r2_input_key = make_r2_key("uploads", filename)
-    url = upload_file(input_path, r2_input_key)
-    if url and (url.startswith("http://") or url.startswith("https://")):
+    url = upload_file(input_path, r2_input_key, content_type=content_type)
+    if url and is_r2_url(url):
         print(f"[R2_UPLOAD_SUCCESS] key={r2_input_key} url={url}", flush=True)
         # Update the DB record with original R2 URL
         print("[DATABASE_SAVE_STARTED]", flush=True)
@@ -145,12 +171,15 @@ def upload_video():
             cursor.execute("UPDATE videos SET original_url = ?, r2_url = ? WHERE video_id = ?", (url, url, video_id))
             conn.commit()
             print("[DATABASE_SAVE_SUCCESS]", flush=True)
-            print(f"[VIDEO_SAVED_TO_DATABASE] video_id={video_id} updated with r2_url", flush=True)
+            print(f"[VIDEO_SAVED_TO_DATABASE] video_id={video_id} updated with r2_url={url}", flush=True)
+            print(f"[VIDEO_LIST_UPDATED] video_id={video_id}", flush=True)
         except Exception as e:
             conn.rollback()
-            print(f"Error updating original R2 URL in DB: {e}", flush=True)
+            print(f"[DATABASE_SAVE_FAILED] error={e} traceback={traceback.format_exc()}", flush=True)
         finally:
             conn.close()
+    else:
+        print(f"[R2_UPLOAD_FAILED] R2 upload returned local path, video stays on disk: {url}", flush=True)
 
     # ── Start processing pipeline in background ───────────────────────────────
     job_id = start_pipeline(
@@ -247,10 +276,11 @@ def get_videos():
                 v["is_locked"] = False
 
         print(f"[VIDEO_LIST_FETCHED] count={len(videos_list)}", flush=True)
+        print(f"[VIDEO_LIST_UPDATED] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_URL_RETURNED] count={len(videos_list)}", flush=True)
         return jsonify({"videos": videos_list})
     except Exception as e:
-        print(f"Error fetching videos: {e}", flush=True)
+        print(f"[DATABASE_SAVE_FAILED] Error fetching videos: {e} traceback={traceback.format_exc()}", flush=True)
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
@@ -552,7 +582,10 @@ def extract_captions():
     The video is uploaded to R2 (if configured), registered in the database,
     transcribed, and marked as done.
     """
+    print(f"[UPLOAD_REQUEST_RECEIVED] route=extract-captions method={request.method} content_type={request.content_type}", flush=True)
+
     if "video_file" not in request.files:
+        print("[UPLOAD_REQUEST_RECEIVED] ERROR: No video_file field in multipart form", flush=True)
         return jsonify({"error": "No video_file provided"}), 400
 
     file = request.files["video_file"]
@@ -566,17 +599,24 @@ def extract_captions():
 
     filename   = secure_filename(file.filename)
     title      = request.form.get("title") or file.filename
+    content_type = _detect_video_content_type(filename)
+
+    print(f"[FILE_VALIDATED] filename={filename} content_type={content_type}", flush=True)
     print(f"[VIDEO_UPLOAD_STARTED] filename={filename}", flush=True)
-    print(f"[UPLOAD_STARTED] filename={filename}", flush=True)
-    print(f"[VIDEO_RECEIVED] route=extract-captions filename={filename}")
-    print(f"[CAPTION_REQUEST_STARTED] route=extract-captions filename={filename}")
+    print(f"[CAPTION_REQUEST_STARTED] route=extract-captions filename={filename}", flush=True)
     
     input_path = os.path.join(UPLOAD_FOLDER, filename)
     file.save(input_path)
-    print(f"[VIDEO_UPLOAD_SUCCESS] filename={filename}", flush=True)
+    file_size = os.path.getsize(input_path) if os.path.exists(input_path) else 0
+    print(f"[VIDEO_UPLOAD_SUCCESS] filename={filename} size={file_size}", flush=True)
 
-    if not os.path.exists(input_path) or os.path.getsize(input_path) == 0:
+    if not os.path.exists(input_path) or file_size == 0:
+        print(f"[R2_UPLOAD_FAILED] File empty or missing after save: {input_path}", flush=True)
         return jsonify({"error": "Upload failed: file is empty or could not be saved"}), 500
+
+    if file_size > MAX_UPLOAD_BYTES:
+        _cleanup_local(input_path)
+        return jsonify({"error": f"File too large ({file_size / (1024*1024):.1f} MB). Maximum is {MAX_UPLOAD_BYTES / (1024*1024):.0f} MB."}), 413
 
     # Save to database (initially processing)
     teacher_id = request.form.get("teacher_id", 1, type=int)
@@ -612,14 +652,14 @@ def extract_captions():
         print(f"[VIDEO_RECORD_CREATED] video_id={video_id}", flush=True)
     except Exception as db_err:
         conn.rollback()
-        print(f"[Upload] Database insertion failed: {db_err}")
+        print(f"[DATABASE_SAVE_FAILED] error={db_err} traceback={traceback.format_exc()}", flush=True)
     finally:
         conn.close()
 
     # Upload original to R2 (synchronously, since this is simple)
     r2_key = make_r2_key("uploads", filename)
-    url = upload_file(input_path, r2_key)
-    if url and (url.startswith("http://") or url.startswith("https://")):
+    url = upload_file(input_path, r2_key, content_type=content_type)
+    if url and is_r2_url(url):
         print(f"[R2_UPLOAD_SUCCESS] key={r2_key} url={url}", flush=True)
         print("[DATABASE_SAVE_STARTED]", flush=True)
         conn = get_db_connection()
@@ -628,11 +668,14 @@ def extract_captions():
             cursor.execute("UPDATE videos SET original_url = ?, processed_url = ?, r2_url = ? WHERE video_id = ?", (url, url, url, video_id))
             conn.commit()
             print("[DATABASE_SAVE_SUCCESS]", flush=True)
+            print(f"[VIDEO_LIST_UPDATED] video_id={video_id} url={url}", flush=True)
         except Exception as e:
             conn.rollback()
-            print(f"Error updating R2 URL in DB: {e}", flush=True)
+            print(f"[DATABASE_SAVE_FAILED] error={e} traceback={traceback.format_exc()}", flush=True)
         finally:
             conn.close()
+    else:
+        print(f"[R2_UPLOAD_FAILED] R2 upload returned local path, video stays on disk: {url}", flush=True)
 
     # Transcribe audio
     from utils.speech_to_text import transcribe_audio
@@ -665,14 +708,15 @@ def extract_captions():
 
             conn.commit()
             print("[DATABASE_SAVE_SUCCESS]", flush=True)
+            print(f"[VIDEO_LIST_UPDATED] video_id={video_id} captions_count={len(captions)}", flush=True)
         except Exception as e:
             conn.rollback()
-            print(f"Error saving captions to DB: {e}", flush=True)
+            print(f"[DATABASE_SAVE_FAILED] Error saving captions: {e} traceback={traceback.format_exc()}", flush=True)
         finally:
             conn.close()
 
     except Exception as e:
-        print(f"Transcription failed: {e}", flush=True)
+        print(f"[DATABASE_SAVE_FAILED] Transcription failed: {e} traceback={traceback.format_exc()}", flush=True)
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
@@ -685,7 +729,7 @@ def extract_captions():
         return jsonify({"error": f"Transcription failed: {str(e)}"}), 500
     finally:
         # Keep local file if R2 is disabled, otherwise clean it up
-        if url and (url.startswith("http://") or url.startswith("https://")):
+        if url and is_r2_url(url):
             _cleanup_local(input_path)
 
     return jsonify({

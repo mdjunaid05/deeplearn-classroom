@@ -160,7 +160,7 @@ CREATE TABLE videos (
     original_url   VARCHAR(512),
     processed_url  VARCHAR(512),
     transcript     TEXT,
-    status         ENUM('uploaded', 'processing', 'done') DEFAULT 'uploaded',
+    status         ENUM('uploaded', 'processing', 'done', 'error') DEFAULT 'uploaded',
     uploaded_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
     processed_at   DATETIME,
     FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,

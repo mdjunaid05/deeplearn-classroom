@@ -151,6 +151,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                     "progress": 98,
                     "step": "Uploading to Cloudflare R2...",
                 })
+                print(f"[R2_UPLOAD_STARTED] key={output_r2_key} source={output_path}", flush=True)
                 from utils.storage import upload_file, is_r2_url
                 url = upload_file(output_path, output_r2_key, content_type="video/mp4")
                 if is_r2_url(url):
@@ -162,9 +163,29 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                         print(f"[Pipeline] Cleaned up local processed file: {output_path}")
                     except OSError:
                         pass
+                else:
+                    print(f"[R2_UPLOAD_FAILED] R2 returned local path (R2 may be disabled): {url}", flush=True)
                 print(f"[Pipeline] Video available at: {video_url}")
             except Exception as r2_err:
-                print(f"[Pipeline] R2 upload failed (keeping local): {r2_err}")
+                import traceback
+                error_info = {
+                    "error_message": str(r2_err),
+                    "error_type": type(r2_err).__name__,
+                    "key": output_r2_key,
+                    "output_path": output_path,
+                }
+                # Extract AWS/botocore error details
+                try:
+                    from botocore.exceptions import ClientError
+                    if isinstance(r2_err, ClientError):
+                        resp = r2_err.response or {}
+                        error_info["aws_error_code"] = resp.get("Error", {}).get("Code", "unknown")
+                        error_info["http_status_code"] = resp.get("ResponseMetadata", {}).get("HTTPStatusCode", "unknown")
+                        error_info["r2_response"] = resp.get("Error", {})
+                except ImportError:
+                    pass
+                print(f"[R2_UPLOAD_FAILED] {error_info}", flush=True)
+                print(f"[R2_UPLOAD_FAILED] stack_trace={traceback.format_exc()}", flush=True)
 
         # ── Clean up original input file (already in R2 from upload route) ──
         try:
@@ -204,12 +225,14 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 
                 conn.commit()
                 print("[DATABASE_SAVE_SUCCESS]", flush=True)
+                print(f"[VIDEO_LIST_UPDATED] video_id={video_id}", flush=True)
                 print(f"[CAPTION_SAVED] video_id={video_id} count={len(captions)}")
                 print(f"[Pipeline] Successfully saved {len(captions)} captions to DB for video_id {video_id}")
             except Exception as db_err:
+                import traceback
                 if 'conn' in locals():
                     conn.rollback()
-                print(f"[Pipeline] Database update failed for video_id {video_id}: {db_err}")
+                print(f"[DATABASE_SAVE_FAILED] video_id={video_id} error={db_err} traceback={traceback.format_exc()}", flush=True)
             finally:
                 if 'conn' in locals():
                     conn.close()
@@ -225,7 +248,9 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
         _cleanup_old_jobs()  # Opportunistic cleanup
 
     except Exception as e:
+        import traceback
         print(f"[Pipeline] Job {job_id} failed: {e}")
+        print(f"[Pipeline] stack_trace={traceback.format_exc()}", flush=True)
         _write_job(job_id, {"status": "error", "error": str(e)})
         if video_id:
             from database.db import get_db_connection

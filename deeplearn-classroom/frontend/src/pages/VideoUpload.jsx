@@ -191,6 +191,9 @@ export default function VideoUpload() {
       setStatus('done');
       setUploading(false);
 
+      // Dispatch event so other pages (TeacherDashboard, VirtualClassroom) can refresh
+      window.dispatchEvent(new CustomEvent('video-list-updated'));
+
     } catch (err) {
       console.error('[Upload] Caption extraction failed:', err.message);
 
@@ -236,6 +239,8 @@ export default function VideoUpload() {
             // Save real API captions to IndexedDB
             saveCaptions(data.captions).catch(console.error);
           }
+          // Dispatch event so other pages can refresh
+          window.dispatchEvent(new CustomEvent('video-list-updated'));
         } else if (data.status === 'error') {
           clearInterval(pollRef.current);
           pollRef.current = null;
@@ -259,7 +264,8 @@ export default function VideoUpload() {
 
   const handleDownload = () => {
     if (!filename) return;
-    const url = `${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}${jobId ? `&job_id=${jobId}` : ''}`;
+    const authParam = user?.role === 'teacher' ? `&teacher_id=${user?.id || 1}` : `&student_id=${user?.id || 1}`;
+    const url = `${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}${jobId ? `&job_id=${jobId}` : ''}${authParam}`;
     window.open(url, '_blank');
   };
 
@@ -417,9 +423,10 @@ export default function VideoUpload() {
                     const params = new URLSearchParams();
                     if (jobId) params.append('job_id', jobId);
                     if (filename) params.append('filename', filename);
+                    const authParam = user?.role === 'teacher' ? `&teacher_id=${user?.id || 1}` : `&student_id=${user?.id || 1}`;
                     if (captions && captions.length > 0) {
                       window.uploadedDemoCaptions = captions;
-                      window.uploadedDemoVideo = `${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}${jobId ? `&job_id=${jobId}` : ''}`;
+                      window.uploadedDemoVideo = `${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}${jobId ? `&job_id=${jobId}` : ''}${authParam}`;
                       window.uploadedDemoTitle = file?.name || 'Uploaded Video';
                     }
                     navigate(`/classroom?${params.toString()}`);
@@ -442,7 +449,7 @@ export default function VideoUpload() {
                  {/* Show actual processed video if available */}
                  <video
                    ref={videoRef}
-                   src={`${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}`}
+                   src={`${API_BASE}/download-signed-video?filename=${encodeURIComponent(filename)}${user?.role === 'teacher' ? `&teacher_id=${user?.id || 1}` : `&student_id=${user?.id || 1}`}`}
                    controls
                    className="absolute inset-0 w-full h-full object-contain"
                    onLoadedMetadata={() => console.log('[VIDEO_RENDERED] src=' + (videoRef.current?.src || ''))}

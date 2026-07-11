@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Lumina AI - Inclusive Virtual Classroom</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"primary-fixed": "#acedff", "on-error": "#ffffff", "on-secondary-container": "#006f67", "surface-tint": "#00687a", outline: "#6d797d", "on-primary": "#ffffff", "on-primary-container": "#00424f", primary: "#00687a", "surface-container-lowest": "#ffffff", "outline-variant": "#bcc9cd", "on-primary-fixed": "#001f26", "secondary-fixed": "#9cf2e8", error: "#ba1a1a", secondary: "#006a63", "on-secondary-fixed-variant": "#00504a", "on-secondary": "#ffffff", "inverse-primary": "#4cd7f6", "surface-dim": "#d2d9f4", tertiary: "#5c5f61", "primary-fixed-dim": "#4cd7f6", "surface-container": "#eaedff", "on-tertiary-fixed": "#191c1e", "inverse-on-surface": "#eef0ff", "on-surface-variant": "#3d494c", "secondary-fixed-dim": "#80d5cb", "error-container": "#ffdad6", "on-surface": "#131b2e", background: "#faf8ff", "tertiary-container": "#a4a7a9", "surface-variant": "#dae2fd", "surface-container-highest": "#dae2fd", "surface-bright": "#faf8ff", "surface-container-low": "#f2f3ff", surface: "#faf8ff", "on-secondary-fixed": "#00201d", "on-error-container": "#93000a", "primary-container": "#06b6d4", "inverse-surface": "#283044", "on-tertiary-container": "#393d3e", "on-tertiary-fixed-variant": "#444749", "tertiary-fixed-dim": "#c4c7c9", "secondary-container": "#99efe5", "on-tertiary": "#ffffff", "on-primary-fixed-variant": "#004e5c", "surface-container-high": "#e2e7ff", "tertiary-fixed": "#e0e3e5", "on-background": "#131b2e"}, borderRadius: {DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem", full: "9999px"}, spacing: {xl: "80px", gutter: "24px", sm: "12px", base: "8px", xs: "4px", "container-max": "1280px", lg: "48px", md: "24px", "margin-mobile": "16px"}, fontFamily: {"display-hero-mobile": ["Inter"], "display-hero": ["Inter"], "headline-lg": ["Inter"], "body-lg": ["Inter"], "label-md": ["Inter"], "body-sm": ["Inter"], "headline-sm": ["Inter"], "headline-md": ["Inter"], button: ["Inter"], "body-md": ["Inter"], headline: ["Inter"], display: ["Inter"], body: ["Inter"], label: ["Inter"]}, fontSize: {"display-hero-mobile": ["48px", {lineHeight: "52px", letterSpacing: "-0.02em", fontWeight: "800"}], "display-hero": ["72px", {lineHeight: "80px", letterSpacing: "-0.04em", fontWeight: "800"}], "headline-lg": ["40px", {lineHeight: "48px", letterSpacing: "-0.02em", fontWeight: "700"}], "body-lg": ["18px", {lineHeight: "28px", fontWeight: "400"}], "label-md": ["14px", {lineHeight: "16px", letterSpacing: "0.05em", fontWeight: "600"}], "body-sm": ["14px", {lineHeight: "20px", fontWeight: "400"}], "headline-sm": ["24px", {lineHeight: "32px", fontWeight: "600"}], "headline-md": ["32px", {lineHeight: "40px", letterSpacing: "-0.01em", fontWeight: "700"}], button: ["16px", {lineHeight: "24px", fontWeight: "600"}], "body-md": ["16px", {lineHeight: "24px", fontWeight: "400"}]}}}};</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #06b6d4, #00687a);
+            color: #ffffff;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 14px 0 rgba(6, 182, 212, 0.39);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 20px rgba(6, 182, 212, 0.23);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background-color: #ffffff;
+            color: #0F172A;
+            border: 1px solid #E2E8F0;
+            transition: all 0.2s ease-in-out;
+        }
+        .btn-secondary:hover {
+            background-color: #F8FAFC;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+        .card-shadow {
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+        }
+        .focus-ring:focus-visible {
+            outline: 2px solid #06b6d4;
+            outline-offset: 2px;
+        }
+        .ai-chip {
+            background-color: rgba(6, 182, 212, 0.1);
+            color: #06b6d4;
+        }
+        .ai-border {
+            border-left: 4px solid #06b6d4;
+        }
+    </style>
+</head>
+<body class="bg-surface-container-lowest text-on-surface font-body-md antialiased min-h-screen flex flex-col">
+<!-- TopNavBar Shared Component -->
+<header class="fixed top-0 left-0 w-full flex justify-between items-center px-gutter py-base max-w-container-max mx-auto bg-surface/70 dark:bg-surface/70 backdrop-blur-xl shadow-sm docked full-width z-50">
+<div class="flex items-center gap-md">
+<span class="font-headline-sm text-headline-sm font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">Lumina Edu</span>
+</div>
+<nav class="hidden md:flex gap-lg">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors hover:opacity-80 transition-opacity focus-ring rounded-DEFAULT px-xs py-xs" href="#">Features</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors hover:opacity-80 transition-opacity focus-ring rounded-DEFAULT px-xs py-xs" href="#">AI Models</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors hover:opacity-80 transition-opacity focus-ring rounded-DEFAULT px-xs py-xs" href="#">Accessibility</a>
+</nav>
+<div class="flex items-center gap-sm">
+<button class="font-button text-button btn-secondary px-md py-sm rounded-lg focus-ring">Login</button>
+<button class="font-button text-button btn-primary px-md py-sm rounded-lg focus-ring">Start Free</button>
+</div>
+</header>
+<main class="flex-grow pt-xl mt-lg">
+<!-- Hero Section -->
+<section class="max-w-container-max mx-auto px-gutter lg:px-lg py-xl flex flex-col lg:flex-row items-center gap-xl">
+<div class="flex-1 text-center lg:text-left space-y-md">
+<div class="inline-flex items-center gap-xs ai-chip px-sm py-xs rounded-full font-label-md text-label-md mb-sm">
+<span class="material-symbols-outlined text-[16px]">psychology</span>
+                    Next-Gen Learning AI
+                </div>
+<h1 class="font-display-hero-mobile text-display-hero-mobile md:font-display-hero md:text-display-hero text-on-surface mb-md tracking-tight">
+                    AI-Powered Inclusive <br class="hidden lg:block"/> Virtual Classroom
+                </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto lg:mx-0">
+                    Empowering every student with adaptive intelligence. Real-time insights, accessible by design, and built for modern enterprise education.
+                </p>
+<div class="flex flex-col sm:flex-row gap-sm justify-center lg:justify-start pt-md">
+<button class="btn-primary font-button text-button px-lg py-sm rounded-lg flex items-center justify-center gap-xs focus-ring">
+                        Student Dashboard
+                        <span class="material-symbols-outlined" data-icon="arrow_forward">arrow_forward</span>
+</button>
+<button class="btn-secondary font-button text-button px-lg py-sm rounded-lg flex items-center justify-center gap-xs focus-ring">
+                        Teacher Dashboard
+                    </button>
+</div>
+</div>
+<div class="flex-1 relative w-full aspect-square max-w-lg mx-auto">
+<!-- Large Professional AI Illustration Placeholder -->
+<div class="absolute inset-0 rounded-[40px] overflow-hidden card-shadow bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="A highly professional and clean digital illustration of an inclusive virtual classroom environment powered by AI. Modern, bright light-mode aesthetic with soft cyan and white tones. Focus on diverse students engaging with floating, glowing, generative data visualizations representing AI insights and adaptive learning paths. Minimalist, enterprise SaaS style typical of high-end educational platforms." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAivRu4x8PUE6o9ao2oDVhZE9gp8zhP1-71f8xFhL5zKyQaLAgz_xQNk_RkCunEs3qaTL0mMXNRm3uZ9rimNtFGymgpJxIcm_Aw7-gppSEyY6laxX9rS4rUMvGF1ZfeDLyVwlhYKKgsL7RmG0jg0x6PFMcsH0vuQgCpw3eA4HpUlvbl7jwu2IlLbxcqfxG19p_p3v0u1tOZGTrltUTn4AviaD54Zhx8l9RmA5uFnr5tpN6UyKm8zrPac3uFiT1aNtVBG7BRvUOhDmZw"/>
+</div>
+<!-- Floating Accessibility Icons (Glassmorphic) -->
+<div class="absolute -left-sm top-1/4 glass-panel p-sm rounded-xl card-shadow animate-bounce" style="animation-duration: 3s;">
+<span class="material-symbols-outlined text-primary text-[32px]" data-icon="record_voice_over" style="font-variation-settings: 'FILL' 1;">record_voice_over</span>
+</div>
+<div class="absolute -right-sm top-1/2 glass-panel p-sm rounded-xl card-shadow animate-bounce" style="animation-duration: 4s; animation-delay: 1s;">
+<span class="material-symbols-outlined text-secondary text-[32px]" data-icon="visibility" style="font-variation-settings: 'FILL' 1;">visibility</span>
+</div>
+<div class="absolute left-1/4 -bottom-sm glass-panel p-sm rounded-xl card-shadow animate-bounce" style="animation-duration: 3.5s; animation-delay: 0.5s;">
+<span class="material-symbols-outlined text-tertiary text-[32px]" data-icon="translate" style="font-variation-settings: 'FILL' 1;">translate</span>
+</div>
+</div>
+</section>
+<!-- Stats Section -->
+<section class="bg-surface-container-low py-xl border-y border-outline-variant">
+<div class="max-w-container-max mx-auto px-gutter">
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg text-center divide-y md:divide-y-0 md:divide-x divide-outline-variant">
+<div class="p-sm flex flex-col items-center justify-center">
+<span class="font-headline-lg text-headline-lg text-primary mb-xs">95%+</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Insight Accuracy</span>
+</div>
+<div class="p-sm flex flex-col items-center justify-center">
+<span class="font-headline-lg text-headline-lg text-secondary mb-xs">3</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Deep Learning Models</span>
+</div>
+<div class="p-sm flex flex-col items-center justify-center">
+<span class="font-headline-lg text-headline-lg text-tertiary mb-xs">&lt;10ms</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Real-Time Analytics</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Feature Grid Section -->
+<section class="max-w-container-max mx-auto px-gutter py-xl">
+<div class="text-center mb-xl">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-sm">Intelligent Features for Every Learner</h2>
+<p class="font-body-md text-body-md text-on-surface-variant max-w-2xl mx-auto">Our specialized AI models work continuously to adapt, monitor, and engage, ensuring no student is left behind.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest rounded-[20px] p-md card-shadow ai-border transition-transform hover:-translate-y-1 duration-300 group cursor-pointer focus-ring" tabindex="0">
+<div class="w-12 h-12 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center mb-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="route">route</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">Adaptive Learning</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Personalized content pathways that dynamically adjust to individual student pacing and comprehension levels in real-time.</p>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest rounded-[20px] p-md card-shadow border border-outline-variant transition-transform hover:-translate-y-1 duration-300 group cursor-pointer focus-ring" tabindex="0">
+<div class="w-12 h-12 rounded-xl bg-secondary-container text-on-secondary-container flex items-center justify-center mb-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="monitoring">monitoring</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">Behavior Monitoring</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Non-intrusive sentiment and focus analysis to help educators identify students who may need additional support or intervention.</p>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest rounded-[20px] p-md card-shadow border border-outline-variant transition-transform hover:-translate-y-1 duration-300 group cursor-pointer focus-ring" tabindex="0">
+<div class="w-12 h-12 rounded-xl bg-tertiary-container text-on-tertiary-container flex items-center justify-center mb-md group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="insights">insights</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-sm">Engagement Detection</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Advanced metrics tracking interaction quality and participation frequency to optimize lesson delivery and format.</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Footer Shared Component -->
+<footer class="w-full py-xl px-gutter flex flex-col items-center gap-md bg-surface-container-lowest dark:bg-inverse-surface border-t border-outline-variant flat">
+<div class="font-headline-sm text-headline-sm font-bold text-on-surface mb-sm">Lumina Edu</div>
+<nav class="flex flex-wrap justify-center gap-md mb-md">
+<a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors focus-ring rounded-sm px-xs py-xs" href="#">Privacy Policy</a>
+<a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors focus-ring rounded-sm px-xs py-xs" href="#">Accessibility Statement</a>
+<a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors focus-ring rounded-sm px-xs py-xs" href="#">Terms of Service</a>
+<a class="font-body-sm text-body-sm text-on-surface-variant hover:text-primary transition-colors focus-ring rounded-sm px-xs py-xs" href="#">Contact</a>
+</nav>
+<p class="font-body-sm text-body-sm text-primary opacity-90 hover:opacity-100 text-center max-w-xl">
+            © 2024 Lumina AI Education. All rights reserved. Built for inclusion.
+        </p>
+</footer>
+</body></html>
