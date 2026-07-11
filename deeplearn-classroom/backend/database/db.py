@@ -394,6 +394,9 @@ def _init_sqlite(conn):
             status         TEXT DEFAULT 'uploaded',
             uploaded_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
             processed_at   DATETIME,
+            original_video_id INTEGER DEFAULT NULL,
+            video_type     TEXT DEFAULT 'original',
+            captions_url   TEXT DEFAULT NULL,
             FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id),
             FOREIGN KEY (course_id) REFERENCES courses(course_id)
         );
@@ -597,6 +600,15 @@ def _init_sqlite(conn):
             altered = True
         if "r2_url" not in cols:
             cursor.execute("ALTER TABLE videos ADD COLUMN r2_url TEXT")
+            altered = True
+        if "original_video_id" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN original_video_id INTEGER DEFAULT NULL")
+            altered = True
+        if "video_type" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN video_type TEXT DEFAULT 'original'")
+            altered = True
+        if "captions_url" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN captions_url TEXT DEFAULT NULL")
             altered = True
         if altered:
             conn.commit()

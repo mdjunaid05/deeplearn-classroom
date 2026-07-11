@@ -188,6 +188,7 @@ def get_videos():
         cursor.execute("""
             SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename, v.r2_url, 
                    v.original_url, v.processed_url, v.status, v.uploaded_at, v.processed_at,
+                   v.original_video_id, v.video_type, v.captions_url,
                    t.name as uploader
             FROM videos v
             LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
@@ -230,6 +231,19 @@ def get_videos():
                 video_dict["title"] = video_dict.get("filename") or "Untitled"
             if not video_dict.get("uploader"):
                 video_dict["uploader"] = "Teacher"
+
+            # camelCase / snake_case mapping defensive alignment
+            video_dict["videoId"] = video_dict.get("video_id")
+            video_dict["originalVideoId"] = video_dict.get("original_video_id")
+            video_dict["classroomId"] = video_dict.get("course_id")
+            video_dict["videoType"] = video_dict.get("video_type") or "original"
+            video_dict["captionsUrl"] = video_dict.get("captions_url")
+            video_dict["createdAt"] = video_dict.get("uploaded_at")
+            
+            if video_dict.get("video_type") == "ASL":
+                video_dict["aiSigningVideoUrl"] = video_dict.get("processed_url") or video_dict.get("r2_url")
+            else:
+                video_dict["aiSigningVideoUrl"] = None
             
             videos_list.append(video_dict)
             
@@ -251,6 +265,7 @@ def get_videos():
 
         print(f"[VIDEO_LIST_RESPONSE] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_LIST_FETCHED] count={len(videos_list)}", flush=True)
+        print(f"[VIDEO_LIST_UPDATED] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_URL_RETURNED] count={len(videos_list)}", flush=True)
         return jsonify({"videos": videos_list})
     except Exception as e:
@@ -277,6 +292,7 @@ def get_classroom_videos(classroom_id):
         cursor.execute("""
             SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename, v.r2_url, 
                    v.original_url, v.processed_url, v.status, v.uploaded_at, v.processed_at,
+                   v.original_video_id, v.video_type, v.captions_url,
                    t.name as uploader
             FROM videos v
             LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
@@ -304,9 +320,24 @@ def get_classroom_videos(classroom_id):
             if not video_dict.get("uploader"):
                 video_dict["uploader"] = "Teacher"
             video_dict["is_locked"] = False
+
+            # camelCase / snake_case mapping defensive alignment
+            video_dict["videoId"] = video_dict.get("video_id")
+            video_dict["originalVideoId"] = video_dict.get("original_video_id")
+            video_dict["classroomId"] = video_dict.get("course_id")
+            video_dict["videoType"] = video_dict.get("video_type") or "original"
+            video_dict["captionsUrl"] = video_dict.get("captions_url")
+            video_dict["createdAt"] = video_dict.get("uploaded_at")
+
+            if video_dict.get("video_type") == "ASL":
+                video_dict["aiSigningVideoUrl"] = video_dict.get("processed_url") or video_dict.get("r2_url")
+            else:
+                video_dict["aiSigningVideoUrl"] = None
+
             videos_list.append(video_dict)
 
         print(f"[VIDEO_LIST_RESPONSE] classroom_id={classroom_id} count={len(videos_list)}", flush=True)
+        print(f"[VIDEO_LIST_UPDATED] count={len(videos_list)}", flush=True)
         return jsonify({"videos": videos_list})
     except Exception as e:
         print(f"Error fetching classroom videos: {e}", flush=True)
@@ -1101,6 +1132,7 @@ def get_video(video_id):
         cursor.execute(
             "SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename, v.r2_url, "
             "v.original_url, v.processed_url, v.status, v.uploaded_at, v.processed_at, "
+            "v.original_video_id, v.video_type, v.captions_url, "
             "t.name as uploader "
             "FROM videos v LEFT JOIN teachers t ON v.teacher_id = t.teacher_id "
             "WHERE v.video_id = ?",
@@ -1122,9 +1154,256 @@ def get_video(video_id):
                 rel = os.path.basename(u)
                 video[url_key] = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel}{auth_query}"
 
+        # camelCase / snake_case mapping defensive alignment
+        video["videoId"] = video.get("video_id")
+        video["originalVideoId"] = video.get("original_video_id")
+        video["classroomId"] = video.get("course_id")
+        video["videoType"] = video.get("video_type") or "original"
+        video["captionsUrl"] = video.get("captions_url")
+        video["createdAt"] = video.get("uploaded_at")
+
+        if video.get("video_type") == "ASL":
+            video["aiSigningVideoUrl"] = video.get("processed_url") or video.get("r2_url")
+        else:
+            video["aiSigningVideoUrl"] = None
+
         return jsonify({"video": video})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
         conn.close()
+
+
+# ── POST /generate-sign-video ────────────────────────────────────────────────
+
+@video_bp.route("/generate-sign-video", methods=["POST"])
+def generate_sign_video():
+    """
+    Manually trigger the sign overlay pipeline for an existing video.
+    Body (JSON):
+        { "video_id": <int> }
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        video_id = body.get("video_id")
+        if not video_id:
+            return jsonify({"error": "Missing video_id"}), 400
+
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT video_id, title, filename, original_url, processed_url FROM videos WHERE video_id = ?", (video_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({"error": f"Video {video_id} not found"}), 404
+
+        v_id, title, filename, original_url, processed_url = row
+        print(f"[ORIGINAL_VIDEO_FOUND] video_id={video_id}", flush=True)
+        print(f"[AI_SIGN_VIDEO_STARTED] video_id={video_id}", flush=True)
+
+        input_path = original_url
+        if original_url.startswith("http://") or original_url.startswith("https://"):
+            filename = os.path.basename(original_url.split('?')[0])
+            local_input = os.path.join(UPLOAD_FOLDER, filename)
+            if not os.path.exists(local_input):
+                import requests
+                r = requests.get(original_url, stream=True)
+                if r.status_code == 200:
+                    with open(local_input, 'wb') as f:
+                        for chunk in r.iter_content(chunk_size=1024*1024):
+                            f.write(chunk)
+                else:
+                    return jsonify({"error": "Failed to retrieve original video from R2 URL"}), 500
+            input_path = local_input
+        else:
+            if not os.path.exists(input_path):
+                fallback_path = os.path.join(UPLOAD_FOLDER, os.path.basename(input_path))
+                if os.path.exists(fallback_path):
+                    input_path = fallback_path
+
+        if not os.path.exists(input_path):
+            return jsonify({"error": f"Original video file not found at {input_path}"}), 404
+
+        output_filename = f"signed_{os.path.basename(input_path)}"
+        output_path = os.path.join(PROCESSED_FOLDER, output_filename)
+
+        # Update original video status to processing
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE videos SET status = 'processing' WHERE video_id = ?", (video_id,))
+        conn.commit()
+        conn.close()
+
+        # Start pipeline
+        job_id = start_pipeline(
+            input_path,
+            output_path,
+            output_r2_key=make_r2_key("processed", output_filename),
+            video_id=video_id
+        )
+
+        return jsonify({
+            "status": "processing",
+            "job_id": job_id,
+            "video_id": video_id,
+            "filename": output_filename
+        })
+
+    except Exception as e:
+        import traceback
+        import sys
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        tb = traceback.extract_tb(exc_tb)
+        last_frame = tb[-1] if tb else None
+        file_name = last_frame.filename if last_frame else "video_processing.py"
+        line_num = last_frame.lineno if last_frame else 0
+        func_name = last_frame.name if last_frame else "generate_sign_video"
+        err_msg = str(e)
+        stack_str = traceback.format_exc()
+
+        err_payload = {
+            "error": err_msg,
+            "file": file_name,
+            "function": func_name,
+            "line": line_num,
+            "stack_trace": stack_str,
+            "root_cause": f"Failed to trigger sign generation: {err_msg}"
+        }
+        print(f"[GENERATE_SIGN_VIDEO_ERROR] {json.dumps(err_payload)}")
+        return jsonify(err_payload), 500
+
+
+# ── POST /upload-generated-video ─────────────────────────────────────────────
+
+@video_bp.route("/upload-generated-video", methods=["POST"])
+def upload_generated_video():
+    """
+    Manually upload/register a generated signing video and create database record.
+    Body (JSON):
+        {
+          "video_id": <int>,
+          "output_path": "<str>",
+          "output_r2_key": "<str>" (optional)
+        }
+    """
+    try:
+        body = request.get_json(force=True, silent=True) or {}
+        video_id = body.get("video_id")
+        output_path = body.get("output_path")
+        
+        if not video_id or not output_path:
+            return jsonify({"error": "Missing video_id or output_path"}), 400
+
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT teacher_id, course_id, title, filename, original_url FROM videos WHERE video_id = ?", (video_id,))
+        orig_video = cursor.fetchone()
+        conn.close()
+
+        if not orig_video:
+            return jsonify({"error": f"Original video {video_id} not found"}), 404
+
+        teacher_id, course_id, orig_title, orig_filename, orig_url = orig_video
+        print(f"[ORIGINAL_VIDEO_FOUND] video_id={video_id}", flush=True)
+
+        if not os.path.exists(output_path):
+            return jsonify({"error": f"Processed video file not found at {output_path}"}), 404
+
+        output_filename = os.path.basename(output_path)
+        output_r2_key = body.get("output_r2_key") or make_r2_key("processed", output_filename)
+
+        # Upload to R2
+        video_url = output_path
+        from utils.storage import upload_file, is_r2_url
+        url = upload_file(output_path, output_r2_key, content_type="video/mp4")
+        if is_r2_url(url):
+            video_url = url
+            print(f"[R2_UPLOAD_SUCCESS] key={output_r2_key} url={video_url}", flush=True)
+            print(f"[AI_VIDEO_UPLOADED_TO_R2] video_id={video_id} url={video_url}", flush=True)
+
+        # Create database record
+        asl_title = f"[AI Deaf Signing] {orig_title}"
+        asl_filename = f"signed_{orig_filename}"
+
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, original_video_id, video_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ASL')
+        """, (
+            teacher_id,
+            course_id,
+            asl_title,
+            asl_filename,
+            orig_url,
+            video_url,
+            video_url if is_r2_url(video_url) else None,
+            video_id
+        ))
+        asl_video_id = cursor.lastrowid
+
+        # Set captions_url
+        asl_captions_url = f"/video-captions?video_id={asl_video_id}"
+        cursor.execute("UPDATE videos SET captions_url = ? WHERE video_id = ?", (asl_captions_url, asl_video_id))
+
+        # Copy captions from original video to ASL video if they exist
+        cursor.execute("SELECT start_time, end_time, text, sign_sequence FROM video_captions WHERE video_id = ?", (video_id,))
+        caps = cursor.fetchall()
+        for cap in caps:
+            cursor.execute("""
+                INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
+                VALUES (?, ?, ?, ?, ?)
+            """, (asl_video_id, cap[0], cap[1], cap[2], cap[3]))
+
+        conn.commit()
+        conn.close()
+
+        print(f"[AI_VIDEO_DATABASE_SAVED] video_id={asl_video_id} original_video_id={video_id}", flush=True)
+
+        # Prepare response
+        return jsonify({
+            "status": "success",
+            "video": {
+                "videoId": asl_video_id,
+                "video_id": asl_video_id,
+                "originalVideoId": video_id,
+                "original_video_id": video_id,
+                "classroomId": course_id,
+                "course_id": course_id,
+                "title": asl_title,
+                "aiSigningVideoUrl": video_url,
+                "processed_url": video_url,
+                "captionsUrl": asl_captions_url,
+                "captions_url": asl_captions_url,
+                "videoType": "ASL",
+                "video_type": "ASL",
+                "status": "done"
+            }
+        })
+
+    except Exception as e:
+        import traceback
+        import sys
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        tb = traceback.extract_tb(exc_tb)
+        last_frame = tb[-1] if tb else None
+        file_name = last_frame.filename if last_frame else "video_processing.py"
+        line_num = last_frame.lineno if last_frame else 0
+        func_name = last_frame.name if last_frame else "upload_generated_video"
+        err_msg = str(e)
+        stack_str = traceback.format_exc()
+
+        err_payload = {
+            "error": err_msg,
+            "file": file_name,
+            "function": func_name,
+            "line": line_num,
+            "stack_trace": stack_str,
+            "root_cause": f"Failed to upload generated video: {err_msg}"
+        }
+        print(f"[UPLOAD_GENERATED_VIDEO_ERROR] {json.dumps(err_payload)}")
+        return jsonify(err_payload), 500
 

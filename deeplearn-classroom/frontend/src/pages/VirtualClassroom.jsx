@@ -1165,14 +1165,16 @@ export default function VirtualClassroom() {
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {videos.map(video => (
-                  <div 
-                    key={video.video_id} 
-                    className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
-                      video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
-                    }`}
-                    onClick={() => {
-                      if (video.is_locked) {
+                {(() => {
+                  const originalVideos = videos.filter(v => v.video_type !== 'ASL');
+                  const aslVideos = videos.filter(v => v.video_type === 'ASL');
+                  
+                  return originalVideos.map(video => {
+                    const aslVideo = aslVideos.find(av => av.original_video_id === video.video_id || av.originalVideoId === video.video_id);
+
+                    // Play handler helper
+                    const playVideo = (v) => {
+                      if (v.is_locked) {
                         setActiveAlert({
                           type: 'warning',
                           message: 'You must score at least 35% on the previous quiz to unlock this lesson.',
@@ -1181,7 +1183,7 @@ export default function VirtualClassroom() {
                         });
                         return;
                       }
-                      const rawUrl = video.r2_url || video.processed_url || video.original_url || '';
+                      const rawUrl = v.r2_url || v.processed_url || v.original_url || '';
                       const authParam = user?.role === 'teacher' 
                         ? `teacher_id=${user.id || 1}` 
                         : `student_id=${user?.id || user?.user_id || 1}`;
@@ -1193,8 +1195,13 @@ export default function VirtualClassroom() {
                           videoUrl = `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
                         }
                       }
+                      
+                      if (v.video_type === 'ASL') {
+                        console.log('[AI_VIDEO_RENDERED] video_id=' + v.video_id + ' filename=' + (v.filename || ''));
+                      }
+
                       setVideoSrc(videoUrl);
-                      setVideoTitle(video.title || "Uploaded Video");
+                      setVideoTitle(v.title || "Uploaded Video");
                       setActiveRecording(null);
                       setVideoEnded(false);
                       setQuizReady(false);
@@ -1202,7 +1209,7 @@ export default function VirtualClassroom() {
                       setAnswers({});
                       setSavedCaptions([]);
                       
-                      fetch(`${API_BASE}/video-captions?video_id=${video.video_id}&format=json`)
+                      fetch(`${API_BASE}/video-captions?video_id=${v.video_id}&format=json`)
                         .then(res => {
                           if (res.ok) return res.json();
                           throw new Error('No captions');
@@ -1215,44 +1222,158 @@ export default function VirtualClassroom() {
                         .catch(() => console.log('No captions found for this video.'));
 
                       window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }}
-                  >
-                    <div className="relative aspect-video bg-slate-950 group">
-                      <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                         <Video className="w-10 h-10 text-[#6d797d]" />
-                      </div>
-                      {video.is_locked ? (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
-                          <Lock className="w-6 h-6 text-white/60 mb-2" />
-                          <span className="text-white/80 text-[10px] font-semibold px-4 text-center">Locked: complete previous quiz</span>
-                        </div>
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
-                          <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
-                            <Play className="w-5 h-5 fill-white ml-0.5" />
+                    };
+
+                    // Download url helper
+                    const getDownloadUrl = (v) => {
+                      const rawUrl = v.original_url || v.processed_url || v.r2_url || '';
+                      const authParam = user?.role === 'teacher' 
+                        ? `teacher_id=${user.id || 1}` 
+                        : `student_id=${user?.id || user?.user_id || 1}`;
+                      if (rawUrl && !rawUrl.startsWith('http')) {
+                        return `${API_BASE}${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
+                      }
+                      if (rawUrl && !rawUrl.includes('student_id=') && !rawUrl.includes('teacher_id=')) {
+                        return `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
+                      }
+                      return rawUrl;
+                    };
+
+                    return (
+                      <React.Fragment key={video.video_id}>
+                        {/* Original Video Card */}
+                        <div 
+                          className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
+                            video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
+                          }`}
+                          onClick={() => playVideo(video)}
+                        >
+                          <div className="relative aspect-video bg-slate-950 group">
+                            <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                               <Video className="w-10 h-10 text-[#6d797d]" />
+                            </div>
+                            <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-blue-500 text-white text-[9px] font-bold uppercase tracking-wider">
+                              Original Video
+                            </div>
+                            {video.is_locked ? (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
+                                <Lock className="w-6 h-6 text-white/60 mb-2" />
+                                <span className="text-white/80 text-[10px] font-semibold px-4 text-center">Locked: complete previous quiz</span>
+                              </div>
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
+                                <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                                  <Play className="w-5 h-5 fill-white ml-0.5" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="p-4 flex flex-col flex-1">
+                            <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={video.title}>
+                              {video.title}
+                            </h3>
+                            <div className="space-y-1 mb-3">
+                              <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                Uploader: {video.uploader}
+                              </p>
+                              <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}
+                              </p>
+                              <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                Captions: <span className={video.status === 'done' ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>{video.captions_status}</span>
+                              </p>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-[#bcc9cd]/25 mt-auto" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => playVideo(video)}
+                                className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                              >
+                                <Play className="w-3 h-3 fill-primary-600" /> Play
+                              </button>
+                              <a
+                                href={getDownloadUrl(video)}
+                                download
+                                className="text-xs font-bold text-[#00687a] hover:text-[#005260] flex items-center gap-1"
+                              >
+                                <Download className="w-3 h-3" /> Download
+                              </a>
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
-                    
-                    <div className="p-4 flex flex-col flex-1">
-                      <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={video.title}>
-                        {video.title}
-                      </h3>
-                      <div className="space-y-1 mt-auto">
-                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                          Uploader: {video.uploader}
-                        </p>
-                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                          Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}
-                        </p>
-                        <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                          Captions: <span className={video.status === 'done' ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>{video.captions_status}</span>
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+
+                        {/* Associated ASL Video Card */}
+                        {aslVideo && (
+                          <div 
+                            className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
+                              video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
+                            }`}
+                            onClick={() => playVideo(aslVideo)}
+                          >
+                            {(() => {
+                              console.log('[AI_VIDEO_RENDERED] video_id=' + aslVideo.video_id + ' filename=' + (aslVideo.filename || ''));
+                              return null;
+                            })()}
+                            <div className="relative aspect-video bg-slate-950 group">
+                              <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                 <Video className="w-10 h-10 text-[#6d797d]" />
+                              </div>
+                              <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-purple-600 text-white text-[9px] font-bold uppercase tracking-wider">
+                                AI Deaf Signing
+                              </div>
+                              {video.is_locked ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
+                                  <Lock className="w-6 h-6 text-white/60 mb-2" />
+                                  <span className="text-white/80 text-[10px] font-semibold px-4 text-center">Locked: complete previous quiz</span>
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
+                                  <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                                    <Play className="w-5 h-5 fill-white ml-0.5" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            
+                            <div className="p-4 flex flex-col flex-1">
+                              <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={aslVideo.title}>
+                                {aslVideo.title}
+                              </h3>
+                              <div className="space-y-1 mb-3">
+                                <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                  Uploader: {aslVideo.uploader}
+                                </p>
+                                <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                  Uploaded: {new Date(aslVideo.uploaded_at).toLocaleDateString()}
+                                </p>
+                                <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
+                                  Captions: <span className="text-emerald-500 font-semibold">available</span>
+                                </p>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-3 border-t border-[#bcc9cd]/25 mt-auto" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => playVideo(aslVideo)}
+                                  className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
+                                >
+                                  <Play className="w-3 h-3 fill-purple-600" /> Play
+                                </button>
+                                <a
+                                  href={getDownloadUrl(aslVideo)}
+                                  download
+                                  className="text-xs font-bold text-purple-500 hover:text-purple-600 flex items-center gap-1"
+                                >
+                                  <Download className="w-3 h-3" /> Download
+                                </a>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>

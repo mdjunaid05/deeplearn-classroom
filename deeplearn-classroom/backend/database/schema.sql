@@ -149,7 +149,6 @@ CREATE TABLE captions (
         ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
--- ── Videos Pipeline ──────────────────────────────────────
 CREATE TABLE videos (
     video_id       INT AUTO_INCREMENT PRIMARY KEY,
     teacher_id     INT          NOT NULL,
@@ -163,6 +162,9 @@ CREATE TABLE videos (
     status         ENUM('uploaded', 'processing', 'done') DEFAULT 'uploaded',
     uploaded_at    DATETIME     DEFAULT CURRENT_TIMESTAMP,
     processed_at   DATETIME,
+    original_video_id INT          DEFAULT NULL,
+    video_type     VARCHAR(50)  DEFAULT 'original',
+    captions_url   VARCHAR(512) DEFAULT NULL,
     FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;

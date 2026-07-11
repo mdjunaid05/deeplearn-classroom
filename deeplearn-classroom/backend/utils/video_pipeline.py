@@ -109,6 +109,8 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
         if not captions:
             captions = [{"text": "No speech detected in video.", "start": 0.0, "end": 2.0}]
 
+        print(f"[CAPTIONS_GENERATED] video_id={video_id} count={len(captions)}", flush=True)
+
         _write_job(job_id, {"progress": 30,
                              "step": f"Transcription complete — {len(captions)} segments",
                              "status": "processing"})
@@ -129,6 +131,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                              "status": "processing"})
 
         _render_video_with_overlay(input_path, output_path, captions, job_id)
+        print(f"[AI_SIGN_VIDEO_COMPLETED] video_id={video_id} job_id={job_id}", flush=True)
 
         # ── Done ──────────────────────────────────────────────────
         formatted_captions = []
@@ -156,6 +159,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 if is_r2_url(url):
                     video_url = url
                     print(f"[R2_UPLOAD_SUCCESS] key={output_r2_key} url={video_url}", flush=True)
+                    print(f"[AI_VIDEO_UPLOADED_TO_R2] video_id={video_id} url={video_url}", flush=True)
                     # Delete local processed file — it's in R2 now
                     try:
                         os.remove(output_path)
@@ -181,35 +185,81 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 conn = get_db_connection()
                 cursor = conn.cursor()
                 
-                # Update status, url, r2_url and transcript
-                full_transcript = " ".join([cap["text"] for cap in captions])
-                from utils.storage import is_r2_url
+                # Fetch original video details
+                cursor.execute("""
+                    SELECT teacher_id, course_id, title, filename, original_url 
+                    FROM videos 
+                    WHERE video_id = ?
+                """, (video_id,))
+                orig_video = cursor.fetchone()
+                if not orig_video:
+                    raise ValueError(f"Original video record not found in database for video_id {video_id}")
+                
+                teacher_id, course_id, orig_title, orig_filename, orig_url = orig_video
+                print(f"[ORIGINAL_VIDEO_FOUND] video_id={video_id}", flush=True)
+                
+                # Update original video status to 'done' and type to 'original'
                 cursor.execute("""
                     UPDATE videos 
-                    SET status = 'done', processed_url = ?, r2_url = ?, transcript = ?, processed_at = CURRENT_TIMESTAMP
+                    SET status = 'done', video_type = 'original', processed_at = CURRENT_TIMESTAMP
                     WHERE video_id = ?
-                """, (video_url, video_url if is_r2_url(video_url) else None, full_transcript, video_id))
+                """, (video_id,))
                 
-                # Delete any old captions for this video_id
+                # Create a NEW record for the ASL video
+                asl_title = f"[AI Deaf Signing] {orig_title}"
+                asl_filename = f"signed_{orig_filename}"
+                from utils.storage import is_r2_url
+                
+                cursor.execute("""
+                    INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, original_video_id, video_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ASL')
+                """, (
+                    teacher_id, 
+                    course_id, 
+                    asl_title, 
+                    asl_filename, 
+                    orig_url, 
+                    video_url, 
+                    video_url if is_r2_url(video_url) else None, 
+                    video_id
+                ))
+                asl_video_id = cursor.lastrowid
+                
+                # Now set captions_url for the new ASL video
+                asl_captions_url = f"/video-captions?video_id={asl_video_id}"
+                cursor.execute("""
+                    UPDATE videos 
+                    SET captions_url = ? 
+                    WHERE video_id = ?
+                """, (asl_captions_url, asl_video_id))
+                
+                # Delete any old captions for original and ASL video
                 cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
+                cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (asl_video_id,))
                 
-                # Insert new captions
+                # Insert new captions for BOTH videos (original and ASL)
                 for cap in captions:
                     sign_sequence_json = json.dumps(cap.get("gestures", []))
+                    # For original video
                     cursor.execute("""
                         INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
                         VALUES (?, ?, ?, ?, ?)
                     """, (video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
-                    print(f"[TRANSCRIPT_SEGMENT_SAVED] video_id={video_id} start={cap['start']} end={cap['end']} text=\"{cap['text']}\"")
+                    # For ASL video
+                    cursor.execute("""
+                        INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (asl_video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
+                    print(f"[TRANSCRIPT_SEGMENT_SAVED] video_id={asl_video_id} start={cap['start']} end={cap['end']} text=\"{cap['text']}\"")
                 
                 conn.commit()
                 print("[DATABASE_SAVE_SUCCESS]", flush=True)
-                print(f"[CAPTION_SAVED] video_id={video_id} count={len(captions)}")
-                print(f"[Pipeline] Successfully saved {len(captions)} captions to DB for video_id {video_id}")
+                print(f"[AI_VIDEO_DATABASE_SAVED] video_id={asl_video_id} original_video_id={video_id}", flush=True)
+                print(f"[CAPTION_SAVED] video_id={asl_video_id} count={len(captions)}")
             except Exception as db_err:
                 if 'conn' in locals():
                     conn.rollback()
-                print(f"[Pipeline] Database update failed for video_id {video_id}: {db_err}")
+                raise db_err
             finally:
                 if 'conn' in locals():
                     conn.close()
@@ -225,8 +275,32 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
         _cleanup_old_jobs()  # Opportunistic cleanup
 
     except Exception as e:
+        import traceback
+        import sys
         print(f"[Pipeline] Job {job_id} failed: {e}")
         _write_job(job_id, {"status": "error", "error": str(e)})
+        
+        # Format exact line/file/root cause traceback
+        exc_type, exc_obj, exc_tb = sys.exc_info()
+        tb = traceback.extract_tb(exc_tb)
+        last_frame = tb[-1] if tb else None
+        file_name = last_frame.filename if last_frame else "video_pipeline.py"
+        line_num = last_frame.lineno if last_frame else 0
+        func_name = last_frame.name if last_frame else "process_video_pipeline"
+        err_msg = str(e)
+        stack_str = traceback.format_exc()
+        
+        print(json.dumps({
+            "error_log": {
+                "file": file_name,
+                "function": func_name,
+                "line": line_num,
+                "message": err_msg,
+                "stack_trace": stack_str,
+                "root_cause": f"Pipeline execution failed: {err_msg}"
+            }
+        }, indent=2), flush=True)
+
         if video_id:
             from database.db import get_db_connection
             try:
