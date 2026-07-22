@@ -218,7 +218,11 @@ export default function VideoUpload() {
 
     pollRef.current = setInterval(async () => {
       try {
-        const res = await fetch(`${API_BASE}/video-status?job_id=${id}`);
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+        const res = await fetch(`${API_BASE}/video-status?job_id=${id}`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
         if (!res.ok) throw new Error('Status check failed');
 
         const data = await res.json();
@@ -251,8 +255,8 @@ export default function VideoUpload() {
         }
       } catch (err) {
         consecutiveFailures++;
-        console.error(`Polling error (attempt ${consecutiveFailures}/5):`, err);
-        if (consecutiveFailures >= 5) {
+        console.error(`Polling error (attempt ${consecutiveFailures}/25):`, err);
+        if (consecutiveFailures >= 25) {
           clearInterval(pollRef.current);
           pollRef.current = null;
           setStatus('error');

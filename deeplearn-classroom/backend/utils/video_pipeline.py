@@ -402,6 +402,7 @@ def _render_video_with_overlay(input_path, output_path, captions, job_id, video_
 
         writer.write(frame)
         frame_idx += 1
+        time.sleep(0.001)  # Yield GIL so Gunicorn thread can handle /video-status requests
 
         # Update progress (45% → 95%) — only every 5% to reduce disk I/O
         if total_frames > 0 and frame_idx % max(1, total_frames // 20) == 0:
