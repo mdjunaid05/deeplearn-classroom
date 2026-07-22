@@ -33,7 +33,10 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   // ── Login: call backend and persist token ─────────────────────────────────
-  const login = useCallback(async (credentials) => {
+  // Render free-tier spins down after ~15 min of inactivity; cold starts can
+  // take 30-60 s.  We use a generous 60 s timeout and an `onStatusChange`
+  // callback so the UI can show "waking up the server…" while we wait.
+  const login = useCallback(async (credentials, { onStatusChange } = {}) => {
     // If credentials already contain a token (from register), use directly
     if (credentials.token && credentials.user) {
       const { token: t, user: u } = credentials;
@@ -44,9 +47,21 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: u };
     }
 
-    // Otherwise, call the login API with a 10-second timeout
+    // ── 1. Quick health probe (2 s) — if it fails the server is cold ────────
+    let serverCold = false;
+    try {
+      const probe = new AbortController();
+      const probeTimer = setTimeout(() => probe.abort(), 2000);
+      await fetch(`${API_BASE}/`, { method: 'GET', signal: probe.signal });
+      clearTimeout(probeTimer);
+    } catch {
+      serverCold = true;
+      if (onStatusChange) onStatusChange('waking');
+    }
+
+    // ── 2. Actual login request — 60 s timeout to survive cold starts ───────
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
@@ -56,6 +71,7 @@ export const AuthProvider = ({ children }) => {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      if (onStatusChange) onStatusChange('done');
       const data = await res.json();
 
       if (res.ok && data.token) {
@@ -77,8 +93,12 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: data.error || 'Login failed. Please check your credentials.' };
     } catch (err) {
       clearTimeout(timeoutId);
+      if (onStatusChange) onStatusChange('done');
       if (err.name === 'AbortError') {
-        return { success: false, error: 'Server is taking too long to respond. Please try again in a moment.' };
+        return {
+          success: false,
+          error: 'The server is still waking up — this can take up to a minute on the free tier. Please try again.',
+        };
       }
       console.error('Login error:', err);
       return { success: false, error: 'Cannot reach the server. Please check your connection and try again.' };

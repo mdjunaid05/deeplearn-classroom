@@ -130,7 +130,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
         _write_job(job_id, {"progress": 45, "step": "Rendering sign overlay on video frames...",
                              "status": "processing"})
 
-        _render_video_with_overlay(input_path, output_path, captions, job_id)
+        _render_video_with_overlay(input_path, output_path, captions, job_id, video_id=video_id)
         print(f"[AI_SIGN_VIDEO_COMPLETED] video_id={video_id} job_id={job_id}", flush=True)
 
         # ── Done ──────────────────────────────────────────────────
@@ -339,7 +339,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 pass
 
 
-def _render_video_with_overlay(input_path, output_path, captions, job_id):
+def _render_video_with_overlay(input_path, output_path, captions, job_id, video_id=None):
     """
     Process each frame of the video:
     - Overlay a sign language avatar in the bottom-right corner

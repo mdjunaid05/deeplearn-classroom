@@ -19,6 +19,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
   const [successMsg, setSuccessMsg] = useState(fromRegister ? 'Account created successfully! Please sign in.' : '');
+  const [wakingUp, setWakingUp] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -52,8 +53,14 @@ export default function Login() {
     setLoading(true);
     setErrors({});
     setSuccessMsg('');
+    setWakingUp(false);
 
-    const result = await login({ email: email.trim(), password, role });
+    const result = await login({ email: email.trim(), password, role }, {
+      onStatusChange: (status) => {
+        if (status === 'waking') setWakingUp(true);
+        else setWakingUp(false);
+      },
+    });
 
     if (result.success) {
       if (result.user.role === 'student') {
@@ -66,6 +73,7 @@ export default function Login() {
     }
 
     setLoading(false);
+    setWakingUp(false);
   };
 
   if (isAuthenticated && user) {
@@ -186,6 +194,16 @@ export default function Login() {
                 <p className="text-xs text-red-600 font-bold">{errors.submit}</p>
               </div>
             )}
+
+            {/* Server Wake-Up Banner */}
+            {wakingUp && (
+              <div className="flex items-center gap-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 animate-fade-in">
+                <div className="w-4 h-4 border-2 border-amber-400/30 border-t-amber-500 rounded-full animate-spin shrink-0" />
+                <p className="text-xs text-amber-700 font-semibold">
+                  Waking up the server — free-tier servers sleep after inactivity. This may take up to 30 seconds…
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Submit */}
@@ -199,7 +217,10 @@ export default function Login() {
                        transition-all duration-300 cursor-pointer"
           >
             {loading ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <div className="flex items-center gap-2.5">
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>{wakingUp ? 'Waking up server…' : 'Signing in…'}</span>
+              </div>
             ) : (
               <>
                 Sign In as {role === 'student' ? 'Student' : 'Teacher'}
