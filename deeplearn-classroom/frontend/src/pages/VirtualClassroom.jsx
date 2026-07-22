@@ -1220,10 +1220,14 @@ export default function VirtualClassroom() {
                   
                   return originalVideos.map(video => {
                     const aslVideo = aslVideos.find(av => av.original_video_id === video.video_id || av.originalVideoId === video.video_id);
+                    if (aslVideo) {
+                      aslVideo.is_locked = video.is_locked;
+                    }
 
                     // Play handler helper
                     const playVideo = (v) => {
-                      if (v.is_locked) {
+                      const isTeacher = user?.role === 'teacher';
+                      if (v.is_locked && !isTeacher) {
                         setActiveAlert({
                           type: 'warning',
                           message: 'You must score at least 35% on the previous quiz to unlock this lesson.',

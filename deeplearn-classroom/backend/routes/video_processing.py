@@ -566,13 +566,28 @@ def is_video_locked_for_student(video_id, student_id, filename=None):
         return False
     try:
         from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # If filename provided without video_id, resolve video_id
         if not video_id and filename:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT video_id FROM videos WHERE filename = ? OR title = ?", (filename, filename))
+            cursor.execute("SELECT video_id, original_video_id, video_type FROM videos WHERE filename = ? OR title = ?", (filename, filename))
             row = cursor.fetchone()
             if row:
-                video_id = row[0]
+                v_id, orig_v_id, v_type = row[0], row[1], row[2]
+                if v_type == 'ASL' and orig_v_id:
+                    video_id = orig_v_id
+                else:
+                    video_id = v_id
+            conn.close()
+        elif video_id:
+            # Check if this is an ASL video — if so, use original_video_id for lock check
+            cursor.execute("SELECT original_video_id, video_type FROM videos WHERE video_id = ?", (video_id,))
+            row = cursor.fetchone()
+            if row:
+                orig_v_id, v_type = row[0], row[1]
+                if v_type == 'ASL' and orig_v_id:
+                    video_id = orig_v_id
             conn.close()
             
         if not video_id:
