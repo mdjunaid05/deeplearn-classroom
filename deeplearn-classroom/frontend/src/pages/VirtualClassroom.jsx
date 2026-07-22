@@ -1245,6 +1245,11 @@ export default function VirtualClassroom() {
                         }
                       }
                       
+                      // Upgrade http: to https: when loaded on HTTPS page to avoid browser Mixed Content block
+                      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && videoUrl.startsWith('http:')) {
+                        videoUrl = videoUrl.replace('http:', 'https:');
+                      }
+                      
                       if (v.video_type === 'ASL') {
                         console.log('[AI_VIDEO_RENDERED] video_id=' + v.video_id + ' filename=' + (v.filename || ''));
                       }
