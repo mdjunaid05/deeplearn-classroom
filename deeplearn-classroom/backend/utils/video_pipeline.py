@@ -496,45 +496,79 @@ def get_video_duration(video_path):
 def _merge_audio(original_video, processed_video, video_id=None):
     """
     Merge original audio back into the processed video using ffmpeg and transcode to standard H.264.
-    Overwrites the processed video file.
+    Overwrites the processed video file with web-compatible H.264 / AAC video.
     """
+    import subprocess
+    temp_output = processed_video + ".temp.mp4"
+    ffmpeg_exe = _get_ffmpeg_exe()
+
+    # 1. Primary transcode command: combine H.264 video with AAC audio from original
+    cmd = [
+        ffmpeg_exe, "-y",
+        "-i", processed_video,
+        "-i", original_video,
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac",
+        "-map", "0:v:0",
+        "-map", "1:a:0?",
+        "-movflags", "+faststart",
+        "-shortest",
+        temp_output
+    ]
+
     try:
-        import subprocess
-        temp_output = processed_video + ".temp.mp4"
-        ffmpeg_exe = _get_ffmpeg_exe()
-        
-        # We transcode the raw mp4v video to H.264 (libx264) with standard yuv420p pixel format
-        # and standard AAC audio. We also add the MOOV atom faststart optimization for web streaming.
-        cmd = [
-            ffmpeg_exe, "-y",
-            "-i", processed_video,
-            "-i", original_video,
-            "-c:v", "libx264",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-map", "0:v:0",
-            "-map", "1:a:0?",
-            "-movflags", "+faststart",
-            "-shortest",
-            temp_output
-        ]
+        print(f"[FFMPEG_STARTING] cmd={' '.join(cmd)}", flush=True)
         result = subprocess.run(cmd, capture_output=True, timeout=120)
-        if result.returncode == 0 and os.path.exists(temp_output):
+        if result.returncode == 0 and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
             os.replace(temp_output, processed_video)
             print("[Pipeline] Audio merged and video transcoded to standard H.264/AAC with faststart", flush=True)
             print(f"[FFMPEG_COMPLETED] video_path={processed_video}", flush=True)
-            
-            # Verify video duration matches original
-            orig_dur = get_video_duration(original_video)
-            out_dur = get_video_duration(processed_video)
-            print(f"[VIDEO_DURATION_VERIFIED] video_id={video_id} original_duration={orig_dur:.2f} output_duration={out_dur:.2f}", flush=True)
+            return
         else:
-            # Fallback check: if transcoding failed but temp file exists, clean it up
-            if os.path.exists(temp_output):
-                os.remove(temp_output)
-            print(f"[Pipeline] ffmpeg transcode failed with code {result.returncode}. Stderr: {result.stderr.decode()}", flush=True)
+            err_log = result.stderr.decode() if result.stderr else "Unknown error"
+            print(f"[Pipeline] Primary ffmpeg transcode failed (code {result.returncode}): {err_log}", flush=True)
     except Exception as e:
-        print(f"[Pipeline] Audio merge/transcode failed: {e}", flush=True)
+        print(f"[Pipeline] Primary ffmpeg attempt error: {e}", flush=True)
+    finally:
+        if os.path.exists(temp_output):
+            try:
+                os.remove(temp_output)
+            except OSError:
+                pass
+
+    # 2. Fallback transcode command: transcode video only to standard H.264 (without audio mapping)
+    fallback_cmd = [
+        ffmpeg_exe, "-y",
+        "-i", processed_video,
+        "-c:v", "libx264",
+        "-preset", "ultrafast",
+        "-crf", "23",
+        "-pix_fmt", "yuv420p",
+        "-movflags", "+faststart",
+        temp_output
+    ]
+
+    try:
+        print(f"[FFMPEG_FALLBACK_STARTING] cmd={' '.join(fallback_cmd)}", flush=True)
+        fb_result = subprocess.run(fallback_cmd, capture_output=True, timeout=120)
+        if fb_result.returncode == 0 and os.path.exists(temp_output) and os.path.getsize(temp_output) > 0:
+            os.replace(temp_output, processed_video)
+            print("[Pipeline] Fallback H.264 transcode succeeded", flush=True)
+            print(f"[FFMPEG_COMPLETED] video_path={processed_video}", flush=True)
+        else:
+            fb_log = fb_result.stderr.decode() if fb_result.stderr else "Unknown error"
+            print(f"[Pipeline] Fallback ffmpeg transcode failed (code {fb_result.returncode}): {fb_log}", flush=True)
+    except Exception as fb_err:
+        print(f"[Pipeline] Fallback ffmpeg error: {fb_err}", flush=True)
+    finally:
+        if os.path.exists(temp_output):
+            try:
+                os.remove(temp_output)
+            except OSError:
+                pass
 
 
 def _format_time(seconds):
