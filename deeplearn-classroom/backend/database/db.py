@@ -694,6 +694,84 @@ def _init_sqlite(conn):
     except Exception as e:
         print(f"[Database] SQLite students schema migration failed: {e}")
 
+    _seed_demo_videos(conn)
+
+
+def _seed_demo_videos(conn):
+    """Ensure at least one demo video exists in the catalog so fresh deployments are never empty."""
+    try:
+        import json
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM videos")
+        row = cursor.fetchone()
+        count = row[0] if row else 0
+        if count > 0:
+            return
+
+        print("[Database] Seeding initial demo videos for fresh installation...", flush=True)
+        # Ensure default teacher and course exist
+        cursor.execute("SELECT teacher_id FROM teachers WHERE teacher_id = 1")
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (1, ?, ?, ?)",
+                ("Dr. Smith", "dr.smith@deeplearn.edu", "Smith123")
+            )
+        cursor.execute("SELECT course_id FROM courses WHERE course_id = 1")
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO courses (course_id, title, teacher_id) VALUES (1, ?, 1)",
+                ("Smart Virtual Classroom Basics",)
+            )
+
+        # 1. Insert original video
+        cursor.execute("""
+            INSERT INTO videos (
+                teacher_id, course_id, title, filename, original_url, processed_url, status, 
+                video_type, description, visibility
+            ) VALUES (
+                1, 1, 'Smart Virtual Classroom & ASL Overview', 'mock_video.mp4', 
+                'mock_video.mp4', 'mock_video.mp4', 'done', 
+                'original', 'Introduction to Lumina Smart Virtual Classroom with automated ASL captions.', 'Published'
+            )
+        """)
+        orig_id = cursor.lastrowid
+
+        # 2. Insert ASL signed video
+        cursor.execute("""
+            INSERT INTO videos (
+                teacher_id, course_id, title, filename, original_url, processed_url, status, 
+                original_video_id, video_type, description, visibility, captions_url
+            ) VALUES (
+                1, 1, '[AI Deaf Signing] Smart Virtual Classroom & ASL Overview', 'signed_mock_video.mp4', 
+                'mock_video.mp4', 'mock_video.mp4', 'done', 
+                ?, 'ASL', 'AI ASL Avatar interpreter overlay video.', 'Published', ?
+            )
+        """, (orig_id, f"/video-captions?video_id={orig_id + 1}"))
+        asl_id = cursor.lastrowid
+
+        # 3. Seed video captions for both
+        demo_captions = [
+            (0.0, 6.0, "Welcome to Lumina Smart Virtual Classroom. This platform features AI-powered sign language translation."),
+            (6.0, 12.0, "Good morning today I need to make food so my tree can grow I'm ready here's my energy straight from the air."),
+            (12.0, 18.0, "Our goal is to make education fully accessible for all students, including hearing-impaired learners.")
+        ]
+
+        for start, end, text in demo_captions:
+            sign_seq = json.dumps(["hello", "welcome", "learn"])
+            cursor.execute(
+                "INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence) VALUES (?, ?, ?, ?, ?)",
+                (orig_id, start, end, text, sign_seq)
+            )
+            cursor.execute(
+                "INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence) VALUES (?, ?, ?, ?, ?)",
+                (asl_id, start, end, text, sign_seq)
+            )
+
+        conn.commit()
+        print(f"[Database] Demo videos seeded successfully (orig_id={orig_id}, asl_id={asl_id}).", flush=True)
+    except Exception as e:
+        print(f"[Database] Failed to seed demo videos: {e}", flush=True)
+
 
 def query_db(query, args=(), one=False):
     """Execute a query and return results as list of dicts."""

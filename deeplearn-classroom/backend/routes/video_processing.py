@@ -680,6 +680,14 @@ def download_signed_video():
             except Exception as e:
                 print(f"[VIDEO_STREAM_FAILED] path={local_upload_path} error={e}", flush=True)
                 raise
+        backend_root_path = os.path.join(BACKEND_DIR, name.replace("signed_", ""))
+        if os.path.exists(backend_root_path):
+            print(f"[VIDEO_STREAM_STARTED] path={backend_root_path}", flush=True)
+            try:
+                return send_file(backend_root_path, as_attachment=False, conditional=True, mimetype="video/mp4")
+            except Exception as e:
+                print(f"[VIDEO_STREAM_FAILED] path={backend_root_path} error={e}", flush=True)
+                raise
 
     print(f"[VIDEO_STREAM_FAILED] file not found filename={filename}", flush=True)
     return jsonify({"error": "File not found. Processing may still be in progress."}), 404
