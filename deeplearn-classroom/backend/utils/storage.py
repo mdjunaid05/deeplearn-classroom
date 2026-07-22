@@ -375,3 +375,104 @@ def get_r2_diagnostics() -> dict:
         "access_key_set": bool(R2_ACCESS_KEY_ID),
         "secret_key_set": bool(R2_SECRET_ACCESS_KEY),
     }
+
+
+def sync_r2_objects_to_db(conn) -> int:
+    """
+    Scans Cloudflare R2 bucket (`uploads/` and `processed/`) and auto-populates
+    database video records for any files that exist in R2 but are missing from DB.
+    Returns the count of new videos synced.
+    """
+    if not _r2_enabled():
+        return 0
+
+    try:
+        client = _get_client()
+        response = client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix="uploads/")
+        contents = response.get("Contents", [])
+        if not contents:
+            return 0
+
+        synced_count = 0
+        import json
+        cursor = conn.cursor()
+
+        for obj in contents:
+            key = obj.get("Key", "")
+            if not key or key.endswith("/"):
+                continue
+
+            filename = os.path.basename(key)
+            if not filename or not (filename.endswith(".mp4") or filename.endswith(".mov") or filename.endswith(".avi") or filename.endswith(".webm")):
+                continue
+
+            # Check if this video is already in DB
+            cursor.execute("SELECT video_id FROM videos WHERE filename = ? OR title = ? OR r2_url LIKE ?", (filename, filename, f"%{filename}%"))
+            if cursor.fetchone():
+                continue
+
+            # Get public R2 URL for original video
+            orig_url = get_public_url(key)
+
+            # Check if a signed version exists in processed/
+            processed_key = f"processed/signed_{filename}"
+            processed_url = orig_url
+            has_asl = False
+            try:
+                client.head_object(Bucket=R2_BUCKET_NAME, Key=processed_key)
+                processed_url = get_public_url(processed_key)
+                has_asl = True
+            except Exception:
+                pass
+
+            title_clean = filename.replace("_", " ").replace(".mp4", "").replace(".mov", "").replace(".avi", "")
+
+            # Insert original video into DB
+            cursor.execute("""
+                INSERT INTO videos (
+                    teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, 
+                    video_type, description, visibility
+                ) VALUES (
+                    1, 1, ?, ?, ?, ?, ?, 'done', 
+                    'original', 'Cloudflare R2 synced video lesson.', 'Published'
+                )
+            """, (title_clean, filename, orig_url, processed_url, orig_url))
+            orig_id = cursor.lastrowid
+            synced_count += 1
+
+            # If ASL video exists, insert ASL video record
+            if has_asl:
+                asl_title = f"[AI Deaf Signing] {title_clean}"
+                asl_filename = f"signed_{filename}"
+                cursor.execute("""
+                    INSERT INTO videos (
+                        teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, 
+                        original_video_id, video_type, description, visibility, captions_url
+                    ) VALUES (
+                        1, 1, ?, ?, ?, ?, ?, 'done', 
+                        ?, 'ASL', 'Cloudflare R2 synced AI ASL video.', 'Published', ?
+                    )
+                """, (asl_title, asl_filename, orig_url, processed_url, processed_url, orig_id, f"/video-captions?video_id={orig_id + 1}"))
+                synced_count += 1
+
+            # Add default demo captions for this video
+            demo_captions = [
+                (0.0, 5.0, f"Welcome to this lesson: {title_clean}."),
+                (5.0, 10.0, "This video lesson is powered by Lumina Smart Virtual Classroom."),
+                (10.0, 15.0, "Auto-generated captions and ASL translation enabled.")
+            ]
+            for start, end, text in demo_captions:
+                sign_seq = json.dumps(["hello", "welcome", "learn"])
+                cursor.execute(
+                    "INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence) VALUES (?, ?, ?, ?, ?)",
+                    (orig_id, start, end, text, sign_seq)
+                )
+
+        conn.commit()
+        if synced_count > 0:
+            print(f"[Storage] Automatically synced {synced_count} Cloudflare R2 videos to database.", flush=True)
+        return synced_count
+
+    except Exception as e:
+        print(f"[Storage] R2 object auto-sync failed: {e}", flush=True)
+        return 0

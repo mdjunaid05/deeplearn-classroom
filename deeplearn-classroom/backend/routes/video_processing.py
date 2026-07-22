@@ -232,6 +232,12 @@ def get_videos():
 
     from database.db import get_db_connection
     conn = get_db_connection()
+    try:
+        from utils.storage import sync_r2_objects_to_db
+        sync_r2_objects_to_db(conn)
+    except Exception as sync_err:
+        print(f"[R2_SYNC_WARNING] {sync_err}", flush=True)
+
     cursor = conn.cursor()
 
     try:
