@@ -64,6 +64,7 @@ class MySQLConnectionWrapper:
 
 
 _mysql_initialized = False
+_sqlite_initialized = False
 
 
 def _init_mysql(conn):
@@ -369,12 +370,19 @@ def get_db_connection():
         return wrapped_conn
 
     # ── SQLite fallback for local development / demo ──
+    global _sqlite_initialized
     db_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     os.makedirs(db_dir, exist_ok=True)
     db_path = os.path.join(db_dir, "deeplearn.db")
     conn = sqlite3.connect(db_path, timeout=30.0)
     conn.row_factory = sqlite3.Row
-    _init_sqlite(conn)
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+    except Exception:
+        pass
+    if not _sqlite_initialized:
+        _init_sqlite(conn)
+        _sqlite_initialized = True
     return conn
 
 
