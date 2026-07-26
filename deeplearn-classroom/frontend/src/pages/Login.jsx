@@ -139,6 +139,27 @@ export default function Login() {
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-5">
           <div className="glass-panel rounded-3xl p-6 space-y-4 card-shadow">
+            {/* Quick Demo Fill Pill */}
+            <div className="flex justify-between items-center text-xs text-[#3d494c] pb-1">
+              <span className="font-medium text-[#6d797d]">Need quick demo access?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (role === 'student') {
+                    setEmail('student@deeplearn.edu');
+                    setPassword('Student123');
+                  } else {
+                    setEmail('teacher@deeplearn.edu');
+                    setPassword('Teacher123');
+                  }
+                  setErrors({});
+                }}
+                className="text-[#00687a] hover:text-[#06b6d4] font-bold underline cursor-pointer transition-colors"
+              >
+                Auto-fill {role === 'student' ? 'Student' : 'Teacher'}
+              </button>
+            </div>
+
             {/* Email */}
             <div>
               <label htmlFor="login-email" className="block text-xs font-bold text-[#3d494c] mb-1.5 uppercase tracking-wider">

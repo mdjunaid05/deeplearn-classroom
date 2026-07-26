@@ -4,7 +4,7 @@ Main entry point for the backend API.
 """
 
 import os
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 
@@ -69,7 +69,7 @@ def create_app():
         return jsonify({
             "status": "running",
             "service": "DeepLearn Smart Virtual Classroom API",
-            "version": "1.0.0",
+            "version": "2.0.0",
             "endpoints": [
                 "POST /predict-difficulty",
                 "POST /predict-engagement",
@@ -85,8 +85,111 @@ def create_app():
                 "POST /sign-data",
                 "GET  /sign-data/<recording_id>",
                 "POST /process-signs",
+                "GET  /storage-health",
+                "GET  /teacher/videos?teacher_id=<id>",
+                "GET  /student/videos?student_id=<id>",
+                "GET  /r2-videos",
             ],
         })
+
+    # ── Storage health endpoint ──
+    @app.route("/storage-health", methods=["GET"])
+    def storage_health():
+        from utils.storage import get_r2_diagnostics
+        return jsonify(get_r2_diagnostics())
+
+    # ── R2 video listing (for teacher dashboard storage status) ──
+    @app.route("/r2-videos", methods=["GET"])
+    def r2_videos():
+        from utils.storage import list_bucket_videos
+        videos = list_bucket_videos()
+        return jsonify({"r2_videos": videos, "count": len(videos)})
+
+    # ── Teacher video management endpoint ──
+    @app.route("/teacher/videos", methods=["GET"])
+    def teacher_videos():
+        teacher_id = request.args.get("teacher_id", type=int)
+        if not teacher_id:
+            return jsonify({"error": "teacher_id is required"}), 400
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename,
+                       v.r2_url, v.original_url, v.processed_url, v.status,
+                       v.uploaded_at, v.processed_at, v.original_video_id,
+                       v.video_type, v.captions_url, v.description, v.visibility,
+                       v.hidden, v.archived, v.file_size, v.duration,
+                       v.caption_status, v.signing_status,
+                       t.name as uploader,
+                       (SELECT COUNT(*) FROM video_views vv WHERE vv.video_id = v.video_id) as view_count,
+                       (SELECT COUNT(*) FROM video_captions vc WHERE vc.video_id = v.video_id) as caption_count
+                FROM videos v
+                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                WHERE v.teacher_id = ? AND v.deleted = 0
+                ORDER BY v.uploaded_at DESC
+            """, (teacher_id,))
+            rows = cursor.fetchall()
+            cols = [d[0] for d in cursor.description]
+            videos = []
+            for row in rows:
+                video = dict(zip(cols, row))
+                if video.get("uploaded_at") and not isinstance(video["uploaded_at"], str):
+                    video["uploaded_at"] = video["uploaded_at"].isoformat()
+                video["captions_status"] = video.get("caption_status", "pending")
+                videos.append(video)
+            return jsonify({"videos": videos, "count": len(videos)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
+
+    # ── Student video listing endpoint ──
+    @app.route("/student/videos", methods=["GET"])
+    def student_videos():
+        student_id = request.args.get("student_id", type=int)
+        if not student_id:
+            return jsonify({"error": "student_id is required"}), 400
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename,
+                       v.r2_url, v.original_url, v.processed_url, v.status,
+                       v.uploaded_at, v.video_type, v.captions_url, v.description,
+                       v.duration, v.caption_status, v.signing_status,
+                       t.name as uploader
+                FROM videos v
+                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                WHERE v.deleted = 0 AND v.hidden = 0 AND v.archived = 0
+                  AND v.visibility = 'Published' AND v.status = 'done'
+                ORDER BY v.uploaded_at DESC
+            """, ())
+            rows = cursor.fetchall()
+            cols = [d[0] for d in cursor.description]
+            videos = []
+            for row in rows:
+                video = dict(zip(cols, row))
+                if video.get("uploaded_at") and not isinstance(video["uploaded_at"], str):
+                    video["uploaded_at"] = video["uploaded_at"].isoformat()
+                # Check if student has watched this video
+                cursor.execute(
+                    "SELECT completion_percentage FROM video_views WHERE student_id = ? AND video_id = ? ORDER BY watched_at DESC LIMIT 1",
+                    (student_id, video["video_id"])
+                )
+                view_row = cursor.fetchone()
+                video["watched"] = view_row is not None
+                video["completion"] = view_row[0] if view_row else 0
+                video["has_captions"] = video.get("caption_status") == "available"
+                video["has_signing"] = video.get("signing_status") == "available"
+                videos.append(video)
+            return jsonify({"videos": videos, "count": len(videos)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+        finally:
+            conn.close()
 
     @app.route("/api-info", methods=["GET"])
     def api_info():
@@ -135,6 +238,22 @@ def create_app():
 
 if __name__ == "__main__":
     app = create_app()
+
+    # ── Startup R2 sync: repopulate DB from R2 bucket ──
+    # This ensures videos survive Render redeploys
+    try:
+        from database.db import get_db_connection
+        from utils.storage import sync_r2_objects_to_db
+        conn = get_db_connection()
+        synced = sync_r2_objects_to_db(conn, timeout_seconds=15)
+        conn.close()
+        if synced > 0:
+            print(f"[STARTUP] R2 sync populated {synced} video records from Cloudflare R2.", flush=True)
+        else:
+            print("[STARTUP] R2 sync complete (no new videos to sync).", flush=True)
+    except Exception as e:
+        print(f"[STARTUP] R2 sync failed (non-fatal): {e}", flush=True)
+
     port = int(os.environ.get("PORT", 5000))
     # Use threaded=True so that background pipeline threads don't block
     # the main process from handling status-polling requests.

@@ -232,11 +232,7 @@ def get_videos():
 
     from database.db import get_db_connection
     conn = get_db_connection()
-    try:
-        from utils.storage import sync_r2_objects_to_db
-        sync_r2_objects_to_db(conn)
-    except Exception as sync_err:
-        print(f"[R2_SYNC_WARNING] {sync_err}", flush=True)
+    # NOTE: R2 sync now runs at startup in app.py, not per-request
 
     cursor = conn.cursor()
 
@@ -301,7 +297,8 @@ def get_videos():
                 if not isinstance(video_dict["processed_at"], str):
                     video_dict["processed_at"] = video_dict["processed_at"].isoformat()
 
-            video_dict["captions_status"] = "available" if video_dict.get("status") == "done" else "unavailable"
+            # Use the dedicated caption_status column if available, fallback to status check
+            video_dict["captions_status"] = video_dict.get("caption_status") or ("available" if video_dict.get("status") == "done" else "unavailable")
 
             auth_query = f"&student_id={student_id}" if student_id else f"&teacher_id={teacher_id}" if teacher_id else ""
             p_url = video_dict.get("processed_url")

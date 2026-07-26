@@ -193,33 +193,51 @@ def _detect_content_type(filename: str, default: str = "application/octet-stream
     return mime_type or default
 
 
+# ── Upload Verification ───────────────────────────────────────────────────────
+
+def verify_upload(r2_key: str) -> bool:
+    """
+    Verify an object exists in R2 by calling head_object.
+    Returns True if the object is confirmed present.
+    """
+    if not _r2_enabled():
+        return False
+    try:
+        client = _get_client()
+        resp = client.head_object(Bucket=R2_BUCKET_NAME, Key=r2_key)
+        size = resp.get("ContentLength", 0)
+        print(f"[R2_VERIFY_SUCCESS] key={r2_key} size={size}", flush=True)
+        return size > 0
+    except Exception as e:
+        print(f"[R2_VERIFY_FAILED] key={r2_key} error={e}", flush=True)
+        return False
+
+
 # ── Public API ────────────────────────────────────────────────────────────────
 
-def upload_file(local_path: str, r2_key: str, content_type: str = None) -> str:
+def upload_file(local_path: str, r2_key: str, content_type: str = None, max_retries: int = 3) -> str:
     """
-    Upload a local file to R2 (or keep it local if R2 is not configured).
+    Upload a local file to R2 with retry logic and verification.
 
     Args:
         local_path:   Absolute path to the file on disk.
         r2_key:       Object key in R2 (e.g. "uploads/myvideo.mp4").
         content_type: MIME type for the Content-Type header.
                       If None, auto-detected from the file extension.
+        max_retries:  Number of upload attempts before giving up.
 
     Returns:
         str: Public URL if R2, or local path if fallback.
     """
     if not _r2_enabled():
-        # Local fallback — file stays where it is
         print(f"[Storage] R2 not configured - keeping file locally: {local_path}", flush=True)
         if _missing_vars:
             print(f"[Storage] Missing env vars: {', '.join(_missing_vars)}", flush=True)
         return local_path
 
-    # Auto-detect content type if not provided
     if not content_type:
         content_type = _detect_content_type(r2_key, default="video/mp4")
 
-    # Validate the file exists and is non-empty
     if not os.path.exists(local_path):
         print(f"[R2_UPLOAD_FAILED] File does not exist: {local_path}", flush=True)
         return local_path
@@ -231,27 +249,29 @@ def upload_file(local_path: str, r2_key: str, content_type: str = None) -> str:
 
     print(f"[R2_UPLOAD_STARTED] key={r2_key} content_type={content_type} size={file_size} source={local_path}", flush=True)
 
-    try:
-        client = _get_client()
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            client = _get_client()
+            extra_args = {"ContentType": content_type}
+            client.upload_file(local_path, R2_BUCKET_NAME, r2_key, ExtraArgs=extra_args)
 
-        # ─── IMPORTANT ───────────────────────────────────────────────────
-        # Cloudflare R2 does NOT support S3-style ACLs (public-read, etc).
-        # Sending ACL will cause a "NotImplemented" error.
-        # Public access is configured at the bucket level in Cloudflare dashboard.
-        # ─────────────────────────────────────────────────────────────────
-        extra_args = {
-            "ContentType": content_type,
-        }
+            # Verify the upload actually landed in R2
+            if verify_upload(r2_key):
+                url = get_public_url(r2_key)
+                print(f"[R2_UPLOAD_SUCCESS] key={r2_key} url={url} size={file_size} attempt={attempt}", flush=True)
+                return url
+            else:
+                print(f"[R2_UPLOAD_VERIFY_FAILED] key={r2_key} attempt={attempt}/{max_retries}", flush=True)
+                last_error = Exception("Upload verification failed")
+        except Exception as e:
+            last_error = e
+            print(f"[R2_UPLOAD_RETRY] key={r2_key} attempt={attempt}/{max_retries} error={e}", flush=True)
+            if attempt < max_retries:
+                time.sleep(1 * attempt)  # Exponential backoff
 
-        client.upload_file(local_path, R2_BUCKET_NAME, r2_key, ExtraArgs=extra_args)
-
-        url = get_public_url(r2_key)
-        print(f"[R2_UPLOAD_SUCCESS] key={r2_key} url={url} size={file_size}", flush=True)
-        return url
-
-    except Exception as e:
-        _log_r2_error("R2_UPLOAD_FAILED", e, key=r2_key, local_path=local_path, content_type=content_type, file_size=file_size)
-        return local_path
+    _log_r2_error("R2_UPLOAD_FAILED", last_error, key=r2_key, local_path=local_path, content_type=content_type, file_size=file_size)
+    return local_path
 
 
 def upload_fileobj(file_obj, r2_key: str, content_type: str = "video/mp4") -> str:
@@ -377,14 +397,52 @@ def get_r2_diagnostics() -> dict:
     }
 
 
-def sync_r2_objects_to_db(conn) -> int:
+def list_bucket_videos() -> list:
+    """
+    List all video objects in R2 bucket (uploads/ and processed/ prefixes).
+    Returns list of dicts: [{key, size, last_modified}, ...]
+    Used by TeacherDashboard to show storage status.
+    """
+    if not _r2_enabled():
+        return []
+    try:
+        client = _get_client()
+        videos = []
+        for prefix in ["uploads/", "processed/"]:
+            response = client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix=prefix)
+            for obj in response.get("Contents", []):
+                key = obj.get("Key", "")
+                if not key or key.endswith("/"):
+                    continue
+                filename = os.path.basename(key)
+                ext = os.path.splitext(filename)[1].lower()
+                if ext not in {".mp4", ".mov", ".webm", ".avi", ".mkv"}:
+                    continue
+                videos.append({
+                    "key": key,
+                    "filename": filename,
+                    "size": obj.get("Size", 0),
+                    "last_modified": obj.get("LastModified", "").isoformat() if hasattr(obj.get("LastModified", ""), "isoformat") else str(obj.get("LastModified", "")),
+                    "url": get_public_url(key),
+                    "prefix": prefix.rstrip("/"),
+                })
+        return videos
+    except Exception as e:
+        print(f"[Storage] list_bucket_videos failed: {e}", flush=True)
+        return []
+
+
+def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
     """
     Scans Cloudflare R2 bucket (`uploads/` and `processed/`) and auto-populates
     database video records for any files that exist in R2 but are missing from DB.
     Returns the count of new videos synced.
+    Has a timeout to prevent blocking the request cycle.
     """
     if not _r2_enabled():
         return 0
+
+    start_time = time.time()
 
     try:
         client = _get_client()
@@ -398,6 +456,11 @@ def sync_r2_objects_to_db(conn) -> int:
         cursor = conn.cursor()
 
         for obj in contents:
+            # Timeout protection
+            if time.time() - start_time > timeout_seconds:
+                print(f"[Storage] R2 sync timeout after {timeout_seconds}s, synced {synced_count} so far.", flush=True)
+                break
+
             key = obj.get("Key", "")
             if not key or key.endswith("/"):
                 continue
@@ -413,6 +476,7 @@ def sync_r2_objects_to_db(conn) -> int:
 
             # Get public R2 URL for original video
             orig_url = get_public_url(key)
+            file_size = obj.get("Size", 0)
 
             # Check if a signed version exists in processed/
             processed_key = f"processed/signed_{filename}"
@@ -425,18 +489,18 @@ def sync_r2_objects_to_db(conn) -> int:
             except Exception:
                 pass
 
-            title_clean = filename.replace("_", " ").replace(".mp4", "").replace(".mov", "").replace(".avi", "")
+            title_clean = filename.replace("_", " ").replace(".mp4", "").replace(".mov", "").replace(".avi", "").replace(".webm", "")
 
             # Insert original video into DB
             cursor.execute("""
                 INSERT INTO videos (
                     teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, 
-                    video_type, description, visibility
+                    video_type, description, visibility, file_size, caption_status, signing_status
                 ) VALUES (
                     1, 1, ?, ?, ?, ?, ?, 'done', 
-                    'original', 'Cloudflare R2 synced video lesson.', 'Published'
+                    'original', 'Cloudflare R2 synced video lesson.', 'Published', ?, 'available', ?
                 )
-            """, (title_clean, filename, orig_url, processed_url, orig_url))
+            """, (title_clean, filename, orig_url, processed_url, orig_url, file_size, 'available' if has_asl else 'pending'))
             orig_id = cursor.lastrowid
             synced_count += 1
 
@@ -447,10 +511,10 @@ def sync_r2_objects_to_db(conn) -> int:
                 cursor.execute("""
                     INSERT INTO videos (
                         teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, 
-                        original_video_id, video_type, description, visibility, captions_url
+                        original_video_id, video_type, description, visibility, captions_url, caption_status, signing_status
                     ) VALUES (
                         1, 1, ?, ?, ?, ?, ?, 'done', 
-                        ?, 'ASL', 'Cloudflare R2 synced AI ASL video.', 'Published', ?
+                        ?, 'ASL', 'Cloudflare R2 synced AI ASL video.', 'Published', ?, 'available', 'available'
                     )
                 """, (asl_title, asl_filename, orig_url, processed_url, processed_url, orig_id, f"/video-captions?video_id={orig_id + 1}"))
                 synced_count += 1
@@ -469,10 +533,11 @@ def sync_r2_objects_to_db(conn) -> int:
                 )
 
         conn.commit()
+        elapsed = round(time.time() - start_time, 2)
         if synced_count > 0:
-            print(f"[Storage] Automatically synced {synced_count} Cloudflare R2 videos to database.", flush=True)
+            print(f"[R2_SYNC_COMPLETE] synced={synced_count} elapsed={elapsed}s", flush=True)
         return synced_count
 
     except Exception as e:
-        print(f"[Storage] R2 object auto-sync failed: {e}", flush=True)
+        print(f"[R2_SYNC_FAILED] error={e}", flush=True)
         return 0

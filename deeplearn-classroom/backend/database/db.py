@@ -178,6 +178,21 @@ def _init_mysql(conn):
             if "archived" not in cols:
                 cursor.execute("ALTER TABLE videos ADD COLUMN archived TINYINT(1) DEFAULT 0")
                 altered = True
+            if "file_size" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN file_size BIGINT DEFAULT 0")
+                altered = True
+            if "duration" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN duration DECIMAL(10,2) DEFAULT 0.0")
+                altered = True
+            if "caption_status" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN caption_status VARCHAR(50) DEFAULT 'pending'")
+                altered = True
+            if "signing_status" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN signing_status VARCHAR(50) DEFAULT 'pending'")
+                altered = True
+            if "updated_at" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+                altered = True
             if altered:
                 conn.commit()
                 print("[Database] MySQL columns migrated successfully.")
@@ -262,7 +277,7 @@ def get_db_connection():
     db_dir = os.path.join(os.path.dirname(__file__), "..", "data")
     os.makedirs(db_dir, exist_ok=True)
     db_path = os.path.join(db_dir, "deeplearn.db")
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     conn.row_factory = sqlite3.Row
     _init_sqlite(conn)
     return conn
@@ -421,6 +436,11 @@ def _init_sqlite(conn):
             hidden         INTEGER DEFAULT 0,
             deleted        INTEGER DEFAULT 0,
             archived       INTEGER DEFAULT 0,
+            file_size      INTEGER DEFAULT 0,
+            duration       REAL DEFAULT 0.0,
+            caption_status TEXT DEFAULT 'pending',
+            signing_status TEXT DEFAULT 'pending',
+            updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id),
             FOREIGN KEY (course_id) REFERENCES courses(course_id)
         );
@@ -651,6 +671,21 @@ def _init_sqlite(conn):
             altered = True
         if "archived" not in cols:
             cursor.execute("ALTER TABLE videos ADD COLUMN archived INTEGER DEFAULT 0")
+            altered = True
+        if "file_size" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN file_size INTEGER DEFAULT 0")
+            altered = True
+        if "duration" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN duration REAL DEFAULT 0.0")
+            altered = True
+        if "caption_status" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN caption_status TEXT DEFAULT 'pending'")
+            altered = True
+        if "signing_status" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN signing_status TEXT DEFAULT 'pending'")
+            altered = True
+        if "updated_at" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
             altered = True
         if altered:
             conn.commit()

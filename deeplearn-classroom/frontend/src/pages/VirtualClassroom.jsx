@@ -273,7 +273,13 @@ export default function VirtualClassroom() {
       const userIdParam = user?.role === 'teacher' 
         ? `teacher_id=${user.id || user?.user_id || 1}` 
         : `student_id=${user?.id || user?.user_id || 1}`;
-      const res = await fetch(`${API_BASE}/videos?${userIdParam}`);
+      
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const res = await fetch(`${API_BASE}/videos?${userIdParam}`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
         console.error('[Access Failure]', {
@@ -382,6 +388,9 @@ export default function VirtualClassroom() {
       fetchRecordings();
       fetchVideos();
       fetchCourseProgress();
+    } else {
+      // Even without a logged-in user, attempt to load public videos
+      fetchVideos();
     }
   }, [user]);
 
@@ -395,6 +404,17 @@ export default function VirtualClassroom() {
       const cleanUrl = window.location.pathname + window.location.search.replace(/[?&]uploaded=true/, '');
       window.history.replaceState({}, '', cleanUrl || window.location.pathname);
     }
+  }, []);
+
+  // Listen for video-list-updated custom event (dispatched from VideoUpload after successful upload)
+  useEffect(() => {
+    const handleVideoUpdate = () => {
+      console.log('[VIDEO_LIST_REQUEST] Received video-list-updated event, refreshing...');
+      fetchVideos();
+      fetchRecordings();
+    };
+    window.addEventListener('video-list-updated', handleVideoUpdate);
+    return () => window.removeEventListener('video-list-updated', handleVideoUpdate);
   }, []);
 
   // ── Playback Speed ────────────────────────────────────────────────────────

@@ -431,6 +431,17 @@ export default function TeacherDashboard() {
           <TrendingUp className="w-4 h-4" />
           Student Progression
         </button>
+        <button
+          onClick={() => { setActiveTab('videos'); fetchVideos(); }}
+          className={`py-3 px-6 font-bold text-sm border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+            activeTab === 'videos'
+              ? 'border-[#00687a] text-[#00687a]'
+              : 'border-transparent text-[#3d494c] hover:text-[#00687a] hover:border-[#bcc9cd]/40'
+          }`}
+        >
+          <Video className="w-4 h-4" />
+          Video Management
+        </button>
       </div>
 
       {activeTab === 'overview' ? (
@@ -1751,6 +1762,239 @@ export default function TeacherDashboard() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════════
+          VIDEO MANAGEMENT TAB
+          ═══════════════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'videos' && (
+        <div className="space-y-6">
+          {/* Toast notification */}
+          {videoToast && (
+            <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold flex items-center gap-2 animate-pulse ${
+              videoToast.type === 'success' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-red-100 text-red-800 border border-red-200'
+            }`}>
+              {videoToast.type === 'success' ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              {videoToast.msg}
+            </div>
+          )}
+
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-[#131b2e] flex items-center gap-2">
+                <Video className="w-5 h-5 text-[#00687a]" />
+                Video Management
+              </h2>
+              <p className="text-sm text-[#6d797d] mt-1">{videos.length} videos uploaded · Manage, edit, archive, or delete videos</p>
+            </div>
+            <a 
+              href="/video-upload"
+              className="px-4 py-2 rounded-xl bg-[#00687a] text-white text-sm font-bold hover:bg-[#005260] transition-colors flex items-center gap-2 shadow-md"
+            >
+              <Video className="w-4 h-4" /> Upload New Video
+            </a>
+          </div>
+
+          {/* Video List Table */}
+          <div className="bg-white rounded-2xl border border-[#bcc9cd]/30 shadow-sm overflow-hidden">
+            {videos.length === 0 ? (
+              <div className="text-center py-16">
+                <Video className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-[#131b2e]">No videos uploaded yet</h3>
+                <p className="text-[#6d797d] text-sm mt-1">Upload your first video to get started.</p>
+                <a href="/video-upload" className="inline-block mt-4 px-4 py-2 rounded-xl bg-[#00687a]/10 text-[#00687a] text-sm font-bold hover:bg-[#00687a]/20 transition-colors">
+                  Upload Video
+                </a>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-[#bcc9cd]/20">
+                      <th className="text-left px-4 py-3 font-bold text-[#6d797d] text-[10px] uppercase tracking-wider">Title</th>
+                      <th className="text-left px-4 py-3 font-bold text-[#6d797d] text-[10px] uppercase tracking-wider">Type</th>
+                      <th className="text-left px-4 py-3 font-bold text-[#6d797d] text-[10px] uppercase tracking-wider">Status</th>
+                      <th className="text-left px-4 py-3 font-bold text-[#6d797d] text-[10px] uppercase tracking-wider">Captions</th>
+                      <th className="text-left px-4 py-3 font-bold text-[#6d797d] text-[10px] uppercase tracking-wider">Visibility</th>
+                      <th className="text-left px-4 py-3 font-bold text-[#6d797d] text-[10px] uppercase tracking-wider">Uploaded</th>
+                      <th className="text-center px-4 py-3 font-bold text-[#6d797d] text-[10px] uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#bcc9cd]/15">
+                    {videos.filter(v => v.video_type !== 'ASL').map(video => (
+                      <tr key={video.video_id} className={`hover:bg-slate-50/50 transition-colors ${video.archived ? 'opacity-50' : ''}`}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
+                              <Video className="w-4 h-4 text-[#6d797d]" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-[#131b2e] text-xs truncate max-w-[200px]" title={video.title}>{video.title || 'Untitled'}</p>
+                              <p className="text-[9px] text-[#6d797d] truncate max-w-[200px]">{video.filename}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                            video.video_type === 'ASL' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                          }`}>
+                            {video.video_type || 'original'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                            video.status === 'done' ? 'bg-emerald-100 text-emerald-700' :
+                            video.status === 'processing' ? 'bg-amber-100 text-amber-700' :
+                            video.status === 'error' ? 'bg-red-100 text-red-700' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                            {video.status || 'uploaded'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[10px] font-semibold ${
+                            video.captions_status === 'available' ? 'text-emerald-600' : 'text-amber-500'
+                          }`}>
+                            {video.captions_status === 'available' ? '✓ Available' : '⏳ Pending'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`text-[10px] font-semibold ${
+                            video.visibility === 'Published' ? 'text-emerald-600' : 'text-[#6d797d]'
+                          }`}>
+                            {video.archived ? '📦 Archived' : video.hidden ? '🔒 Hidden' : video.visibility || 'Published'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-[10px] text-[#6d797d]">
+                          {video.uploaded_at ? new Date(video.uploaded_at).toLocaleDateString() : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-1 relative">
+                            <button
+                              onClick={() => {
+                                setEditVideo(video);
+                                setEditForm({ title: video.title || '', description: video.description || '' });
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-[#6d797d] hover:text-[#00687a] transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                const newArchived = video.archived ? 0 : 1;
+                                const teacherId = getTeacherId();
+                                fetch(`${API_BASE}/videos/${video.video_id}?teacher_id=${teacherId}`, {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ archived: newArchived, visibility: newArchived ? 'Archived' : 'Published' })
+                                }).then(() => fetchVideos());
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-[#6d797d] hover:text-amber-600 transition-colors"
+                              title={video.archived ? 'Unarchive' : 'Archive'}
+                            >
+                              <Archive className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm(video)}
+                              className="p-1.5 rounded-lg hover:bg-red-50 text-[#6d797d] hover:text-red-500 transition-colors"
+                              title="Delete"
+                            >
+                              {deletingVideoId === video.video_id ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                            <button
+                              onClick={() => {
+                                const rawUrl = video.r2_url || video.processed_url || video.original_url;
+                                if (rawUrl) window.open(rawUrl, '_blank');
+                              }}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 text-[#6d797d] hover:text-[#00687a] transition-colors"
+                              title="Preview"
+                            >
+                              <Play className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Edit Modal */}
+          {editVideo && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setEditVideo(null)}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-[#131b2e]">Edit Video</h3>
+                  <button onClick={() => setEditVideo(null)} className="p-1 rounded hover:bg-slate-100"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-bold text-[#6d797d] block mb-1">Title</label>
+                    <input
+                      value={editForm.title || ''}
+                      onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-lg border border-[#bcc9cd]/40 text-sm focus:outline-none focus:ring-2 focus:ring-[#00687a]/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-[#6d797d] block mb-1">Description</label>
+                    <textarea
+                      value={editForm.description || ''}
+                      onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                      rows={3}
+                      className="w-full px-3 py-2 rounded-lg border border-[#bcc9cd]/40 text-sm focus:outline-none focus:ring-2 focus:ring-[#00687a]/30 resize-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button onClick={() => setEditVideo(null)} className="px-3 py-1.5 rounded-lg text-sm font-semibold text-[#6d797d] hover:bg-slate-100 transition-colors">Cancel</button>
+                  <button
+                    onClick={handleEditSave}
+                    disabled={savingEdit}
+                    className="px-4 py-1.5 rounded-lg bg-[#00687a] text-white text-sm font-bold hover:bg-[#005260] transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {savingEdit ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
+                    {savingEdit ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {deleteConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setDeleteConfirm(null)}>
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="text-center">
+                  <Trash2 className="w-10 h-10 text-red-400 mx-auto mb-3" />
+                  <h3 className="text-lg font-bold text-[#131b2e]">Delete Video?</h3>
+                  <p className="text-sm text-[#6d797d] mt-1">
+                    "{deleteConfirm.title}" will be permanently deleted from the database and Cloudflare R2.
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button onClick={() => setDeleteConfirm(null)} className="px-4 py-1.5 rounded-lg text-sm font-semibold text-[#6d797d] hover:bg-slate-100 transition-colors">Cancel</button>
+                  <button
+                    onClick={() => handleDeleteVideo(deleteConfirm)}
+                    disabled={deletingVideoId}
+                    className="px-4 py-1.5 rounded-lg bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {deletingVideoId ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                    {deletingVideoId ? 'Deleting...' : 'Delete Permanently'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

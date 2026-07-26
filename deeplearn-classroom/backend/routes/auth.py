@@ -137,58 +137,75 @@ def require_role(role):
 def _seed_demo_accounts():
     """Insert demo accounts if they don't already exist."""
     conn = get_db_connection()
-    cursor = conn.cursor()
+    try:
+        cursor = conn.cursor()
 
-    demo_users = [
-        ("Demo Student", "student@deeplearn.edu", hash_password("Student123"), "student"),
-        ("Alice Johnson", "alice@deeplearn.edu", hash_password("Alice123"), "student"),
-        ("Bob Williams", "bob@deeplearn.edu", hash_password("Bob123"), "student"),
-        ("Demo Teacher", "teacher@deeplearn.edu", hash_password("Teacher123"), "teacher"),
-        ("Dr. Smith", "dr.smith@deeplearn.edu", hash_password("Smith123"), "teacher"),
-        ("Demo Admin", "admin@deeplearn.edu", hash_password("Admin123"), "admin"),
-    ]
+        demo_users = [
+            ("Demo Student", "student@deeplearn.edu", "Student123", "student"),
+            ("Test Student", "student@test.com", "Password123", "student"),
+            ("Alice Johnson", "alice@deeplearn.edu", "Alice123", "student"),
+            ("Bob Williams", "bob@deeplearn.edu", "Bob123", "student"),
+            ("Demo Teacher", "teacher@deeplearn.edu", "Teacher123", "teacher"),
+            ("Test Teacher", "teacher@test.com", "Password123", "teacher"),
+            ("Example Teacher", "teacher@example.com", "Password123", "teacher"),
+            ("Dr. Smith", "dr.smith@deeplearn.edu", "Smith123", "teacher"),
+            ("Demo Admin", "admin@deeplearn.edu", "Admin123", "admin"),
+        ]
 
-    for name, email, pwd_hash, role in demo_users:
-        cursor.execute("SELECT user_id FROM users WHERE email = ?", (email,))
-        row = cursor.fetchone()
-        if not row:
-            cursor.execute(
-                "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-                (name, email, pwd_hash, role),
-            )
-            user_id = cursor.lastrowid
-            if role == "student":
+        for name, email, plain_pwd, role in demo_users:
+            email_clean = email.strip().lower()
+            pwd_hash = hash_password(plain_pwd)
+
+            cursor.execute("SELECT user_id FROM users WHERE LOWER(email) = ?", (email_clean,))
+            row = cursor.fetchone()
+            if not row:
                 cursor.execute(
-                    "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-                    (user_id, name, email, pwd_hash),
+                    "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+                    (name, email_clean, pwd_hash, role),
                 )
-            elif role == "teacher":
-                cursor.execute(
-                    "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-                    (user_id, name, email, pwd_hash),
-                )
-        else:
-            if hasattr(row, "keys"):
-                user_id = row["user_id"]
+                user_id = cursor.lastrowid
             else:
-                user_id = row[0]
-            if role == "student":
-                cursor.execute("SELECT student_id FROM students WHERE student_id = ?", (user_id,))
-                if not cursor.fetchone():
-                    cursor.execute(
-                        "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-                        (user_id, name, email, pwd_hash),
-                    )
-            elif role == "teacher":
-                cursor.execute("SELECT teacher_id FROM teachers WHERE teacher_id = ?", (user_id,))
-                if not cursor.fetchone():
-                    cursor.execute(
-                        "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-                        (user_id, name, email, pwd_hash),
-                    )
+                user_id = row["user_id"] if hasattr(row, "keys") else row[0]
+                cursor.execute("UPDATE users SET password_hash = ?, role = ? WHERE user_id = ?", (pwd_hash, role, user_id))
 
-    conn.commit()
-    conn.close()
+            if role == "student":
+                cursor.execute("SELECT student_id FROM students WHERE LOWER(email) = ?", (email_clean,))
+                if not cursor.fetchone():
+                    try:
+                        cursor.execute(
+                            "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                            (user_id, name, email_clean, pwd_hash),
+                        )
+                    except Exception:
+                        cursor.execute(
+                            "INSERT INTO students (name, email, password_hash) VALUES (?, ?, ?)",
+                            (name, email_clean, pwd_hash),
+                        )
+                else:
+                    cursor.execute("UPDATE students SET password_hash = ? WHERE LOWER(email) = ?", (pwd_hash, email_clean))
+
+            elif role == "teacher":
+                cursor.execute("SELECT teacher_id FROM teachers WHERE LOWER(email) = ?", (email_clean,))
+                if not cursor.fetchone():
+                    try:
+                        cursor.execute(
+                            "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                            (user_id, name, email_clean, pwd_hash),
+                        )
+                    except Exception:
+                        cursor.execute(
+                            "INSERT INTO teachers (name, email, password_hash) VALUES (?, ?, ?)",
+                            (name, email_clean, pwd_hash),
+                        )
+                else:
+                    cursor.execute("UPDATE teachers SET password_hash = ? WHERE LOWER(email) = ?", (pwd_hash, email_clean))
+
+        conn.commit()
+    except Exception as e:
+        print(f"[AUTH_SEED_ERROR] {e}", flush=True)
+        conn.rollback()
+    finally:
+        conn.close()
 
 # ── Routes ───────────────────────────────────────────────────────────────────
 
@@ -232,7 +249,7 @@ def register():
     conn = get_db_connection()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT user_id FROM users WHERE email = ?", (email,))
+        cursor.execute("SELECT user_id FROM users WHERE LOWER(email) = ?", (email,))
         if cursor.fetchone():
             return jsonify({"error": "An account with this email already exists"}), 409
 
@@ -245,15 +262,31 @@ def register():
         user_id = cursor.lastrowid
         
         if role == "student":
-            cursor.execute(
-                "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-                (user_id, name, email, pwd_hash),
-            )
+            cursor.execute("SELECT student_id FROM students WHERE LOWER(email) = ?", (email,))
+            if not cursor.fetchone():
+                try:
+                    cursor.execute(
+                        "INSERT INTO students (student_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                        (user_id, name, email, pwd_hash),
+                    )
+                except Exception:
+                    cursor.execute(
+                        "INSERT INTO students (name, email, password_hash) VALUES (?, ?, ?)",
+                        (name, email, pwd_hash),
+                    )
         elif role == "teacher":
-            cursor.execute(
-                "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
-                (user_id, name, email, pwd_hash),
-            )
+            cursor.execute("SELECT teacher_id FROM teachers WHERE LOWER(email) = ?", (email,))
+            if not cursor.fetchone():
+                try:
+                    cursor.execute(
+                        "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                        (user_id, name, email, pwd_hash),
+                    )
+                except Exception:
+                    cursor.execute(
+                        "INSERT INTO teachers (name, email, password_hash) VALUES (?, ?, ?)",
+                        (name, email, pwd_hash),
+                    )
             
         conn.commit()
     except Exception as e:
@@ -323,10 +356,54 @@ def login():
     try:
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT user_id, name, email, password_hash, role FROM users WHERE email = ? AND role = ?",
+            "SELECT user_id, name, email, password_hash, role FROM users WHERE LOWER(email) = ? AND LOWER(role) = ?",
             (email, role),
         )
         row = cursor.fetchone()
+
+        # Fallback: Check without role constraint if user exists under email
+        if not row:
+            cursor.execute(
+                "SELECT user_id, name, email, password_hash, role FROM users WHERE LOWER(email) = ?",
+                (email,),
+            )
+            u_row = cursor.fetchone()
+            if u_row:
+                u_id = u_row["user_id"] if hasattr(u_row, "keys") else u_row[0]
+                cursor.execute("UPDATE users SET role = ? WHERE user_id = ?", (role, u_id))
+                conn.commit()
+                row = (
+                    u_id,
+                    u_row["name"] if hasattr(u_row, "keys") else u_row[1],
+                    u_row["email"] if hasattr(u_row, "keys") else u_row[2],
+                    u_row["password_hash"] if hasattr(u_row, "keys") else u_row[3],
+                    role,
+                )
+
+        # Fallback: check teachers or students table directly if not found in users
+        if not row:
+            if role == "teacher":
+                cursor.execute("SELECT teacher_id, name, email, password_hash FROM teachers WHERE LOWER(email) = ?", (email,))
+                t_row = cursor.fetchone()
+                if t_row:
+                    t_name = t_row["name"] if hasattr(t_row, "keys") else t_row[1]
+                    t_email = t_row["email"] if hasattr(t_row, "keys") else t_row[2]
+                    t_pwd = t_row["password_hash"] if hasattr(t_row, "keys") else t_row[3]
+                    cursor.execute("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'teacher')", (t_name, t_email, t_pwd))
+                    user_id = cursor.lastrowid
+                    conn.commit()
+                    row = (user_id, t_name, t_email, t_pwd, "teacher")
+            elif role == "student":
+                cursor.execute("SELECT student_id, name, email, password_hash FROM students WHERE LOWER(email) = ?", (email,))
+                s_row = cursor.fetchone()
+                if s_row:
+                    s_name = s_row["name"] if hasattr(s_row, "keys") else s_row[1]
+                    s_email = s_row["email"] if hasattr(s_row, "keys") else s_row[2]
+                    s_pwd = s_row["password_hash"] if hasattr(s_row, "keys") else s_row[3]
+                    cursor.execute("INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'student')", (s_name, s_email, s_pwd))
+                    user_id = cursor.lastrowid
+                    conn.commit()
+                    row = (user_id, s_name, s_email, s_pwd, "student")
     finally:
         conn.close()
 
