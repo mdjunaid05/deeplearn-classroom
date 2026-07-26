@@ -70,7 +70,102 @@ def _init_mysql(conn):
     try:
         cursor = conn.cursor()
         
-        # Create new tables if they don't exist
+        # Create core tables if they don't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id         INT AUTO_INCREMENT PRIMARY KEY,
+                name            VARCHAR(255) NOT NULL,
+                email           VARCHAR(255) NOT NULL UNIQUE,
+                password_hash   VARCHAR(255) NOT NULL,
+                role            VARCHAR(50) NOT NULL,
+                avatar_url      VARCHAR(512),
+                created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                last_login      DATETIME
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS students (
+                student_id          INT AUTO_INCREMENT PRIMARY KEY,
+                name                VARCHAR(255) NOT NULL,
+                email               VARCHAR(255) NOT NULL UNIQUE,
+                password_hash       VARCHAR(255) NOT NULL,
+                disability_type     VARCHAR(100) DEFAULT 'Hearing-Impaired',
+                preferred_language  VARCHAR(50) DEFAULT 'ASL',
+                enrolled_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+                profilePhoto        VARCHAR(512),
+                age                 INT,
+                gender              VARCHAR(50),
+                dob                 VARCHAR(50),
+                phone               VARCHAR(50),
+                schoolName          VARCHAR(255),
+                grade               VARCHAR(50),
+                section             VARCHAR(50),
+                rollNumber          VARCHAR(50),
+                academicYear        VARCHAR(50),
+                parentName          VARCHAR(255),
+                parentPhone         VARCHAR(50),
+                parentEmail         VARCHAR(255),
+                emergencyContact    VARCHAR(50),
+                city                VARCHAR(100),
+                state               VARCHAR(100),
+                country             VARCHAR(100),
+                learningLevel       VARCHAR(50),
+                attendanceRate      DECIMAL(5,2) DEFAULT 100.00
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS teachers (
+                teacher_id    INT AUTO_INCREMENT PRIMARY KEY,
+                name          VARCHAR(255) NOT NULL,
+                email         VARCHAR(255) NOT NULL UNIQUE,
+                password_hash VARCHAR(255) NOT NULL
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS courses (
+                course_id        INT AUTO_INCREMENT PRIMARY KEY,
+                title            VARCHAR(255) NOT NULL,
+                teacher_id       INT NOT NULL,
+                difficulty_level VARCHAR(50) DEFAULT 'Medium',
+                has_captions     TINYINT(1) DEFAULT 1,
+                has_sign_support TINYINT(1) DEFAULT 1,
+                created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS videos (
+                video_id       INT AUTO_INCREMENT PRIMARY KEY,
+                teacher_id     INT NOT NULL,
+                course_id      INT NOT NULL,
+                title          VARCHAR(255),
+                filename       VARCHAR(255),
+                r2_url         VARCHAR(512),
+                original_url   VARCHAR(512),
+                processed_url  VARCHAR(512),
+                transcript     TEXT,
+                status         VARCHAR(50) DEFAULT 'uploaded',
+                uploaded_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+                processed_at   DATETIME,
+                original_video_id INT DEFAULT NULL,
+                video_type     VARCHAR(50) DEFAULT 'original',
+                captions_url   VARCHAR(512) DEFAULT NULL,
+                description    TEXT DEFAULT NULL,
+                thumbnail      VARCHAR(512) DEFAULT NULL,
+                visibility     VARCHAR(50) DEFAULT 'Published',
+                hidden         TINYINT(1) DEFAULT 0,
+                deleted        TINYINT(1) DEFAULT 0,
+                archived       TINYINT(1) DEFAULT 0,
+                file_size      BIGINT DEFAULT 0,
+                duration       DECIMAL(10,2) DEFAULT 0.0,
+                caption_status VARCHAR(50) DEFAULT 'pending',
+                signing_status VARCHAR(50) DEFAULT 'pending',
+                updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id) ON DELETE CASCADE,
+                FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
+            ) ENGINE=InnoDB;
+        """)
+
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS quizzes (
                 quiz_id      INT AUTO_INCREMENT PRIMARY KEY,
