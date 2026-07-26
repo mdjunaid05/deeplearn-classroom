@@ -63,6 +63,15 @@ def create_app():
     app.register_blueprint(live_session_bp)
     app.register_blueprint(quiz_analytics_bp)
 
+    # ── Auto-seed demo accounts at startup ──
+    with app.app_context():
+        try:
+            from routes.auth import _seed_demo_accounts
+            _seed_demo_accounts()
+            print("[STARTUP] Demo accounts seeded successfully.", flush=True)
+        except Exception as e:
+            print(f"[STARTUP] Warning: Demo account seeding error: {e}", flush=True)
+
     # ── Health check ──
     @app.route("/", methods=["GET"])
     def health():
