@@ -19,7 +19,7 @@ from flask import Blueprint, request, jsonify, send_file, redirect
 from werkzeug.utils import secure_filename
 from utils.video_pipeline import start_pipeline, get_job_status
 from utils.storage import (
-    upload_file, get_public_url, delete_file,
+    upload_file, get_public_url, delete_file, download_file,
     is_r2_url, make_r2_key, _r2_enabled
 )
 
@@ -646,6 +646,11 @@ def download_signed_video():
         video_url = state.get("video_url", "")
         if video_url and is_r2_url(video_url):
             print(f"[VIDEO_STREAM_STARTED] video_id={video_id} job_id={job_id} url={video_url}", flush=True)
+            # Check local disk cache first
+            fname = state.get("filename") or f"{job_id}.mp4"
+            local_cache = os.path.join(PROCESSED_FOLDER, fname)
+            if os.path.exists(local_cache) or download_file(make_r2_key("processed", fname), local_cache):
+                return send_file(local_cache, as_attachment=False, conditional=True, mimetype="video/mp4")
             return redirect(video_url, code=307)
 
     # 2. Try database lookup by video_id or filename
@@ -653,6 +658,10 @@ def download_signed_video():
     if db_url:
         if is_r2_url(db_url):
             print(f"[VIDEO_STREAM_STARTED] video_id={video_id} url={db_url}", flush=True)
+            fname = db_filename or os.path.basename(db_url)
+            local_cache = os.path.join(PROCESSED_FOLDER, fname)
+            if os.path.exists(local_cache) or download_file(make_r2_key("processed", fname), local_cache):
+                return send_file(local_cache, as_attachment=False, conditional=True, mimetype="video/mp4")
             return redirect(db_url, code=307)
         if os.path.exists(db_url):
             print(f"[VIDEO_STREAM_STARTED] path={db_url}", flush=True)
@@ -753,70 +762,29 @@ def get_video_url():
         state = get_job_status(job_id)
         video_url = state.get("video_url", "")
         if video_url:
-            print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
-            return jsonify({"video_url": video_url, "source": "job_state"})
+            # Always proxy through backend download endpoint to avoid CORS / Mixed Content issues in deployed browser
+            proxy_url = f"{_get_base_url()}/download-signed-video?job_id={job_id}{auth_query}"
+            print(f"[VIDEO_URL_RETURNED] video_url={proxy_url}", flush=True)
+            return jsonify({"video_url": proxy_url, "source": "job_state_proxied"})
 
     # 2. Try database lookup by video_id or filename
     db_url, db_filename = _find_video_url_in_db(video_id=video_id, filename=filename)
     if db_url:
-        if is_r2_url(db_url):
-            print(f"[VIDEO_URL_RETURNED] video_url={db_url}", flush=True)
-            return jsonify({"video_url": db_url, "source": "database_r2"})
-        if os.path.exists(db_url):
-            rel_name = os.path.basename(db_url)
-            video_url = f"{_get_base_url()}/download-signed-video?filename={rel_name}{auth_query}"
-            print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
-            return jsonify({
-                "video_url": video_url,
-                "source": "database_local"
-            })
-        if db_filename:
-            local_processed = os.path.join(PROCESSED_FOLDER, f"signed_{db_filename}")
-            if os.path.exists(local_processed):
-                video_url = f"{_get_base_url()}/download-signed-video?filename=signed_{db_filename}{auth_query}"
-                print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
-                return jsonify({
-                    "video_url": video_url,
-                    "source": "database_local_processed"
-                })
-            local_original = os.path.join(UPLOAD_FOLDER, db_filename)
-            if os.path.exists(local_original):
-                video_url = f"{_get_base_url()}/download-signed-video?filename={db_filename}{auth_query}"
-                print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
-                return jsonify({
-                    "video_url": video_url,
-                    "source": "database_local_original"
-                })
+        target_name = db_filename or os.path.basename(db_url)
+        proxy_url = f"{_get_base_url()}/download-signed-video?filename={target_name}{auth_query}"
+        if video_id:
+            proxy_url += f"&video_id={video_id}"
+        print(f"[VIDEO_URL_RETURNED] video_url={proxy_url}", flush=True)
+        return jsonify({"video_url": proxy_url, "source": "database_proxied"})
 
     # 3. Fallback: construct URL from filename
     if not filename:
         return jsonify({"error": "Missing job_id, video_id, or filename"}), 400
 
     filename = secure_filename(filename)
-
-    for name in [filename, f"signed_{filename}"]:
-        if _r2_enabled():
-            r2_key  = make_r2_key("processed", name)
-            pub_url = get_public_url(r2_key)
-            print(f"[VIDEO_URL_RETURNED] video_url={pub_url}", flush=True)
-            return jsonify({"video_url": pub_url, "source": "r2"})
-
-        local_path = os.path.join(PROCESSED_FOLDER, name)
-        if os.path.exists(local_path):
-            video_url = f"{_get_base_url()}/download-signed-video?filename={name}{auth_query}"
-            print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
-            return jsonify({
-                "video_url": video_url,
-                "source": "local_processed"
-            })
-        local_upload_path = os.path.join(UPLOAD_FOLDER, name)
-        if os.path.exists(local_upload_path):
-            video_url = f"{_get_base_url()}/download-signed-video?filename={name}{auth_query}"
-            print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
-            return jsonify({
-                "video_url": video_url,
-                "source": "local_original"
-            })
+    proxy_url = f"{_get_base_url()}/download-signed-video?filename={filename}{auth_query}"
+    print(f"[VIDEO_URL_RETURNED] video_url={proxy_url}", flush=True)
+    return jsonify({"video_url": proxy_url, "source": "filename_proxied"})
 
     return jsonify({"error": "Video not found"}), 404
 
