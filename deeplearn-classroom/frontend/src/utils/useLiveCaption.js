@@ -1,20 +1,3 @@
-/**
- * useLiveCaption.js
- * -----------------
- * Reliable real-time caption hook for the Live Classroom.
- *
- * Fixes all prior bugs:
- *  1. Recognition was started/stopped from two competing useEffects → AbortError loops
- *  2. interimResults showed stale sentences because state closure was stale
- *  3. No graceful fallback when SpeechRecognition is unavailable
- *
- * Strategy:
- *  - Single useEffect owns the recognition instance lifecycle
- *  - isActive ref guards all start()/stop() calls
- *  - onresult always reads from event (not stale state)
- *  - Auto-restarts on `onend` unless explicitly stopped
- */
-
 import { useState, useEffect, useRef, useCallback } from 'react';
 
 export function useLiveCaption({ enabled = true, sessionTime = 0 }) {
@@ -24,51 +7,51 @@ export function useLiveCaption({ enabled = true, sessionTime = 0 }) {
   const [error,         setError]         = useState(null);
   const [transcript,    setTranscript]    = useState([]); // final segments
 
-  const recognitionRef  = useRef(null);
-  const enabledRef      = useRef(enabled);
-  const sessionTimeRef  = useRef(sessionTime);
-  const activeRef       = useRef(false); // true = recognition should be running
-  const transcriptRef   = useRef([]);    // avoid stale closures
+  const recognitionRef   = useRef(null);
+  const enabledRef       = useRef(enabled);
+  const sessionTimeRef   = useRef(sessionTime);
+  const activeRef        = useRef(false);
+  const transcriptRef    = useRef([]);
+  const restartTimerRef  = useRef(null);
 
   // Sync refs
   useEffect(() => { enabledRef.current = enabled; }, [enabled]);
   useEffect(() => { sessionTimeRef.current = sessionTime; }, [sessionTime]);
 
-  // ── Core recognition setup ──────────────────────────────────────────────
-  useEffect(() => {
-    if (!enabled) {
-      // Stop any running recognition
-      if (recognitionRef.current) {
-        activeRef.current = false;
-        try { recognitionRef.current.stop(); } catch (_) {}
-      }
-      setIsListening(false);
-      setCaption('');
-      setInterimText('');
-      return;
-    }
-
-    const SpeechRecognition =
-      window.SpeechRecognition || window.webkitSpeechRecognition;
-
+  const initRecognition = useCallback(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setError('Live captions are not supported in this browser. Try Chrome or Edge.');
-      return;
+      return null;
+    }
+
+    // Safely cleanup previous instance
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onstart = null;
+        recognitionRef.current.onresult = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.onend = null;
+        recognitionRef.current.stop();
+      } catch (_) {}
+      recognitionRef.current = null;
     }
 
     const rec = new SpeechRecognition();
-    rec.continuous     = true;
-    rec.interimResults = true;
-    rec.lang           = 'en-US';
+    rec.continuous      = true;
+    rec.interimResults  = true;
+    rec.lang            = 'en-US';
     rec.maxAlternatives = 1;
 
     rec.onstart = () => {
       setIsListening(true);
       setError(null);
-      setCaption('Listening — start speaking…');
+      setCaption(prev => prev || 'Listening — start speaking…');
     };
 
     rec.onresult = (event) => {
+      setError(null);
+      setIsListening(true);
       let interim = '';
       let finalText = '';
 
@@ -98,57 +81,128 @@ export function useLiveCaption({ enabled = true, sessionTime = 0 }) {
     };
 
     rec.onerror = (event) => {
-      if (event.error === 'no-speech') return;  // benign
-      if (event.error === 'aborted')   return;  // intentional stop
+      if (event.error === 'no-speech' || event.error === 'aborted') return;
+
       console.warn('[Caption] Recognition error:', event.error);
-      setError(`Captions error: ${event.error}`);
+
+      if (event.error === 'network') {
+        // Transient network drop to Google speech service — non-blocking recovery
+        setError('Reconnecting captions...');
+        if (activeRef.current && enabledRef.current) {
+          if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+          restartTimerRef.current = setTimeout(() => {
+            if (activeRef.current && enabledRef.current) {
+              const newRec = initRecognition();
+              try { newRec?.start(); } catch (_) {}
+            }
+          }, 1200);
+        }
+        return;
+      }
+
+      if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+        setError('Microphone permission blocked or audio device busy.');
+        setIsListening(false);
+        return;
+      }
+
+      setError(`Captions paused (${event.error}) — auto-retrying...`);
       setIsListening(false);
     };
 
     rec.onend = () => {
       setIsListening(false);
-      // Auto-restart if we should still be listening
       if (activeRef.current && enabledRef.current) {
-        setTimeout(() => {
+        if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+        restartTimerRef.current = setTimeout(() => {
           if (activeRef.current && enabledRef.current) {
-            try { recognitionRef.current?.start(); } catch (_) {}
+            try {
+              recognitionRef.current?.start();
+            } catch (_) {
+              // Instance state invalidated — recreate
+              const newRec = initRecognition();
+              try { newRec?.start(); } catch (_) {}
+            }
           }
-        }, 300);
+        }, 500);
       }
     };
 
     recognitionRef.current = rec;
-    activeRef.current = true;
+    return rec;
+  }, []);
 
-    try {
-      rec.start();
-    } catch (e) {
-      console.warn('[Caption] Could not start recognition:', e);
+  // ── Core recognition lifecycle ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!enabled) {
+      activeRef.current = false;
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (_) {}
+      }
+      setIsListening(false);
+      setCaption('');
+      setInterimText('');
+      setError(null);
+      return;
+    }
+
+    activeRef.current = true;
+    const rec = initRecognition();
+    if (rec) {
+      try {
+        rec.start();
+      } catch (e) {
+        console.warn('[Caption] Could not start recognition:', e);
+      }
     }
 
     return () => {
       activeRef.current = false;
-      try { rec.onend = null; rec.stop(); } catch (_) {}
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.onstart = null;
+          recognitionRef.current.onresult = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onend = null;
+          recognitionRef.current.stop();
+        } catch (_) {}
+      }
       recognitionRef.current = null;
       setIsListening(false);
     };
-  }, [enabled]); // only re-create when enabled toggles
+  }, [enabled, initRecognition]);
 
-  // ── Mute handler — pause/resume recognition ─────────────────────────────
+  // ── Mute handler ──────────────────────────────────────────────────────────
   const handleMute = useCallback((muted) => {
-    if (!recognitionRef.current) return;
     if (muted) {
       activeRef.current = false;
-      try { recognitionRef.current.stop(); } catch (_) {}
+      if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (_) {}
+      }
       setCaption('Microphone muted.');
       setInterimText('');
       setIsListening(false);
+      setError(null);
     } else {
       activeRef.current = true;
-      try { recognitionRef.current.start(); } catch (_) {}
       setCaption('Microphone active. Start speaking…');
+      setError(null);
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (_) {
+          const rec = initRecognition();
+          try { rec?.start(); } catch (_) {}
+        }
+      } else {
+        const rec = initRecognition();
+        try { rec?.start(); } catch (_) {}
+      }
     }
-  }, []);
+  }, [initRecognition]);
 
   // ── Clear ────────────────────────────────────────────────────────────────
   const clearTranscript = useCallback(() => {
@@ -156,6 +210,7 @@ export function useLiveCaption({ enabled = true, sessionTime = 0 }) {
     setTranscript([]);
     setCaption('');
     setInterimText('');
+    setError(null);
   }, []);
 
   return {
