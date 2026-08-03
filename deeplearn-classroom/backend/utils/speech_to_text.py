@@ -196,7 +196,14 @@ def _transcribe_with_whisper(audio_path, progress_callback=None):
 
 
 def _transcribe_with_speech_recognition(audio_path):
-    """Fallback transcription using SpeechRecognition + Google API in 15-second chunks."""
+    """Fallback transcription using SpeechRecognition + Google API in chunks.
+    
+    Designed to work on Render free plan (512MB RAM) where Whisper can't run.
+    Uses Google's free Web Speech API with retries and smaller chunks for
+    reliability on constrained environments.
+    """
+    import time
+
     try:
         import speech_recognition as sr
         import wave
@@ -208,42 +215,101 @@ def _transcribe_with_speech_recognition(audio_path):
                 frames = f.getnframes()
                 rate = f.getframerate()
                 duration = frames / float(rate)
+                print(f"[STT] Audio duration: {duration:.1f}s, sample rate: {rate}Hz, frames: {frames}")
         except Exception as e:
             print(f"[STT] Failed to read audio duration: {e}")
+            return None
+
+        if duration < 0.5:
+            print(f"[STT] Audio too short ({duration:.1f}s), skipping transcription")
+            return None
 
         recognizer = sr.Recognizer()
-        chunk_duration = 15.0
+
+        # Tune recognizer for better speech detection
+        recognizer.energy_threshold = 300  # Lower threshold to catch quieter speech
+        recognizer.dynamic_energy_threshold = True
+        recognizer.pause_threshold = 0.8
+
+        # Use 10-second chunks for more reliable recognition on free APIs
+        chunk_duration = 10.0
         current_time = 0.0
         captions = []
+        max_retries = 2
+        consecutive_failures = 0
+        max_consecutive_failures = 5  # Stop if too many failures in a row
 
         while current_time < duration:
-            print(f"[STT] Processing chunk {current_time}s to {current_time + chunk_duration}s...")
-            print(f"[TRANSCRIPTION_REQUEST_SENT] method=speech_recognition offset={current_time} duration={chunk_duration}")
-            with sr.AudioFile(audio_path) as source:
-                audio = recognizer.record(source, offset=current_time, duration=chunk_duration)
-            try:
-                text = recognizer.recognize_google(audio)
-                print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=success length={len(text) if text else 0}")
+            chunk_end = min(current_time + chunk_duration, duration)
+            remaining = chunk_end - current_time
+
+            # Skip very short trailing chunks
+            if remaining < 0.5:
+                break
+
+            print(f"[STT] Processing chunk {current_time:.1f}s to {chunk_end:.1f}s...")
+            print(f"[TRANSCRIPTION_REQUEST_SENT] method=speech_recognition offset={current_time} duration={remaining}")
+
+            text = None
+            for attempt in range(max_retries + 1):
+                try:
+                    with sr.AudioFile(audio_path) as source:
+                        # Adjust for ambient noise on the first chunk
+                        if current_time == 0.0:
+                            recognizer.adjust_for_ambient_noise(source, duration=min(0.5, remaining))
+                        audio = recognizer.record(source, offset=current_time, duration=remaining)
+
+                    text = recognizer.recognize_google(audio, language="en-US")
+                    print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=success length={len(text) if text else 0} attempt={attempt+1}")
+                    consecutive_failures = 0
+                    break
+
+                except sr.UnknownValueError:
+                    print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=no-speech attempt={attempt+1}")
+                    consecutive_failures += 1
+                    break  # No point retrying — audio genuinely has no speech in this chunk
+
+                except sr.RequestError as e:
+                    print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=api-error attempt={attempt+1} error={str(e)}")
+                    consecutive_failures += 1
+                    if attempt < max_retries:
+                        wait = 2 ** attempt  # Exponential backoff: 1s, 2s
+                        print(f"[STT] Retrying in {wait}s...")
+                        time.sleep(wait)
+                    else:
+                        print(f"[STT] Google SR API failed after {max_retries + 1} attempts at {current_time}s")
+
+                except Exception as e:
+                    print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=error attempt={attempt+1} error={str(e)}")
+                    print(f"[STT] Google SR chunk error at {current_time}s: {e}")
+                    consecutive_failures += 1
+                    break
+
+            if text:
+                text = text.strip()
                 if text:
-                    text = text.strip()
-                    if text:
-                        # Capitalize first letter and add a period if not present
-                        text = text[0].upper() + text[1:]
-                        if text[-1] not in {'.', '?', '!'}:
-                            text += '.'
-                        
-                        captions.append({
-                            "text": text,
-                            "start": round(current_time, 2),
-                            "end": round(min(current_time + chunk_duration, duration), 2)
-                        })
-            except sr.UnknownValueError:
-                print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=no-speech")
-            except Exception as e:
-                print(f"[TRANSCRIPTION_RESPONSE_RECEIVED] method=speech_recognition status=error error={str(e)}")
-                print(f"[STT] Google SR chunk error at {current_time}s: {e}")
-                
+                    # Capitalize first letter and add punctuation if missing
+                    text = text[0].upper() + text[1:]
+                    if text[-1] not in {'.', '?', '!'}:
+                        text += '.'
+
+                    captions.append({
+                        "text": text,
+                        "start": round(current_time, 2),
+                        "end": round(chunk_end, 2)
+                    })
+
+            # Bail out early if API is consistently failing
+            if consecutive_failures >= max_consecutive_failures:
+                print(f"[STT] Aborting: {consecutive_failures} consecutive failures (API may be down)")
+                break
+
             current_time += chunk_duration
+
+        if captions:
+            print(f"[STT] SpeechRecognition produced {len(captions)} caption segments")
+        else:
+            print(f"[STT] SpeechRecognition produced no captions from {duration:.1f}s audio")
 
         return captions if captions else None
 
@@ -253,3 +319,4 @@ def _transcribe_with_speech_recognition(audio_path):
     except Exception as e:
         print(f"[STT] SpeechRecognition error: {e}")
         return None
+

@@ -14,21 +14,12 @@
 const envUrl = import.meta.env.VITE_API_URL;
 
 function resolveApiBase() {
-  // If a build-time or runtime env variable is set, always use it.
-  if (envUrl && envUrl !== 'undefined') {
-    return envUrl.replace(/\/$/, ''); // strip trailing slash
+  if (envUrl && envUrl !== 'undefined' && envUrl !== 'http://localhost:5000') {
+    return envUrl.replace(/\/$/, '');
   }
 
-  // In a browser context, auto-detect local dev.
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:5000';
-    }
-  }
-
-  // Production fallback — point at the known Render service.
-  return 'https://deeplearn-classroom.onrender.com';
+  // Use Vite relative proxy /api for local dev, tunnels, and local network devices
+  return '/api';
 }
 
 export const API_BASE = resolveApiBase();
