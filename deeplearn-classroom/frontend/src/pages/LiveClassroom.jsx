@@ -263,9 +263,15 @@ export default function LiveClassroom() {
             host: '0.peerjs.com',
             port: 443,
             secure: true,
+            debug: 1,
             config: { iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'stun:stun.relay.metered.ca:80' },
+              { urls: 'turn:a.relay.metered.ca:80',      username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+              { urls: 'turn:a.relay.metered.ca:80?transport=tcp', username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+              { urls: 'turn:a.relay.metered.ca:443',     username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+              { urls: 'turns:a.relay.metered.ca:443',    username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
             ] }
           });
           peerRef.current = peer;
@@ -275,10 +281,18 @@ export default function LiveClassroom() {
             if (err.type === 'unavailable-id') {
               msg = 'This Room ID is already in use. Please enter a different Room ID.';
             } else if (err.type === 'network') {
-              msg = 'Network error. Please check your internet connection.';
+              msg = 'Network error. Attempting to reconnect...';
+              setActiveAlert({ type: 'error', message: msg, duration: 4000 });
+              setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 3000);
+              return;
             }
             setActiveAlert({ type: 'error', message: msg, duration: 6000 });
             setIsClassStarted(false);
+          });
+          peer.on('disconnected', () => {
+            console.warn('[PeerJS] Teacher disconnected from signaling server, reconnecting...');
+            setActiveAlert({ type: 'error', message: 'Connection lost. Reconnecting...', duration: 4000 });
+            setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 2000);
           });
           peer.on('call', call => {
             call.answer(streamRef.current);
@@ -292,9 +306,15 @@ export default function LiveClassroom() {
             host: '0.peerjs.com',
             port: 443,
             secure: true,
+            debug: 1,
             config: { iceServers: [
               { urls: 'stun:stun.l.google.com:19302' },
               { urls: 'stun:stun1.l.google.com:19302' },
+              { urls: 'stun:stun.relay.metered.ca:80' },
+              { urls: 'turn:a.relay.metered.ca:80',      username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+              { urls: 'turn:a.relay.metered.ca:80?transport=tcp', username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+              { urls: 'turn:a.relay.metered.ca:443',     username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+              { urls: 'turns:a.relay.metered.ca:443',    username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
             ] }
           });
           peerRef.current = peer;
@@ -302,14 +322,27 @@ export default function LiveClassroom() {
             console.error('[PeerJS Error]', err);
             let msg = 'Connection error occurred.';
             if (err.type === 'peer-unavailable') {
-              msg = 'The classroom has not been started yet by the teacher. Please check the Room ID.';
+              msg = 'The classroom has not been started yet by the teacher. Please check the Room ID and try again.';
+              setActiveAlert({ type: 'error', message: msg, duration: 6000 });
+              // Don't exit — let student retry without losing their session
+              return;
             } else if (err.type === 'network') {
-              msg = 'Network error. Please check your internet connection.';
+              msg = 'Network error. Attempting to reconnect...';
+              setActiveAlert({ type: 'error', message: msg, duration: 4000 });
+              // Try to reconnect after a short delay
+              setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 3000);
+              return;
             }
             setActiveAlert({ type: 'error', message: msg, duration: 6000 });
             setIsClassStarted(false);
           });
+          peer.on('disconnected', () => {
+            console.warn('[PeerJS] Disconnected from signaling server, reconnecting...');
+            setActiveAlert({ type: 'error', message: 'Connection lost. Reconnecting...', duration: 4000 });
+            setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 2000);
+          });
           peer.on('open', () => {
+            console.log('[PeerJS] Student connected, calling teacher...');
             const peerId = `deeplearn-teacher-room-${roomName || 'default'}`;
             const call = peer.call(peerId, streamRef.current);
             if (call) {

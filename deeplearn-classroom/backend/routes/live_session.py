@@ -12,7 +12,7 @@ from flask import Blueprint, request, jsonify
 
 live_session_bp = Blueprint("live_session", __name__)
 
-INACTIVE_TIMEOUT_S = 15   # remove participant after 15 s without heartbeat
+INACTIVE_TIMEOUT_S = 30   # remove participant after 30 s without heartbeat
 
 
 def _purge_inactive(session_id: str):
