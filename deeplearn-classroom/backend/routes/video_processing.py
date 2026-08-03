@@ -55,6 +55,19 @@ def _allowed_file(filename: str) -> bool:
     return os.path.splitext(filename)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def _get_base_url() -> str:
+    """Return the correct external base URL, respecting reverse-proxy headers.
+
+    On Render (and similar PaaS), the app sits behind a TLS-terminating proxy.
+    Flask's request.host_url ignores X-Forwarded-Proto and always returns
+    http://, which causes mixed-content blocks when the frontend is on HTTPS.
+    This helper reads the standard proxy headers to reconstruct the real URL.
+    """
+    proto = request.headers.get("X-Forwarded-Proto", request.scheme)
+    host  = request.headers.get("X-Forwarded-Host", request.host)
+    return f"{proto}://{host}"
+
+
 def _cleanup_local(path: str) -> None:
     """Silently remove a local temp file."""
     try:
@@ -211,11 +224,7 @@ def upload_video():
 
 def _get_app_base_url():
     """Return base URL using https protocol when running behind reverse proxies (Render/Vercel)."""
-    proto = request.headers.get("X-Forwarded-Proto", "").lower()
-    host = request.headers.get("X-Forwarded-Host") or request.host
-    if "onrender.com" in host or os.environ.get("RENDER") == "true" or proto == "https":
-        return f"https://{host}".rstrip('/')
-    return request.host_url.rstrip('/')
+    return _get_base_url()
 
 
 # ── GET /videos ──────────────────────────────────────────────────────────────
@@ -755,7 +764,7 @@ def get_video_url():
             return jsonify({"video_url": db_url, "source": "database_r2"})
         if os.path.exists(db_url):
             rel_name = os.path.basename(db_url)
-            video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel_name}{auth_query}"
+            video_url = f"{_get_base_url()}/download-signed-video?filename={rel_name}{auth_query}"
             print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
             return jsonify({
                 "video_url": video_url,
@@ -764,7 +773,7 @@ def get_video_url():
         if db_filename:
             local_processed = os.path.join(PROCESSED_FOLDER, f"signed_{db_filename}")
             if os.path.exists(local_processed):
-                video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename=signed_{db_filename}{auth_query}"
+                video_url = f"{_get_base_url()}/download-signed-video?filename=signed_{db_filename}{auth_query}"
                 print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
                 return jsonify({
                     "video_url": video_url,
@@ -772,7 +781,7 @@ def get_video_url():
                 })
             local_original = os.path.join(UPLOAD_FOLDER, db_filename)
             if os.path.exists(local_original):
-                video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename={db_filename}{auth_query}"
+                video_url = f"{_get_base_url()}/download-signed-video?filename={db_filename}{auth_query}"
                 print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
                 return jsonify({
                     "video_url": video_url,
@@ -794,7 +803,7 @@ def get_video_url():
 
         local_path = os.path.join(PROCESSED_FOLDER, name)
         if os.path.exists(local_path):
-            video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename={name}{auth_query}"
+            video_url = f"{_get_base_url()}/download-signed-video?filename={name}{auth_query}"
             print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
             return jsonify({
                 "video_url": video_url,
@@ -802,7 +811,7 @@ def get_video_url():
             })
         local_upload_path = os.path.join(UPLOAD_FOLDER, name)
         if os.path.exists(local_upload_path):
-            video_url = f"{request.host_url.rstrip('/')}/download-signed-video?filename={name}{auth_query}"
+            video_url = f"{_get_base_url()}/download-signed-video?filename={name}{auth_query}"
             print(f"[VIDEO_URL_RETURNED] video_url={video_url}", flush=True)
             return jsonify({
                 "video_url": video_url,
@@ -1345,7 +1354,7 @@ def get_video(video_id):
             u = video.get(url_key)
             if u and not is_r2_url(u):
                 rel = os.path.basename(u)
-                video[url_key] = f"{request.host_url.rstrip('/')}/download-signed-video?filename={rel}{auth_query}"
+                video[url_key] = f"{_get_base_url()}/download-signed-video?filename={rel}{auth_query}"
 
         # camelCase / snake_case mapping defensive alignment
         video["videoId"] = video.get("video_id")
