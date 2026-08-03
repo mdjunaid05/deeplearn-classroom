@@ -72,7 +72,7 @@ export default function VirtualClassroom() {
   // ── Video state ───────────────────────────────────────────────────────────
   const videoRef      = useRef(null);
   const videoContainerRef = useRef(null);
-  const [videoSrc,    setVideoSrc]    = useState('https://storage.googleapis.com/gtv-videos-bucket/sample/Sintel.mp4');
+  const [videoSrc,    setVideoSrc]    = useState(`${API_BASE}/download-signed-video?filename=mock_video.mp4`);
   const [videoTitle,  setVideoTitle]  = useState('Deep Learning Fundamentals');
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [isPlaying,   setIsPlaying]   = useState(false);
