@@ -247,12 +247,31 @@ def session_info():
     return jsonify({"session_id": session_id, "active_participants": count}), 200
 
 
+def _purge_stale_sessions():
+    """Auto-end live sessions older than 6 hours."""
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE live_sessions
+            SET status = 'ended', end_time = CURRENT_TIMESTAMP
+            WHERE status = 'live' AND (julianday('now') - julianday(start_time)) * 24 > 6
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"Error purging stale sessions: {e}")
+    finally:
+        conn.close()
+
+
 # ---------------------------------------------------------------------------
 # GET /active-session
 # ---------------------------------------------------------------------------
 @live_session_bp.route("/active-session", methods=["GET"])
 def active_session():
     """Get the currently active live session ID from the database."""
+    _purge_stale_sessions()
     from database.db import get_db_connection
     conn = get_db_connection()
     cursor = conn.cursor()

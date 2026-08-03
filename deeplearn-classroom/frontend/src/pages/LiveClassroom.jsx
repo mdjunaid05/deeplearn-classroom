@@ -245,127 +245,186 @@ export default function LiveClassroom() {
     setIsScreenSharing(false);
   };
 
+  const [remoteStream, setRemoteStream] = useState(null);
+
+  // Bind video element srcObjects whenever streams change
+  useEffect(() => {
+    if (localVideoRef.current && streamRef.current) {
+      localVideoRef.current.srcObject = streamRef.current;
+      localVideoRef.current.play().catch(e => console.warn('[Local Video Play]', e));
+    }
+  }, [isClassStarted, streamRef.current]);
+
+  useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play().catch(e => console.warn('[Remote Video Play]', e));
+    }
+  }, [remoteStream]);
+
   // ── WebRTC ──────────────────────────────────────────────────────────────
-  // IMPORTANT: deps must be stable primitives only. startRecording accessed via ref.
   useEffect(() => {
     if (!isClassStarted) return;
     let cleanup = () => {};
-    (async () => {
-      try {
-        const ms = await navigator.mediaDevices.getUserMedia({ video:true, audio:true });
-        streamRef.current = ms;
-        origVideoTrackRef.current = ms.getVideoTracks()[0];
-        if (localVideoRef.current) localVideoRef.current.srcObject = ms;
+    let callRetryTimer = null;
 
-        if (user?.role === 'teacher') {
-          const peerId = `deeplearn-teacher-room-${roomName || 'default'}`;
-          const peer = new Peer(peerId, {
-            host: '0.peerjs.com',
-            port: 443,
-            secure: true,
-            debug: 1,
-            config: { iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' },
-              { urls: 'stun:stun.relay.metered.ca:80' },
-              { urls: 'turn:a.relay.metered.ca:80',      username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
-              { urls: 'turn:a.relay.metered.ca:80?transport=tcp', username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
-              { urls: 'turn:a.relay.metered.ca:443',     username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
-              { urls: 'turns:a.relay.metered.ca:443',    username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
-            ] }
-          });
-          peerRef.current = peer;
-          peer.on('error', err => {
-            console.error('[PeerJS Error]', err);
-            let msg = 'Connection error occurred.';
-            if (err.type === 'unavailable-id') {
-              msg = 'This Room ID is already in use. Please enter a different Room ID.';
-            } else if (err.type === 'network') {
-              msg = 'Network error. Attempting to reconnect...';
-              setActiveAlert({ type: 'error', message: msg, duration: 4000 });
-              setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 3000);
-              return;
-            }
-            setActiveAlert({ type: 'error', message: msg, duration: 6000 });
-            setIsClassStarted(false);
-          });
-          peer.on('disconnected', () => {
-            console.warn('[PeerJS] Teacher disconnected from signaling server, reconnecting...');
-            setActiveAlert({ type: 'error', message: 'Connection lost. Reconnecting...', duration: 4000 });
-            setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 2000);
-          });
-          peer.on('call', call => {
-            call.answer(streamRef.current);
-            callsRef.current.push(call);
-            call.on('close', () => { callsRef.current = callsRef.current.filter(c=>c!==call); });
-          });
-          // Use ref so this effect never re-fires due to recording dep changes
-          setTimeout(() => { if (streamRef.current) startRecordingRef.current(); }, 1000);
-        } else {
-          const peer = new Peer({
-            host: '0.peerjs.com',
-            port: 443,
-            secure: true,
-            debug: 1,
-            config: { iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' },
-              { urls: 'stun:stun.relay.metered.ca:80' },
-              { urls: 'turn:a.relay.metered.ca:80',      username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
-              { urls: 'turn:a.relay.metered.ca:80?transport=tcp', username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
-              { urls: 'turn:a.relay.metered.ca:443',     username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
-              { urls: 'turns:a.relay.metered.ca:443',    username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
-            ] }
-          });
-          peerRef.current = peer;
-          peer.on('error', err => {
-            console.error('[PeerJS Error]', err);
-            let msg = 'Connection error occurred.';
-            if (err.type === 'peer-unavailable') {
-              msg = 'The classroom has not been started yet by the teacher. Please check the Room ID and try again.';
-              setActiveAlert({ type: 'error', message: msg, duration: 6000 });
-              // Don't exit — let student retry without losing their session
-              return;
-            } else if (err.type === 'network') {
-              msg = 'Network error. Attempting to reconnect...';
-              setActiveAlert({ type: 'error', message: msg, duration: 4000 });
-              // Try to reconnect after a short delay
-              setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 3000);
-              return;
-            }
-            setActiveAlert({ type: 'error', message: msg, duration: 6000 });
-            setIsClassStarted(false);
-          });
-          peer.on('disconnected', () => {
-            console.warn('[PeerJS] Disconnected from signaling server, reconnecting...');
-            setActiveAlert({ type: 'error', message: 'Connection lost. Reconnecting...', duration: 4000 });
-            setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 2000);
-          });
-          peer.on('open', () => {
-            console.log('[PeerJS] Student connected, calling teacher...');
-            const peerId = `deeplearn-teacher-room-${roomName || 'default'}`;
-            const call = peer.call(peerId, streamRef.current);
-            if (call) {
-              call.on('stream', ts => { if (remoteVideoRef.current) remoteVideoRef.current.srcObject = ts; });
-              call.on('close',  () => { setActiveAlert({ type:'error', message:'Teacher ended the class.', duration:5000 }); setIsClassStarted(false); });
-            } else {
-              setActiveAlert({ type:'error', message:'Could not connect to teacher. Check Room ID.', duration:5000 });
-            }
-          });
+    (async () => {
+      let ms;
+      try {
+        ms = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      } catch (err1) {
+        console.warn('[LiveClassroom] Video+Audio failed, trying Audio only:', err1);
+        try {
+          ms = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+        } catch (err2) {
+          console.warn('[LiveClassroom] Audio failed, creating canvas fallback:', err2);
+          const canvas = document.createElement('canvas');
+          canvas.width = 640;
+          canvas.height = 480;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(0, 0, 640, 480);
+          ctx.fillStyle = '#94a3b8';
+          ctx.font = '20px sans-serif';
+          ctx.fillText('Camera Unavailable', 230, 240);
+          const stream = canvas.captureStream(10);
+          ms = stream;
         }
-        cleanup = () => {
-          ms.getTracks().forEach(t=>t.stop());
-          peerRef.current?.destroy();
-          if (mediaRecorderRef.current?.state !== 'inactive') try { mediaRecorderRef.current.stop(); } catch {}
-        };
-      } catch(err) {
-        console.error(err);
-        setActiveAlert({ type:'error', message:'Could not access camera/microphone.', duration:5000 });
       }
+
+      streamRef.current = ms;
+      origVideoTrackRef.current = ms.getVideoTracks()[0];
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = ms;
+        localVideoRef.current.play().catch(() => {});
+      }
+
+      const effectiveRoomId = (roomName || '').trim() || sessionId || 'classroom-1';
+      const teacherPeerId = `deeplearn-teacher-room-${effectiveRoomId}`;
+
+      const iceConfig = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun.relay.metered.ca:80' },
+          { urls: 'turn:a.relay.metered.ca:80',      username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+          { urls: 'turn:a.relay.metered.ca:80?transport=tcp', username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+          { urls: 'turn:a.relay.metered.ca:443',     username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+          { urls: 'turns:a.relay.metered.ca:443',    username: 'e8dd65b92f0930aa2640de01', credential: '5jMEq+ZGX5ueG1hA' },
+        ]
+      };
+
+      if (user?.role === 'teacher') {
+        const peer = new Peer(teacherPeerId, {
+          host: '0.peerjs.com',
+          port: 443,
+          secure: true,
+          debug: 1,
+          config: iceConfig
+        });
+        peerRef.current = peer;
+
+        peer.on('error', err => {
+          console.error('[PeerJS Teacher Error]', err);
+          if (err.type === 'unavailable-id') {
+            setActiveAlert({ type: 'error', message: 'Room ID already in use. Please enter a different Room ID.', duration: 6000 });
+            setIsClassStarted(false);
+          } else if (err.type === 'network') {
+            setActiveAlert({ type: 'error', message: 'Network delay. Reconnecting signaling...', duration: 4000 });
+            setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 3000);
+          }
+        });
+
+        peer.on('disconnected', () => {
+          console.warn('[PeerJS] Teacher disconnected from signaling server, reconnecting...');
+          setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 2000);
+        });
+
+        peer.on('call', call => {
+          call.answer(streamRef.current);
+          callsRef.current.push(call);
+          call.on('close', () => { callsRef.current = callsRef.current.filter(c => c !== call); });
+        });
+
+        setTimeout(() => { if (streamRef.current) startRecordingRef.current(); }, 1000);
+      } else {
+        const peer = new Peer({
+          host: '0.peerjs.com',
+          port: 443,
+          secure: true,
+          debug: 1,
+          config: iceConfig
+        });
+        peerRef.current = peer;
+
+        let activeCall = null;
+
+        const attemptCallTeacher = () => {
+          if (!peerRef.current || peerRef.current.destroyed || activeCall) return;
+          console.log('[PeerJS] Student calling teacher:', teacherPeerId);
+          try {
+            const call = peerRef.current.call(teacherPeerId, streamRef.current);
+            if (call) {
+              activeCall = call;
+              call.on('stream', ts => {
+                console.log('[PeerJS] Received remote teacher stream');
+                setRemoteStream(ts);
+                if (callRetryTimer) {
+                  clearInterval(callRetryTimer);
+                  callRetryTimer = null;
+                }
+              });
+              call.on('close', () => {
+                activeCall = null;
+                setRemoteStream(null);
+                console.log('[PeerJS] Teacher call ended, scheduling retry...');
+              });
+              call.on('error', (err) => {
+                console.warn('[PeerJS Call Error]', err);
+                activeCall = null;
+              });
+            }
+          } catch (e) {
+            console.warn('[PeerJS Call Exception]', e);
+          }
+        };
+
+        peer.on('error', err => {
+          console.error('[PeerJS Student Error]', err);
+          if (err.type === 'peer-unavailable') {
+            setActiveAlert({ type: 'warning', message: 'Waiting for teacher to start stream...', duration: 4000 });
+          } else if (err.type === 'network') {
+            setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 3000);
+          }
+        });
+
+        peer.on('disconnected', () => {
+          console.warn('[PeerJS] Student disconnected, reconnecting...');
+          setTimeout(() => { try { peer.reconnect(); } catch(_) {} }, 2000);
+        });
+
+        peer.on('open', () => {
+          console.log('[PeerJS] Student peer opened successfully');
+          attemptCallTeacher();
+          callRetryTimer = setInterval(() => {
+            if (!remoteStream && (!activeCall || !activeCall.open)) {
+              attemptCallTeacher();
+            }
+          }, 3000);
+        });
+      }
+
+      cleanup = () => {
+        if (callRetryTimer) clearInterval(callRetryTimer);
+        ms.getTracks().forEach(t => t.stop());
+        peerRef.current?.destroy();
+        if (mediaRecorderRef.current?.state !== 'inactive') try { mediaRecorderRef.current.stop(); } catch {}
+      };
     })();
+
     return () => cleanup();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isClassStarted, user?.role, roomName]);
+  }, [isClassStarted, user?.role, roomName, sessionId]);
 
   // ── Chat: send via API ──────────────────────────────────────────────────
   const handleSendChat = async (e) => {
