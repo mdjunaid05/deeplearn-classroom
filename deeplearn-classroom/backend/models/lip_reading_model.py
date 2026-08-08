@@ -1,37 +1,42 @@
 """
-Lip Reading Model — CNN
-Predicts lip state from grayscale lip crops.
-Input: (64, 64, 1)
-Output: 5 classes [Speaking, Silent, Mouthing, Laughing, Neutral]
+Lip Reading Model — Visual Phoneme Classifier
+Predicts phoneme / text token from visual mouth region features.
 """
 
-from tensorflow import keras
-from tensorflow.keras import layers
+import numpy as np
+import torch
+import torch.nn as nn
 
-def build_lip_reading_model(input_shape=(64, 64, 1), num_classes=5):
+
+class LipReadingNNModel(nn.Module):
     """
-    CNN for lip state recognition.
-    Architecture: Conv2D(32)→Pool → Conv2D(64)→Pool → Dense(128) → Dense(5, softmax)
+    Bidirectional LSTM Neural Network for Visual Phoneme Classification.
     """
-    model = keras.Sequential([
-        layers.Input(shape=input_shape, name="lip_input"),
-        layers.Conv2D(32, (3, 3), activation="relu", name="conv2d_1"),
-        layers.MaxPooling2D((2, 2), name="pool_1"),
-        layers.Conv2D(64, (3, 3), activation="relu", name="conv2d_2"),
-        layers.MaxPooling2D((2, 2), name="pool_2"),
-        layers.Flatten(name="flatten"),
-        layers.Dense(128, activation="relu", name="dense_1"),
-        layers.Dense(num_classes, activation="softmax", name="output"),
-    ], name="lip_reading_model")
+    def __init__(self, sequence_length: int = 15, feature_dim: int = 40, num_classes: int = 50):
+        super().__init__()
+        self.sequence_length = sequence_length
+        self.feature_dim = feature_dim
+        self.num_classes = num_classes
+        self.lstm = nn.LSTM(feature_dim, 64, batch_first=True, bidirectional=True)
+        self.fc = nn.Linear(128, num_classes)
+        self.softmax = nn.Softmax(dim=-1)
 
-    model.compile(
-        optimizer="adam",
-        loss="categorical_crossentropy",
-        metrics=["accuracy"],
-    )
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        lstm_out, _ = self.lstm(x)
+        logits = self.fc(lstm_out[:, -1, :])
+        return self.softmax(logits)
 
-    return model
+
+def build_lip_reading_model(sequence_length: int = 15, feature_dim: int = 40, num_classes: int = 50) -> LipReadingNNModel:
+    """
+    Builds and returns the Lip Reading Visual Phoneme Classifier model.
+    """
+    return LipReadingNNModel(sequence_length, feature_dim, num_classes)
+
 
 if __name__ == "__main__":
     model = build_lip_reading_model()
-    model.summary()
+    print(f"[OK] Lip reading model created: {type(model).__name__}")
+    dummy_input = torch.randn(2, 15, 40)
+    output = model(dummy_input)
+    print(f"[OK] Test inference shape: {output.shape}")

@@ -4,6 +4,7 @@ Uses MySQL via mysql-connector-python. Falls back to SQLite for demo/testing.
 """
 
 import os
+import json
 import sqlite3
 
 
@@ -91,7 +92,7 @@ def _init_mysql(conn):
                 email               VARCHAR(255) NOT NULL UNIQUE,
                 password_hash       VARCHAR(255) NOT NULL,
                 disability_type     VARCHAR(100) DEFAULT 'Hearing-Impaired',
-                preferred_language  VARCHAR(50) DEFAULT 'ASL',
+                preferred_language  VARCHAR(50) DEFAULT 'ISL',
                 enrolled_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
                 profilePhoto        VARCHAR(512),
                 age                 INT,
@@ -408,7 +409,7 @@ def _init_sqlite(conn):
             email               TEXT NOT NULL UNIQUE,
             password_hash       TEXT NOT NULL,
             disability_type     TEXT DEFAULT 'Hearing-Impaired',
-            preferred_language  TEXT DEFAULT 'ASL',
+            preferred_language  TEXT DEFAULT 'ISL',
             enrolled_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
             profilePhoto        TEXT,
             age                 INTEGER,
@@ -788,7 +789,9 @@ def _init_sqlite(conn):
             cursor.execute("ALTER TABLE videos ADD COLUMN signing_status TEXT DEFAULT 'pending'")
             altered = True
         if "updated_at" not in cols:
-            cursor.execute("ALTER TABLE videos ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
+            # SQLite doesn't allow CURRENT_TIMESTAMP (non-constant) as default in ALTER TABLE.
+            # Use NULL default instead; new rows get CURRENT_TIMESTAMP from the CREATE TABLE definition.
+            cursor.execute("ALTER TABLE videos ADD COLUMN updated_at DATETIME DEFAULT NULL")
             altered = True
         if altered:
             conn.commit()
@@ -838,7 +841,6 @@ def _init_sqlite(conn):
 def _seed_demo_videos(conn):
     """Ensure at least one demo video exists in the catalog so fresh deployments are never empty."""
     try:
-        import json
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM videos")
         row = cursor.fetchone()
@@ -867,25 +869,25 @@ def _seed_demo_videos(conn):
                 teacher_id, course_id, title, filename, original_url, processed_url, status, 
                 video_type, description, visibility
             ) VALUES (
-                1, 1, 'Smart Virtual Classroom & ASL Overview', 'mock_video.mp4', 
+                1, 1, 'Smart Virtual Classroom & ISL Overview', 'mock_video.mp4', 
                 'mock_video.mp4', 'mock_video.mp4', 'done', 
-                'original', 'Introduction to Lumina Smart Virtual Classroom with automated ASL captions.', 'Published'
+                'original', 'Introduction to Lumina Smart Virtual Classroom with automated ISL captions.', 'Published'
             )
         """)
         orig_id = cursor.lastrowid
 
-        # 2. Insert ASL signed video
+        # 2. Insert ISL signed video
         cursor.execute("""
             INSERT INTO videos (
                 teacher_id, course_id, title, filename, original_url, processed_url, status, 
                 original_video_id, video_type, description, visibility, captions_url
             ) VALUES (
-                1, 1, '[AI Deaf Signing] Smart Virtual Classroom & ASL Overview', 'signed_mock_video.mp4', 
+                1, 1, '[AI Deaf Signing] Smart Virtual Classroom & ISL Overview', 'signed_mock_video.mp4', 
                 'mock_video.mp4', 'mock_video.mp4', 'done', 
-                ?, 'ASL', 'AI ASL Avatar interpreter overlay video.', 'Published', ?
+                ?, 'ISL', 'AI ISL Avatar interpreter overlay video.', 'Published', ?
             )
         """, (orig_id, f"/video-captions?video_id={orig_id + 1}"))
-        asl_id = cursor.lastrowid
+        isl_id = cursor.lastrowid
 
         # 3. Seed video captions for both
         demo_captions = [
@@ -902,11 +904,11 @@ def _seed_demo_videos(conn):
             )
             cursor.execute(
                 "INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence) VALUES (?, ?, ?, ?, ?)",
-                (asl_id, start, end, text, sign_seq)
+                (isl_id, start, end, text, sign_seq)
             )
 
         conn.commit()
-        print(f"[Database] Demo videos seeded successfully (orig_id={orig_id}, asl_id={asl_id}).", flush=True)
+        print(f"[Database] Demo videos seeded successfully (orig_id={orig_id}, isl_id={isl_id}).", flush=True)
     except Exception as e:
         print(f"[Database] Failed to seed demo videos: {e}", flush=True)
 
@@ -928,3 +930,8 @@ def query_db(query, args=(), one=False):
         last_id = cursor.lastrowid
         conn.close()
         return last_id
+
+
+# Alias for standard Flask/DB conventions
+get_db = get_db_connection
+

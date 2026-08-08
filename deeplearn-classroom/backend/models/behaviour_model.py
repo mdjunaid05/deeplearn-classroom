@@ -1,34 +1,43 @@
 """
-Behaviour Classification Model — LSTM
-Classifies student behaviour: Active / Passive / Distracted
-Input: sequence of shape (10, 4) — [click_freq, response_speed, chat_count, idle_time]
+Behaviour Analysis Model — Multi-output Neural Network
+Predicts Focus Score (regression) and Attention State (classification)
 """
 
-from tensorflow import keras
-from tensorflow.keras import layers
+import numpy as np
+import torch
+import torch.nn as nn
 
 
-def build_behaviour_model(sequence_length=10, n_features=4, num_classes=3):
-    """
-    LSTM model for temporal behaviour classification.
-    Architecture: LSTM(64) → Dense(32, relu) → Dense(3, softmax)
-    """
-    model = keras.Sequential([
-        layers.Input(shape=(sequence_length, n_features), name="behaviour_input"),
-        layers.LSTM(64, name="lstm_1"),
-        layers.Dense(32, activation="relu", name="dense_1"),
-        layers.Dense(num_classes, activation="softmax", name="output"),
-    ], name="behaviour_classification_model")
+class BehaviourNNModel(nn.Module):
+    def __init__(self, input_dim: int = 8):
+        super().__init__()
+        self.input_dim = input_dim
+        self.shared = nn.Sequential(
+            nn.Linear(input_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+        )
+        self.focus_head = nn.Linear(32, 1)
+        self.state_head = nn.Sequential(
+            nn.Linear(32, 3),
+            nn.Softmax(dim=-1),
+        )
 
-    model.compile(
-        optimizer="adam",
-        loss="categorical_crossentropy",
-        metrics=["accuracy"],
-    )
+    def forward(self, x: torch.Tensor):
+        feat = self.shared(x)
+        focus = self.focus_head(feat)
+        state = self.state_head(feat)
+        return focus, state
 
-    return model
+
+def build_behaviour_model(input_dim: int = 8) -> BehaviourNNModel:
+    return BehaviourNNModel(input_dim=input_dim)
 
 
 if __name__ == "__main__":
     model = build_behaviour_model()
-    model.summary()
+    print(f"[OK] Behaviour model created: {type(model).__name__}")
+    dummy_input = torch.randn(2, 8)
+    f, s = model(dummy_input)
+    print(f"[OK] Focus shape: {f.shape}, State shape: {s.shape}")

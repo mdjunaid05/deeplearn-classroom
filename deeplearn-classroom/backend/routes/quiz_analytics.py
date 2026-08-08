@@ -428,7 +428,7 @@ def get_ordered_lessons(course_id=1):
     cursor.execute("""
         SELECT video_id, title, uploaded_at 
         FROM videos 
-        WHERE course_id = ? AND (video_type IS NULL OR video_type != 'ASL')
+        WHERE course_id = ? AND (video_type IS NULL OR video_type != 'ISL')
         ORDER BY uploaded_at ASC, video_id ASC
     """, (course_id,))
     videos = cursor.fetchall()

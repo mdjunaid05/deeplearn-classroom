@@ -4,7 +4,7 @@
  * Core hook for the AI Hand Sign Language Interpretation System.
  *
  * Pipeline:
- *   Video time → find active caption → translateToASL() → build sign queue
+ *   Video time → find active caption → translateToISL() → build sign queue
  *   → ticker dispatches one sign at a time → avatar renders it
  *
  * Features:
@@ -15,7 +15,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { translateToASL } from './nlpSignLanguage';
+import { translateToISL } from './nlpSignLanguage';
 
 // ── Sign timing constants ────────────────────────────────────────────────────
 const DEFAULT_SIGN_DURATION_MS = 600; // ms per sign at 1x speed
@@ -36,7 +36,7 @@ function buildSignQueue(savedCaptions) {
   for (const cap of savedCaptions) {
     const start = cap.start ?? cap.start_time ?? 0;
     const end   = cap.end   ?? cap.end_time   ?? start + 3;
-    const signs = translateToASL(cap.text);
+    const signs = translateToISL(cap.text);
     if (signs.length === 0) continue;
     const duration = (end - start) / signs.length;
     signs.forEach((sign, i) => {
@@ -143,7 +143,7 @@ export function useSignLanguage(videoRef, savedCaptions = [], isEnabled = true, 
   // we derive signs directly from the spoken word.
   const updateFromLiveWord = useCallback((word) => {
     if (!isEnabled || !word) return;
-    const signs = translateToASL(word);
+    const signs = translateToISL(word);
     if (signs.length > 0) {
       setCurrentSign({ word: signs[0].word, gesture: signs[0].gesture });
       setSignCount(c => c + 1);

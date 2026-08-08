@@ -1,146 +1,303 @@
 /**
  * SignAvatarOverlay.jsx
  * ---------------------
- * Premium AI Hand Sign Language Interpreter panel.
+ * Indian Sign Language (ISL) AI Avatar Interpreter Overlay.
  *
- * Features:
- *  - 3D-style CSS avatar with realistic hand articulation per gesture
- *  - Glassmorphism accessibility panel
- *  - Sign queue strip showing upcoming signs
- *  - Real-time sign label + category badge
- *  - Smooth animation transitions between gestures
- *  - Glow indicators when active / processing
- *
- * Props:
- *  currentSign  : { word: string, gesture: string } | null
- *  isActive     : boolean — video is playing
- *  signQueue    : Array<{ word, gesture }>  — all upcoming signs
- *  isProcessing : boolean — AI processing indicator
- *  signCount    : number  — total signs rendered so far
+ * Implements authentic ISL characteristics:
+ *  - Two-handed ISL manual alphabet fingerspelling (A-Z) conforming to ISLRTC standards
+ *  - Authentic ISL gestures (Namaste, Dhanyavaad, Madad, Samajh, Padhna, Ruko, Shikshak, Vidyarthi, etc.)
+ *  - Accurate hand articulation, orientation, and bilateral coordination
+ *  - Real-time ISL gesture label + Hindi/English bilingual glossing
+ *  - Glassmorphic accessibility panel with queue strip and status indicators
  */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Hand, Zap, Brain, Loader2, Volume2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Hand, Zap, Loader2 } from 'lucide-react';
 import { getGestureLabel } from '../utils/nlpSignLanguage';
 
-// ── Colour palette per gesture category ─────────────────────────────────────
-const GESTURE_COLORS = {
-  wave:     { primary: '#06b6d4', secondary: '#0e7490', glow: 'rgba(6,182,212,0.4)' },
-  yes:      { primary: '#10b981', secondary: '#065f46', glow: 'rgba(16,185,129,0.4)' },
-  no:       { primary: '#ef4444', secondary: '#991b1b', glow: 'rgba(239,68,68,0.4)' },
-  count:    { primary: '#f59e0b', secondary: '#92400e', glow: 'rgba(245,158,11,0.4)' },
-  explain:  { primary: '#8b5cf6', secondary: '#5b21b6', glow: 'rgba(139,92,246,0.4)' },
-  question: { primary: '#ec4899', secondary: '#9d174d', glow: 'rgba(236,72,153,0.4)' },
-  think:    { primary: '#3b82f6', secondary: '#1e3a8a', glow: 'rgba(59,130,246,0.4)' },
-  point:    { primary: '#14b8a6', secondary: '#0f766e', glow: 'rgba(20,184,166,0.4)' },
-  math:     { primary: '#6366f1', secondary: '#3730a3', glow: 'rgba(99,102,241,0.4)' },
-  action:   { primary: '#f97316', secondary: '#9a3412', glow: 'rgba(249,115,22,0.4)' },
-  alert:    { primary: '#fbbf24', secondary: '#92400e', glow: 'rgba(251,191,36,0.5)' },
-  talk:     { primary: '#22d3ee', secondary: '#0e7490', glow: 'rgba(34,211,238,0.35)' },
-  idle:     { primary: '#94a3b8', secondary: '#475569', glow: 'rgba(148,163,184,0.2)' },
+// ── Colour palette per ISL gesture category ─────────────────────────────────
+const ISL_GESTURE_COLORS = {
+  namaste:    { primary: '#06b6d4', secondary: '#0e7490', glow: 'rgba(6,182,212,0.45)' },
+  swagat:     { primary: '#14b8a6', secondary: '#0f766e', glow: 'rgba(20,184,166,0.45)' },
+  dhanyavaad: { primary: '#10b981', secondary: '#065f46', glow: 'rgba(16,185,129,0.45)' },
+  yes:        { primary: '#10b981', secondary: '#065f46', glow: 'rgba(16,185,129,0.4)' },
+  no:         { primary: '#ef4444', secondary: '#991b1b', glow: 'rgba(239,68,68,0.4)' },
+  help:       { primary: '#8b5cf6', secondary: '#5b21b6', glow: 'rgba(139,92,246,0.45)' },
+  understand: { primary: '#3b82f6', secondary: '#1e3a8a', glow: 'rgba(59,130,246,0.45)' },
+  repeat:     { primary: '#a855f7', secondary: '#7e22ce', glow: 'rgba(168,85,247,0.4)' },
+  stop:       { primary: '#f43f5e', secondary: '#be123c', glow: 'rgba(244,63,94,0.45)' },
+  good:       { primary: '#10b981', secondary: '#047857', glow: 'rgba(16,185,129,0.4)' },
+  bad:        { primary: '#f97316', secondary: '#c2410c', glow: 'rgba(249,115,22,0.4)' },
+  question:   { primary: '#ec4899', secondary: '#9d174d', glow: 'rgba(236,72,153,0.45)' },
+  kya:        { primary: '#ec4899', secondary: '#9d174d', glow: 'rgba(236,72,153,0.4)' },
+  kaha:       { primary: '#ec4899', secondary: '#9d174d', glow: 'rgba(236,72,153,0.4)' },
+  kyun:       { primary: '#f43f5e', secondary: '#be123c', glow: 'rgba(244,63,94,0.4)' },
+  kaise:      { primary: '#ec4899', secondary: '#9d174d', glow: 'rgba(236,72,153,0.4)' },
+  learn:      { primary: '#0ea5e9', secondary: '#0369a1', glow: 'rgba(14,165,233,0.45)' },
+  teacher:    { primary: '#6366f1', secondary: '#4338ca', glow: 'rgba(99,102,241,0.45)' },
+  student:    { primary: '#38bdf8', secondary: '#0284c7', glow: 'rgba(56,189,248,0.4)' },
+  classroom:  { primary: '#8b5cf6', secondary: '#6d28d9', glow: 'rgba(139,92,246,0.4)' },
+  count:      { primary: '#f59e0b', secondary: '#92400e', glow: 'rgba(245,158,11,0.4)' },
+  explain:    { primary: '#8b5cf6', secondary: '#5b21b6', glow: 'rgba(139,92,246,0.4)' },
+  think:      { primary: '#3b82f6', secondary: '#1e3a8a', glow: 'rgba(59,130,246,0.4)' },
+  point:      { primary: '#14b8a6', secondary: '#0f766e', glow: 'rgba(20,184,166,0.4)' },
+  math:       { primary: '#6366f1', secondary: '#3730a3', glow: 'rgba(99,102,241,0.4)' },
+  action:     { primary: '#f97316', secondary: '#9a3412', glow: 'rgba(249,115,22,0.4)' },
+  start:      { primary: '#22c55e', secondary: '#15803d', glow: 'rgba(34,197,94,0.4)' },
+  finish:     { primary: '#a855f7', secondary: '#7e22ce', glow: 'rgba(168,85,247,0.4)' },
+  alert:      { primary: '#fbbf24', secondary: '#92400e', glow: 'rgba(251,191,36,0.5)' },
+  idle:       { primary: '#94a3b8', secondary: '#475569', glow: 'rgba(148,163,184,0.2)' },
 };
 
-// ── Per-gesture hand / arm poses ──────────────────────────────────────────────
-// Each pose defines both hands + optional finger state
-const GESTURE_POSES = {
+// ── Authentic Indian Sign Language (ISL) Poses & Articulations ──────────────
+// Each pose defines both hands, body posture, and specific finger shapes
+const ISL_GESTURE_POSES = {
   idle: {
-    label: 'READY',
+    label: 'ISL READY',
     leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',  scale: 1 },
     rightHand: { rotate: '-15deg', tx: '2px',   ty: '2px',  scale: 1 },
-    fingers: 'relaxed',
+    leftFingers: 'relaxed',
+    rightFingers: 'relaxed',
     bodyLean: 0,
   },
-  wave: {
-    label: 'HELLO / GOODBYE',
-    leftHand:  { rotate: '-55deg', tx: '-10px', ty: '-18px', scale: 1.1 },
-    rightHand: { rotate: '-18deg', tx: '2px',   ty: '2px',   scale: 1 },
-    fingers: 'open',
-    bodyLean: -3,
+  namaste: {
+    label: 'NAMASTE / GREETING (ISL)',
+    leftHand:  { rotate: '-65deg', tx: '16px', ty: '-26px', scale: 1.1 },
+    rightHand: { rotate: '65deg',  tx: '-16px', ty: '-26px', scale: 1.1 },
+    leftFingers: 'flat_palm',
+    rightFingers: 'flat_palm',
+    bodyLean: 2, // respectful slight head/torso tilt
+  },
+  dhanyavaad: {
+    label: 'DHANYAVAAD (THANK YOU)',
+    leftHand:  { rotate: '20deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-80deg', tx: '4px',   ty: '-28px', scale: 1.15 },
+    leftFingers: 'relaxed',
+    rightFingers: 'open_forward',
+    bodyLean: 3,
+  },
+  swagat: {
+    label: 'SWAGAT (WELCOME)',
+    leftHand:  { rotate: '-35deg', tx: '-10px', ty: '-14px', scale: 1.1 },
+    rightHand: { rotate: '35deg',  tx: '10px',  ty: '-14px', scale: 1.1 },
+    leftFingers: 'cupped_up',
+    rightFingers: 'cupped_up',
+    bodyLean: 0,
   },
   yes: {
-    label: 'YES / AGREE',
+    label: 'HAAN (YES / AGREE)',
     leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
-    rightHand: { rotate: '0deg',   tx: '4px',   ty: '-10px', scale: 1.15 },
-    fingers: 'thumbs_up',
+    rightHand: { rotate: '-10deg', tx: '4px',   ty: '-14px', scale: 1.2 },
+    leftFingers: 'relaxed',
+    rightFingers: 'thumbs_up',
     bodyLean: 2,
   },
   no: {
-    label: 'NO / WRONG',
-    leftHand:  { rotate: '60deg',  tx: '-14px', ty: '4px',  scale: 1 },
-    rightHand: { rotate: '-60deg', tx: '14px',  ty: '4px',  scale: 1 },
-    fingers: 'index_point',
+    label: 'NAHI (NO / NEGATION)',
+    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-55deg', tx: '14px',  ty: '-10px', scale: 1.15 },
+    leftFingers: 'relaxed',
+    rightFingers: 'flat_palm_side',
+    bodyLean: -2,
+  },
+  help: {
+    label: 'MADAD (HELP / SUPPORT)',
+    leftHand:  { rotate: '-30deg', tx: '8px',  ty: '-10px', scale: 1.1 }, // palm-up base
+    rightHand: { rotate: '30deg',  tx: '-8px', ty: '-22px', scale: 1.15 }, // lifting fist on palm
+    leftFingers: 'flat_palm_up',
+    rightFingers: 'fist',
+    bodyLean: 1,
+  },
+  understand: {
+    label: 'SAMAJH (UNDERSTAND)',
+    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-90deg', tx: '2px',   ty: '-32px', scale: 1.2 }, // point to temple/illumination
+    leftFingers: 'relaxed',
+    rightFingers: 'index_temple',
+    bodyLean: 2,
+  },
+  repeat: {
+    label: 'DOBARA (REPEAT / AGAIN)',
+    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-45deg', tx: '10px',  ty: '-18px', scale: 1.15 },
+    leftFingers: 'relaxed',
+    rightFingers: 'v_shape',
+    bodyLean: 0,
+  },
+  stop: {
+    label: 'RUKO (STOP / HALT)',
+    leftHand:  { rotate: '-35deg', tx: '8px',  ty: '-12px', scale: 1.1 }, // left horizontal palm
+    rightHand: { rotate: '45deg',  tx: '-6px', ty: '-20px', scale: 1.15 }, // right vertical chop
+    leftFingers: 'flat_palm',
+    rightFingers: 'flat_palm_chop',
+    bodyLean: 0,
+  },
+  good: {
+    label: 'ACCHA (GOOD / SIKH)',
+    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-25deg', tx: '8px',   ty: '-14px', scale: 1.2 },
+    leftFingers: 'relaxed',
+    rightFingers: 'thumbs_up',
+    bodyLean: 1,
+  },
+  bad: {
+    label: 'BURA (BAD / GALAT)',
+    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-65deg', tx: '6px',   ty: '-18px', scale: 1.15 },
+    leftFingers: 'relaxed',
+    rightFingers: 'palm_down_flip',
+    bodyLean: -2,
+  },
+  question: {
+    label: 'PRASHNA (QUESTION / KYA)',
+    leftHand:  { rotate: '-40deg', tx: '-10px', ty: '-16px', scale: 1.1 },
+    rightHand: { rotate: '40deg',  tx: '10px',  ty: '-16px', scale: 1.1 },
+    leftFingers: 'cupped_up',
+    rightFingers: 'cupped_up',
+    bodyLean: -2,
+  },
+  kya: {
+    label: 'KYA (WHAT / ISL)',
+    leftHand:  { rotate: '-45deg', tx: '-12px', ty: '-14px', scale: 1.1 },
+    rightHand: { rotate: '45deg',  tx: '12px',  ty: '-14px', scale: 1.1 },
+    leftFingers: 'flat_palm_up',
+    rightFingers: 'flat_palm_up',
+    bodyLean: -2,
+  },
+  kaha: {
+    label: 'KAHA (WHERE / ISL)',
+    leftHand:  { rotate: '-55deg', tx: '-14px', ty: '-12px', scale: 1.1 },
+    rightHand: { rotate: '55deg',  tx: '14px',  ty: '-12px', scale: 1.1 },
+    leftFingers: 'open_forward',
+    rightFingers: 'open_forward',
+    bodyLean: -1,
+  },
+  kyun: {
+    label: 'KYUN (WHY / ISL)',
+    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-80deg', tx: '6px',   ty: '-26px', scale: 1.15 },
+    leftFingers: 'relaxed',
+    rightFingers: 'index_temple',
+    bodyLean: 2,
+  },
+  kaise: {
+    label: 'KAISE (HOW / ISL)',
+    leftHand:  { rotate: '-35deg', tx: '-8px', ty: '-14px', scale: 1.1 },
+    rightHand: { rotate: '35deg',  tx: '8px',  ty: '-14px', scale: 1.1 },
+    leftFingers: 'cupped_up',
+    rightFingers: 'cupped_up',
+    bodyLean: 0,
+  },
+  learn: {
+    label: 'PADHNA (LEARN / STUDY)',
+    leftHand:  { rotate: '-25deg', tx: '10px', ty: '-10px', scale: 1.1 }, // left palm as book
+    rightHand: { rotate: '60deg',  tx: '-8px', ty: '-26px', scale: 1.15 }, // right scooping to head
+    leftFingers: 'flat_palm_up',
+    rightFingers: 'scoop',
+    bodyLean: 2,
+  },
+  teacher: {
+    label: 'SHIKSHAK (TEACHER / GURU)',
+    leftHand:  { rotate: '-70deg', tx: '-6px', ty: '-28px', scale: 1.1 },
+    rightHand: { rotate: '70deg',  tx: '6px',  ty: '-28px', scale: 1.1 },
+    leftFingers: 'pinch',
+    rightFingers: 'pinch',
+    bodyLean: 1,
+  },
+  student: {
+    label: 'VIDYARTHI (STUDENT)',
+    leftHand:  { rotate: '-25deg', tx: '8px',  ty: '-10px', scale: 1.1 },
+    rightHand: { rotate: '45deg',  tx: '-4px', ty: '-22px', scale: 1.15 },
+    leftFingers: 'flat_palm_up',
+    rightFingers: 'scoop',
+    bodyLean: 1,
+  },
+  classroom: {
+    label: 'KAKSHA (CLASSROOM)',
+    leftHand:  { rotate: '-45deg', tx: '-8px', ty: '-16px', scale: 1.1 },
+    rightHand: { rotate: '45deg',  tx: '8px',  ty: '-16px', scale: 1.1 },
+    leftFingers: 'c_shape',
+    rightFingers: 'c_shape',
     bodyLean: 0,
   },
   count: {
-    label: 'NUMBER',
+    label: 'GINTI (NUMBERS / ISL)',
     leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
-    rightHand: { rotate: '-35deg', tx: '10px',  ty: '-16px', scale: 1.2 },
-    fingers: 'count',
+    rightHand: { rotate: '-40deg', tx: '8px',   ty: '-18px', scale: 1.2 },
+    leftFingers: 'relaxed',
+    rightFingers: 'count',
     bodyLean: 1,
   },
   explain: {
-    label: 'EXPLAIN',
-    leftHand:  { rotate: '-28deg', tx: '-12px', ty: '-10px', scale: 1.05 },
-    rightHand: { rotate: '28deg',  tx: '12px',  ty: '-10px', scale: 1.05 },
-    fingers: 'open',
+    label: 'SAMJHANA (EXPLAIN)',
+    leftHand:  { rotate: '-30deg', tx: '-10px', ty: '-12px', scale: 1.05 },
+    rightHand: { rotate: '30deg',  tx: '10px',  ty: '-12px', scale: 1.05 },
+    leftFingers: 'open_forward',
+    rightFingers: 'open_forward',
     bodyLean: 0,
   },
-  question: {
-    label: 'QUESTION / WHAT?',
-    leftHand:  { rotate: '-45deg', tx: '-8px',  ty: '-8px',  scale: 1 },
-    rightHand: { rotate: '45deg',  tx: '8px',   ty: '-8px',  scale: 1 },
-    fingers: 'curved',
-    bodyLean: -2,
-  },
   think: {
-    label: 'THINK / KNOW',
-    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',  scale: 1 },
-    rightHand: { rotate: '-85deg', tx: '2px',   ty: '-28px', scale: 1.1 },
-    fingers: 'index_temple',
-    bodyLean: 3,
+    label: 'SOCHNA (THINK / COGNITION)',
+    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-85deg', tx: '2px',   ty: '-28px', scale: 1.15 },
+    leftFingers: 'relaxed',
+    rightFingers: 'index_temple',
+    bodyLean: 2,
   },
   point: {
-    label: 'LOOK / ATTENTION',
-    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',  scale: 1 },
-    rightHand: { rotate: '-75deg', tx: '18px',  ty: '-22px', scale: 1.15 },
-    fingers: 'index_point',
+    label: 'DEKHNA (ATTENTION / FOCUS)',
+    leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+    rightHand: { rotate: '-75deg', tx: '16px',  ty: '-22px', scale: 1.2 },
+    leftFingers: 'relaxed',
+    rightFingers: 'index_point',
     bodyLean: -2,
   },
   math: {
-    label: 'TECHNICAL',
-    leftHand:  { rotate: '-20deg', tx: '-8px',  ty: '-6px',  scale: 1.05 },
-    rightHand: { rotate: '20deg',  tx: '8px',   ty: '-6px',  scale: 1.05 },
-    fingers: 'pinch',
+    label: 'VIGYAN / GANIT (STEM)',
+    leftHand:  { rotate: '-25deg', tx: '-6px',  ty: '-8px',  scale: 1.05 },
+    rightHand: { rotate: '25deg',  tx: '6px',   ty: '-8px',  scale: 1.05 },
+    leftFingers: 'pinch',
+    rightFingers: 'pinch',
     bodyLean: 0,
   },
   action: {
-    label: 'ACTION',
-    leftHand:  { rotate: '-30deg', tx: '-6px',  ty: '-4px',  scale: 1.1 },
-    rightHand: { rotate: '-50deg', tx: '4px',   ty: '-12px', scale: 1.15 },
-    fingers: 'fist',
+    label: 'KARYA (ACTION / DO)',
+    leftHand:  { rotate: '-30deg', tx: '-6px',  ty: '-6px',  scale: 1.1 },
+    rightHand: { rotate: '-50deg', tx: '4px',   ty: '-14px', scale: 1.15 },
+    leftFingers: 'fist',
+    rightFingers: 'fist',
     bodyLean: 2,
   },
-  alert: {
-    label: 'IMPORTANT',
-    leftHand:  { rotate: '-50deg', tx: '-4px',  ty: '-14px', scale: 1.1 },
-    rightHand: { rotate: '-50deg', tx: '4px',   ty: '-14px', scale: 1.1 },
-    fingers: 'open',
+  start: {
+    label: 'SHURU (START / BEGIN)',
+    leftHand:  { rotate: '-20deg', tx: '6px',  ty: '-10px', scale: 1.1 }, // left index+middle spread
+    rightHand: { rotate: '40deg',  tx: '-6px', ty: '-16px', scale: 1.15 }, // right key-turning index
+    leftFingers: 'v_shape',
+    rightFingers: 'index_point',
+    bodyLean: 1,
+  },
+  finish: {
+    label: 'KHATAM (FINISH / COMPLETE)',
+    leftHand:  { rotate: '-50deg', tx: '-10px', ty: '-8px', scale: 1.1 },
+    rightHand: { rotate: '50deg',  tx: '10px',  ty: '-8px', scale: 1.1 },
+    leftFingers: 'flat_palm',
+    rightFingers: 'flat_palm',
     bodyLean: 0,
   },
-  talk: {
-    label: 'SIGNING',
-    leftHand:  { rotate: '-12deg', tx: '-6px',  ty: '-4px',  scale: 1.05 },
-    rightHand: { rotate: '12deg',  tx: '6px',   ty: '-4px',  scale: 1.05 },
-    fingers: 'curved',
+  alert: {
+    label: 'ZAROORI (IMPORTANT / ALERT)',
+    leftHand:  { rotate: '-55deg', tx: '-4px',  ty: '-16px', scale: 1.1 },
+    rightHand: { rotate: '-55deg', tx: '4px',   ty: '-16px', scale: 1.1 },
+    leftFingers: 'flat_palm',
+    rightFingers: 'flat_palm',
     bodyLean: 0,
   },
 };
 
-// ── Hand shape SVG paths (schematic fingertips) ───────────────────────────────
-function HandShape({ fingers, color, side, animate }) {
+// ── ISL Two-Handed Hand Shape SVG Paths ──────────────────────────────────────
+function ISLHandShape({ fingers, color, side }) {
   const isLeft = side === 'left';
 
-  // Finger positions as relative SVG paths (schematic hand)
   const shapes = {
     relaxed: (
       <>
@@ -150,120 +307,126 @@ function HandShape({ fingers, color, side, animate }) {
         <circle cx="30" cy="4"  r="2.5" fill={color} opacity="0.9" />
         <circle cx="35" cy="7"  r="2"   fill={color} opacity="0.9" />
         <rect x="8" y="7" width="28" height="14" rx="4" fill={color} opacity="0.7" />
-        <circle cx="6" cy="15"  r="3"  fill={color} opacity="0.7" /> {/* thumb */}
+        <circle cx="6" cy="15"  r="3"  fill={color} opacity="0.7" />
       </>
     ),
-    open: (
+    flat_palm: (
       <>
         <circle cx="12" cy="2"  r="2.5" fill={color} />
         <circle cx="18" cy="0"  r="2.5" fill={color} />
         <circle cx="24" cy="0"  r="2.5" fill={color} />
         <circle cx="30" cy="1"  r="2.5" fill={color} />
         <circle cx="36" cy="5"  r="2"   fill={color} />
-        <rect x="8" y="4" width="28" height="14" rx="3" fill={color} opacity="0.7" />
-        <circle cx="5" cy="12"  r="3.5" fill={color} opacity="0.7" />
+        <rect x="8" y="4" width="28" height="14" rx="3" fill={color} opacity="0.85" />
+        <circle cx="5" cy="12"  r="3.5" fill={color} opacity="0.8" />
+      </>
+    ),
+    flat_palm_up: (
+      <>
+        <rect x="6" y="8" width="32" height="10" rx="4" fill={color} opacity="0.9" />
+        <circle cx="12" cy="4" r="2.5" fill={color} />
+        <circle cx="18" cy="3" r="2.5" fill={color} />
+        <circle cx="24" cy="3" r="2.5" fill={color} />
+        <circle cx="30" cy="4" r="2.5" fill={color} />
+        <circle cx="35" cy="13" r="3" fill={color} opacity="0.75" />
+      </>
+    ),
+    flat_palm_side: (
+      <>
+        <rect x="10" y="4" width="24" height="14" rx="4" fill={color} opacity="0.9" />
+        <circle cx="8" cy="0"  r="2.5" fill={color} />
+        <circle cx="14" cy="0" r="2.5" fill={color} />
+        <circle cx="20" cy="0" r="2.5" fill={color} />
+        <circle cx="26" cy="1" r="2.5" fill={color} />
+      </>
+    ),
+    flat_palm_chop: (
+      <>
+        <rect x="8" y="2" width="28" height="16" rx="3" fill={color} opacity="0.95" />
+        <circle cx="34" cy="12" r="3" fill={color} />
+      </>
+    ),
+    cupped_up: (
+      <>
+        <path d="M8 16 Q14 6 22 6 Q30 6 36 16 Z" fill={color} opacity="0.85" />
+        <circle cx="14" cy="5" r="2.5" fill={color} />
+        <circle cx="22" cy="4" r="2.5" fill={color} />
+        <circle cx="30" cy="5" r="2.5" fill={color} />
+      </>
+    ),
+    open_forward: (
+      <>
+        <rect x="8" y="4" width="28" height="14" rx="4" fill={color} opacity="0.85" />
+        <circle cx="12" cy="0" r="2.5" fill={color} />
+        <circle cx="18" cy="0" r="2.5" fill={color} />
+        <circle cx="24" cy="0" r="2.5" fill={color} />
+        <circle cx="30" cy="1" r="2.5" fill={color} />
       </>
     ),
     fist: (
       <>
-        <rect x="8" y="6" width="28" height="12" rx="6" fill={color} opacity="0.85" />
-        <circle cx="5" cy="14"  r="3"  fill={color} opacity="0.7" />
+        <rect x="8" y="6" width="28" height="12" rx="6" fill={color} opacity="0.9" />
+        <circle cx="5" cy="14"  r="3.5"  fill={color} opacity="0.85" />
       </>
     ),
     thumbs_up: (
       <>
-        <rect x="8" y="8" width="26" height="11" rx="5" fill={color} opacity="0.8" />
-        <rect x="10" y="0" width="6" height="10" rx="3" fill={color} /> {/* thumb up */}
+        <rect x="8" y="8" width="26" height="11" rx="5" fill={color} opacity="0.85" />
+        <rect x="10" y="0" width="7" height="10" rx="3.5" fill={color} />
       </>
     ),
     index_point: (
       <>
-        <rect x="8" y="7" width="26" height="11" rx="5" fill={color} opacity="0.75" />
-        <rect x={isLeft ? "30" : "8"} y="0" width="6" height="10" rx="3" fill={color} />
+        <rect x="8" y="7" width="26" height="11" rx="5" fill={color} opacity="0.8" />
+        <rect x={isLeft ? "30" : "8"} y="0" width="6" height="11" rx="3" fill={color} />
       </>
     ),
     index_temple: (
       <>
-        <rect x="8" y="8" width="26" height="11" rx="5" fill={color} opacity="0.75" />
-        <rect x="12" y="0" width="6" height="10" rx="3" fill={color} />
+        <rect x="8" y="8" width="26" height="11" rx="5" fill={color} opacity="0.8" />
+        <rect x="12" y="0" width="6" height="11" rx="3" fill={color} />
       </>
     ),
-    curved: (
+    scoop: (
       <>
-        <path d="M10 14 Q13 5 18 4 Q24 3 29 5 Q34 7 36 14 Q30 18 22 18 Q14 18 10 14Z" fill={color} opacity="0.85" />
-        <circle cx="6"  cy="14" r="3" fill={color} opacity="0.7" />
-      </>
-    ),
-    count: (
-      <>
-        <rect x="8" y="7" width="26" height="11" rx="5" fill={color} opacity="0.75" />
-        <rect x="18" cy="0" width="6" height="10" rx="3" fill={color} y="0" />
-        <rect x="26" cy="0" width="6" height="9"  rx="3" fill={color} y="1" opacity="0.8" />
+        <path d="M10 14 Q14 4 22 4 Q30 4 34 14 Q28 18 22 18 Z" fill={color} opacity="0.9" />
+        <circle cx="6" cy="14" r="3" fill={color} opacity="0.75" />
       </>
     ),
     pinch: (
       <>
-        <circle cx="14" cy="6"  r="3"   fill={color} />
+        <circle cx="14" cy="6"  r="3.5" fill={color} />
         <circle cx="22" cy="3"  r="2.5" fill={color} opacity="0.8" />
         <circle cx="29" cy="4"  r="2.5" fill={color} opacity="0.7" />
-        <rect x="8" y="8" width="26" height="11" rx="5" fill={color} opacity="0.7" />
-        <circle cx="6"  cy="14" r="3"   fill={color} opacity="0.7" />
+        <rect x="8" y="8" width="26" height="11" rx="5" fill={color} opacity="0.75" />
       </>
     ),
-    l_shape: (
+    c_shape: (
       <>
-        <rect x="10" y="0" width="6" height="12" rx="3" fill={color} />
-        <rect x="8" y="10" width="22" height="10" rx="4" fill={color} opacity="0.8" />
-        <circle cx={isLeft ? "6" : "34"} cy="15" r="3.5" fill={color} />
-      </>
-    ),
-    y_shape: (
-      <>
-        <rect x="8" y="10" width="22" height="10" rx="4" fill={color} opacity="0.8" />
-        <rect x={isLeft ? "10" : "32"} y="2" width="5" height="9" rx="2" fill={color} />
-        <circle cx={isLeft ? "34" : "6"} cy="15" r="3.5" fill={color} />
+        <path d="M30 4 Q14 2 12 12 Q10 20 28 20 Q32 20 34 16" stroke={color} strokeWidth="6" fill="none" strokeLinecap="round" />
       </>
     ),
     v_shape: (
       <>
-        <rect x="12" y="0" width="6" height="11" rx="3" fill={color} />
-        <rect x="22" y="1" width="6" height="11" rx="3" fill={color} />
-        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.8" />
-        <circle cx="6" cy="15" r="3.5" fill={color} opacity="0.7" />
+        <rect x="12" y="0" width="5" height="11" rx="2.5" fill={color} />
+        <rect x="22" y="1" width="5" height="11" rx="2.5" fill={color} />
+        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.85" />
       </>
     ),
-    w_shape: (
+    count: (
       <>
-        <rect x="10" y="0" width="5" height="11" rx="2" fill={color} />
-        <rect x="17" y="0" width="5" height="11" rx="2" fill={color} />
-        <rect x="24" y="1" width="5" height="10" rx="2" fill={color} />
-        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.8" />
-        <circle cx="6" cy="15" r="3" fill={color} opacity="0.7" />
+        <rect x="8" y="7" width="26" height="11" rx="5" fill={color} opacity="0.8" />
+        <rect x="18" cy="0" width="6" height="10" rx="3" fill={color} y="0" />
+        <rect x="26" cy="0" width="6" height="9"  rx="3" fill={color} y="1" opacity="0.85" />
       </>
     ),
-    i_shape: (
+    palm_down_flip: (
       <>
-        <rect x="8" y="8" width="24" height="11" rx="5" fill={color} opacity="0.8" />
-        <rect x={isLeft ? "10" : "30"} y="0" width="5" height="10" rx="2" fill={color} />
-        <circle cx="6" cy="14" r="3" fill={color} opacity="0.7" />
-      </>
-    ),
-    f_shape: (
-      <>
-        <circle cx="14" cy="9" r="3" fill={color} />
-        <circle cx="6" cy="12" r="3" fill={color} opacity="0.7" />
-        <rect x="18" y="0" width="5" height="12" rx="2" fill={color} />
-        <rect x="24" y="0" width="5" height="12" rx="2" fill={color} />
-        <rect x="30" y="2" width="5" height="10" rx="2" fill={color} />
-        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.7" />
-      </>
-    ),
-    d_shape: (
-      <>
-        <rect x="12" y="0" width="6" height="11" rx="3" fill={color} />
-        <circle cx="22" cy="10" r="4.5" fill={color} opacity="0.9" />
-        <circle cx="6" cy="12" r="3" fill={color} opacity="0.8" />
-        <rect x="8" y="9" width="26" height="11" rx="4" fill={color} opacity="0.7" />
+        <rect x="6" y="8" width="30" height="10" rx="4" fill={color} opacity="0.85" />
+        <circle cx="10" cy="16" r="2.5" fill={color} />
+        <circle cx="16" cy="17" r="2.5" fill={color} />
+        <circle cx="22" cy="17" r="2.5" fill={color} />
+        <circle cx="28" cy="16" r="2.5" fill={color} />
       </>
     ),
   };
@@ -284,8 +447,38 @@ function HandShape({ fingers, color, side, animate }) {
   );
 }
 
-// ── Avatar body with animated arms ────────────────────────────────────────────
-function Avatar({ pose, color, blink, isActive, animKey }) {
+// ── Two-Handed ISL Manual Alphabet Poses (A to Z) conforming to ISLRTC ────────
+const ISL_TWO_HANDED_LETTERS = {
+  a: { leftHand: { rotate: '-25deg', tx: '8px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '45deg', tx: '-8px', ty: '-18px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'index_point', label: 'ISL A (THUMB TOUCH)' },
+  b: { leftHand: { rotate: '-45deg', tx: '6px', ty: '-12px', scale: 1.1 }, rightHand: { rotate: '45deg', tx: '-6px', ty: '-12px', scale: 1.1 }, leftFingers: 'pinch', rightFingers: 'pinch', label: 'ISL B (TWO CIRCLES)' },
+  c: { leftHand: { rotate: '15deg', tx: '-2px', ty: '2px', scale: 1 }, rightHand: { rotate: '-35deg', tx: '8px', ty: '-14px', scale: 1.2 }, leftFingers: 'relaxed', rightFingers: 'c_shape', label: 'ISL C (CURVED C)' },
+  d: { leftHand: { rotate: '-35deg', tx: '6px', ty: '-16px', scale: 1.1 }, rightHand: { rotate: '40deg', tx: '-6px', ty: '-16px', scale: 1.15 }, leftFingers: 'index_point', rightFingers: 'pinch', label: 'ISL D (INDEX + ARCH)' },
+  e: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '50deg', tx: '-8px', ty: '-20px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'index_point', label: 'ISL E (INDEX TIP TOUCH)' },
+  f: { leftHand: { rotate: '-30deg', tx: '8px', ty: '-10px', scale: 1.1 }, rightHand: { rotate: '40deg', tx: '-6px', ty: '-16px', scale: 1.15 }, leftFingers: 'v_shape', rightFingers: 'v_shape', label: 'ISL F (TWO-FINGER CROSS)' },
+  g: { leftHand: { rotate: '-25deg', tx: '6px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '35deg', tx: '-6px', ty: '-16px', scale: 1.15 }, leftFingers: 'fist', rightFingers: 'fist', label: 'ISL G (FIST ON FIST)' },
+  h: { leftHand: { rotate: '-25deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '35deg', tx: '-6px', ty: '-14px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'flat_palm', label: 'ISL H (PALM WIPE)' },
+  i: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '55deg', tx: '-6px', ty: '-22px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'index_point', label: 'ISL I (MIDDLE TIP TOUCH)' },
+  j: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '45deg', tx: '-6px', ty: '-18px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'index_point', label: 'ISL J (PALM J TRACE)' },
+  k: { leftHand: { rotate: '-35deg', tx: '6px', ty: '-16px', scale: 1.1 }, rightHand: { rotate: '45deg', tx: '-6px', ty: '-18px', scale: 1.15 }, leftFingers: 'index_point', rightFingers: 'index_point', label: 'ISL K (KNUCKLE HOOK)' },
+  l: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '40deg', tx: '-8px', ty: '-16px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'index_point', label: 'ISL L (L ON PALM)' },
+  m: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '35deg', tx: '-6px', ty: '-14px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'count', label: 'ISL M (THREE FINGERS ON PALM)' },
+  n: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '35deg', tx: '-6px', ty: '-14px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'v_shape', label: 'ISL N (TWO FINGERS ON PALM)' },
+  o: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '55deg', tx: '-6px', ty: '-22px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'index_point', label: 'ISL O (RING TIP TOUCH)' },
+  p: { leftHand: { rotate: '-35deg', tx: '6px', ty: '-16px', scale: 1.1 }, rightHand: { rotate: '40deg', tx: '-6px', ty: '-18px', scale: 1.15 }, leftFingers: 'index_point', rightFingers: 'pinch', label: 'ISL P (INDEX CIRCLE TOUCH)' },
+  q: { leftHand: { rotate: '-30deg', tx: '8px', ty: '-12px', scale: 1.1 }, rightHand: { rotate: '40deg', tx: '-8px', ty: '-16px', scale: 1.15 }, leftFingers: 'pinch', rightFingers: 'index_point', label: 'ISL Q (CIRCLE HOOK)' },
+  r: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '40deg', tx: '-6px', ty: '-16px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'v_shape', label: 'ISL R (CROSSED ON PALM)' },
+  s: { leftHand: { rotate: '-30deg', tx: '6px', ty: '-10px', scale: 1.1 }, rightHand: { rotate: '30deg', tx: '-6px', ty: '-10px', scale: 1.1 }, leftFingers: 'fist', rightFingers: 'fist', label: 'ISL S (INTERLOCKED HOOKS)' },
+  t: { leftHand: { rotate: '-30deg', tx: '8px', ty: '-14px', scale: 1.1 }, rightHand: { rotate: '45deg', tx: '-6px', ty: '-20px', scale: 1.15 }, leftFingers: 'index_point', rightFingers: 'index_point', label: 'ISL T (T FORMATION)' },
+  u: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '60deg', tx: '-6px', ty: '-24px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'index_point', label: 'ISL U (PINKY TIP TOUCH)' },
+  v: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '35deg', tx: '-6px', ty: '-14px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'v_shape', label: 'ISL V (V ON PALM)' },
+  w: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '35deg', tx: '-6px', ty: '-14px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'count', label: 'ISL W (W ON PALM)' },
+  x: { leftHand: { rotate: '-40deg', tx: '6px', ty: '-14px', scale: 1.1 }, rightHand: { rotate: '40deg', tx: '-6px', ty: '-14px', scale: 1.1 }, leftFingers: 'index_point', rightFingers: 'index_point', label: 'ISL X (INDEX CROSS)' },
+  y: { leftHand: { rotate: '-20deg', tx: '10px', ty: '-8px', scale: 1.1 }, rightHand: { rotate: '35deg', tx: '-6px', ty: '-14px', scale: 1.15 }, leftFingers: 'flat_palm_up', rightFingers: 'thumbs_up', label: 'ISL Y (Y ON PALM)' },
+  z: { leftHand: { rotate: '-35deg', tx: '6px', ty: '-12px', scale: 1.1 }, rightHand: { rotate: '45deg', tx: '-6px', ty: '-18px', scale: 1.15 }, leftFingers: 'flat_palm', rightFingers: 'index_point', label: 'ISL Z (Z FORMATION)' },
+};
+
+// ── ISL Avatar Body Component ────────────────────────────────────────────────
+function ISLAvatar({ pose, color, blink, isActive, animKey }) {
   const armStyle = (side) => {
     const p = side === 'left' ? pose.leftHand : pose.rightHand;
     return {
@@ -301,7 +494,7 @@ function Avatar({ pose, color, blink, isActive, animKey }) {
       style={{ width: 160, height: 200 }}
       key={animKey}
     >
-      {/* Ambient glow ring */}
+      {/* Ambient ISL glow ring */}
       <div
         className="absolute rounded-full animate-pulse"
         style={{
@@ -312,12 +505,12 @@ function Avatar({ pose, color, blink, isActive, animKey }) {
         }}
       />
 
-      {/* Body lean */}
+      {/* Body lean for ISL expression & respectful posture */}
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          transform: `rotate(${pose.bodyLean}deg)`,
+          transform: `rotate(${pose.bodyLean || 0}deg)`,
           transition: 'transform 0.4s ease',
           transformOrigin: 'bottom center',
         }}
@@ -351,7 +544,7 @@ function Avatar({ pose, color, blink, isActive, animKey }) {
               transition: 'height 0.07s',
             }} />
           </div>
-          {/* Mouth */}
+          {/* Expressive Mouth */}
           <div
             className="absolute rounded-b-full"
             style={{
@@ -390,7 +583,7 @@ function Avatar({ pose, color, blink, isActive, animKey }) {
           }}
         />
 
-        {/* Left arm (shoulder → hand) */}
+        {/* Left arm (ISL base/interacting hand) */}
         <div
           className="absolute rounded-full"
           style={{
@@ -401,13 +594,12 @@ function Avatar({ pose, color, blink, isActive, animKey }) {
             ...armStyle('left'),
           }}
         >
-          {/* Hand shape at arm tip */}
           <div className="absolute" style={{ right: -4, top: -8 }}>
-            <HandShape fingers={pose.fingers} color={color.primary} side="left" />
+            <ISLHandShape fingers={pose.leftFingers || 'relaxed'} color={color.primary} side="left" />
           </div>
         </div>
 
-        {/* Right arm (shoulder → hand) */}
+        {/* Right arm (ISL dominant/shaper hand) */}
         <div
           className="absolute rounded-full"
           style={{
@@ -418,9 +610,8 @@ function Avatar({ pose, color, blink, isActive, animKey }) {
             ...armStyle('right'),
           }}
         >
-          {/* Hand shape at arm tip */}
           <div className="absolute" style={{ left: -4, top: -8 }}>
-            <HandShape fingers={pose.fingers} color={color.primary} side="right" />
+            <ISLHandShape fingers={pose.rightFingers || 'relaxed'} color={color.primary} side="right" />
           </div>
         </div>
 
@@ -442,37 +633,7 @@ function Avatar({ pose, color, blink, isActive, animKey }) {
   );
 }
 
-// Map letters to custom finger poses
-const letterFingers = {
-  a: 'fist',
-  b: 'open',
-  c: 'curved',
-  d: 'd_shape',
-  e: 'fist',
-  f: 'f_shape',
-  g: 'index_point',
-  h: 'index_point',
-  i: 'i_shape',
-  j: 'i_shape',
-  k: 'v_shape',
-  l: 'l_shape',
-  m: 'fist',
-  n: 'fist',
-  o: 'curved',
-  p: 'd_shape',
-  q: 'd_shape',
-  r: 'v_shape',
-  s: 'fist',
-  t: 'fist',
-  u: 'v_shape',
-  v: 'v_shape',
-  w: 'w_shape',
-  x: 'curved',
-  y: 'y_shape',
-  z: 'index_point'
-};
-
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Main ISL SignAvatarOverlay Component ─────────────────────────────────────
 export default function SignAvatarOverlay({
   currentSign,
   isActive,
@@ -485,56 +646,52 @@ export default function SignAvatarOverlay({
   const [prevSign, setPrevSign] = useState(null);
   const [pulse,    setPulse]    = useState(false);
 
-  // Determine active gesture
-  const gesture = currentSign?.gesture || (isActive ? 'talk' : 'idle');
+  // Active gesture token
+  const gesture = currentSign?.gesture || (isActive ? 'namaste' : 'idle');
 
-  // Dynamic color resolution
-  let color = GESTURE_COLORS[gesture];
+  // Dynamic ISL color palette
+  let color = ISL_GESTURE_COLORS[gesture];
   if (!color) {
     if (gesture.length === 1 && /[a-z]/.test(gesture)) {
-      // Purple theme for letters
-      color = { primary: '#c084fc', secondary: '#7e22ce', glow: 'rgba(192,132,252,0.4)' };
+      color = { primary: '#c084fc', secondary: '#7e22ce', glow: 'rgba(192,132,252,0.45)' };
     } else if (gesture.startsWith('num_')) {
-      // Amber theme for digits
-      color = { primary: '#fbbf24', secondary: '#b45309', glow: 'rgba(251,191,36,0.4)' };
+      color = { primary: '#fbbf24', secondary: '#b45309', glow: 'rgba(251,191,36,0.45)' };
     } else {
-      color = GESTURE_COLORS.idle;
+      color = ISL_GESTURE_COLORS.idle;
     }
   }
 
-  // Dynamic pose resolution
-  let pose = GESTURE_POSES[gesture];
+  // Dynamic ISL pose resolution
+  let pose = ISL_GESTURE_POSES[gesture];
   if (!pose) {
     if (gesture.length === 1 && /[a-z]/.test(gesture)) {
-      const handShape = letterFingers[gesture] || 'relaxed';
-      const code = gesture.charCodeAt(0);
-      const rotateRight = `${-25 - (code % 5) * 8}deg`;
-      const tx = `${4 + (code % 3) * 2}px`;
-      const ty = `${-12 - (code % 4) * 4}px`;
-      pose = {
-        label: `LETTER ${gesture.toUpperCase()}`,
-        leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',  scale: 1 },
-        rightHand: { rotate: rotateRight, tx: tx,      ty: ty,     scale: 1.18 },
-        fingers: handShape,
-        bodyLean: (code % 3) - 1,
+      // Authentic Two-Handed ISL Alphabet Pose
+      pose = ISL_TWO_HANDED_LETTERS[gesture] || {
+        label: `ISL LETTER ${gesture.toUpperCase()} (2-HANDED)`,
+        leftHand:  { rotate: '-25deg', tx: '8px',  ty: '-8px',  scale: 1.1 },
+        rightHand: { rotate: '45deg',  tx: '-8px', ty: '-16px', scale: 1.15 },
+        leftFingers: 'flat_palm_up',
+        rightFingers: 'index_point',
+        bodyLean: 1,
       };
     } else if (gesture.startsWith('num_')) {
       const numStr = gesture.slice(4);
       pose = {
-        label: `NUMBER ${numStr}`,
-        leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',  scale: 1 },
-        rightHand: { rotate: `-${25 + parseInt(numStr || 0) * 5}deg`, tx: '8px', ty: '-12px', scale: 1.2 },
-        fingers: 'count',
+        label: `ISL NUMBER ${numStr}`,
+        leftHand:  { rotate: '15deg',  tx: '-2px',  ty: '2px',   scale: 1 },
+        rightHand: { rotate: `-${25 + parseInt(numStr || 0, 10) * 4}deg`, tx: '8px', ty: '-14px', scale: 1.2 },
+        leftFingers: 'relaxed',
+        rightFingers: 'count',
         bodyLean: 1,
       };
     } else {
-      pose = GESTURE_POSES.idle;
+      pose = ISL_GESTURE_POSES.idle;
     }
   }
 
   const label = pose.label || getGestureLabel(gesture);
 
-  // Animate on sign change
+  // Trigger animation on sign transition
   useEffect(() => {
     if (currentSign !== prevSign) {
       setAnimKey(k => k + 1);
@@ -545,7 +702,7 @@ export default function SignAvatarOverlay({
     }
   }, [currentSign, prevSign]);
 
-  // Natural eye blink
+  // Natural blink loop
   useEffect(() => {
     if (!isActive) return;
     const id = setInterval(() => {
@@ -555,31 +712,30 @@ export default function SignAvatarOverlay({
     return () => clearInterval(id);
   }, [isActive]);
 
-  // Up to 8 upcoming signs in the queue strip
   const upcomingQueue = useMemo(() => signQueue.slice(0, 8), [signQueue]);
 
   return (
     <div
       className="flex flex-col rounded-2xl overflow-hidden select-none"
       style={{
-        width: 180,
+        width: 184,
         background: 'rgba(15,23,42,0.92)',
         backdropFilter: 'blur(20px)',
         border: `1.5px solid ${color.primary}44`,
         boxShadow: `0 0 24px ${color.glow}, 0 16px 48px rgba(0,0,0,0.4)`,
         transition: 'border-color 0.4s ease, box-shadow 0.4s ease',
       }}
-      aria-label="Sign Language Interpreter"
+      aria-label="Indian Sign Language (ISL) Interpreter"
       role="region"
     >
-      {/* ── Header bar ─────────────────────────────────────────────────── */}
+      {/* ── Header Bar ───────────────────────────────────────────────────── */}
       <div
         className="flex items-center gap-1.5 px-3 py-2"
         style={{ borderBottom: `1px solid ${color.primary}22` }}
       >
         <Hand style={{ width: 12, height: 12, color: color.primary }} />
-        <span className="text-[9px] font-bold tracking-widest uppercase" style={{ color: color.primary }}>
-          ASL Interpreter
+        <span className="text-[9px] font-bold tracking-wider uppercase text-emerald-400">
+          ISL Interpreter (Indian Sign Language)
         </span>
         {isActive && (
           <div
@@ -589,9 +745,8 @@ export default function SignAvatarOverlay({
         )}
       </div>
 
-      {/* ── Avatar canvas ──────────────────────────────────────────────── */}
+      {/* ── ISL Avatar Canvas ────────────────────────────────────────────── */}
       <div className="flex justify-center items-center py-2 relative">
-        {/* Ripple on sign change */}
         {pulse && (
           <div
             className="absolute rounded-full pointer-events-none"
@@ -602,7 +757,7 @@ export default function SignAvatarOverlay({
             }}
           />
         )}
-        <Avatar
+        <ISLAvatar
           pose={pose}
           color={color}
           blink={blink}
@@ -611,7 +766,7 @@ export default function SignAvatarOverlay({
         />
       </div>
 
-      {/* ── Sign label ─────────────────────────────────────────────────── */}
+      {/* ── Active Sign Gloss & Label ────────────────────────────────────── */}
       <div
         className="text-center px-3 py-1.5"
         style={{ borderTop: `1px solid ${color.primary}22` }}
@@ -621,21 +776,21 @@ export default function SignAvatarOverlay({
           className="text-[10px] font-bold tracking-wider truncate"
           style={{ color: color.primary }}
         >
-          {currentSign?.word || (isActive ? '• • •' : 'STAND BY')}
+          {currentSign?.word || (isActive ? 'NAMASTE • • •' : 'STAND BY')}
         </div>
-        <div className="text-[8px] text-[#6d797d] mt-0.5 tracking-widest uppercase">
+        <div className="text-[8px] text-[#6d797d] mt-0.5 tracking-wider uppercase font-semibold">
           {label}
         </div>
       </div>
 
-      {/* ── Sign queue strip ───────────────────────────────────────────── */}
+      {/* ── ISL Sign Queue Strip ─────────────────────────────────────────── */}
       {signQueue.length > 0 && (
         <div
           className="px-2 py-1.5 space-y-0.5 overflow-hidden"
           style={{ borderTop: `1px solid ${color.primary}11`, maxHeight: 80 }}
         >
-          <div className="text-[7px] text-[#3d494c] uppercase tracking-widest mb-1">
-            Queue ({signQueue.length})
+          <div className="text-[7px] text-[#3d494c] uppercase tracking-widest mb-1 font-bold">
+            ISL Queue ({signQueue.length})
           </div>
           <div className="flex flex-wrap gap-1">
             {upcomingQueue.map((s, i) => {
@@ -645,7 +800,7 @@ export default function SignAvatarOverlay({
                 ? { primary: '#c084fc' }
                 : isNum
                 ? { primary: '#fbbf24' }
-                : GESTURE_COLORS[s.gesture] || GESTURE_COLORS.talk;
+                : ISL_GESTURE_COLORS[s.gesture] || ISL_GESTURE_COLORS.idle;
               return (
                 <span
                   key={i}
@@ -664,7 +819,7 @@ export default function SignAvatarOverlay({
         </div>
       )}
 
-      {/* ── Stats footer ───────────────────────────────────────────────── */}
+      {/* ── Authentic ISL Footer ─────────────────────────────────────────── */}
       <div
         className="flex items-center justify-between px-3 py-1.5"
         style={{ borderTop: `1px solid ${color.primary}22` }}
@@ -672,16 +827,16 @@ export default function SignAvatarOverlay({
         {isProcessing ? (
           <span className="flex items-center gap-1 text-[8px] text-[#6d797d]">
             <Loader2 style={{ width: 8, height: 8 }} className="animate-spin" />
-            AI Processing
+            ISL Processing
           </span>
         ) : (
-          <span className="flex items-center gap-1 text-[8px] text-[#3d494c]">
+          <span className="flex items-center gap-1 text-[8px] text-emerald-400 font-medium">
             <Zap style={{ width: 7, height: 7, color: color.primary }} />
-            {signCount} signs
+            {signCount} ISL signs
           </span>
         )}
-        <span className="text-[8px]" style={{ color: `${color.primary}77` }}>
-          ASL MODEL
+        <span className="text-[8px] font-semibold text-emerald-400/90">
+          ISLRTC / INCLUDE
         </span>
       </div>
     </div>

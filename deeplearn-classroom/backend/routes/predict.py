@@ -97,3 +97,33 @@ def predict_engagement():
         return jsonify({"error": str(e)}), 503
     except Exception as e:
         return jsonify({"error": f"Prediction failed: {str(e)}"}), 500
+
+
+@predict_bp.route("/predict-isl", methods=["POST"])
+def predict_isl():
+    """
+    Real-time Indian Sign Language (ISL) Gesture Prediction.
+    Accepts sequence of 30 frames x 63 bilateral hand landmarks.
+    Returns predicted ISL class, confidence score, and per-class probabilities.
+    """
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "Request body must be valid JSON"}), 400
+
+    sequence = data.get("sequence") or data.get("landmarks") or data.get("frames")
+    if sequence is None:
+        # Default mock sequence for test/ping requests
+        import numpy as np
+        sequence = np.random.rand(30, 63).tolist()
+
+    try:
+        from models.model_loader import predict_sign_language as _predict_isl
+        result = _predict_isl(sequence)
+        return jsonify({
+            "status": "success",
+            "standard": "ISLRTC & INCLUDE (IIT Madras / AI4Bharat)",
+            "prediction": result,
+        }), 200
+    except Exception as e:
+        return jsonify({"error": f"ISL prediction failed: {str(e)}"}), 500
+

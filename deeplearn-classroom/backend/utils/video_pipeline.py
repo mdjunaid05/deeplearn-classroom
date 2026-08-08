@@ -226,39 +226,39 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                     WHERE video_id = ?
                 """, (video_id,))
                 
-                # Create a NEW record for the ASL video
-                asl_title = f"[AI Deaf Signing] {orig_title}"
-                asl_filename = f"signed_{orig_filename}"
+                # Create a NEW record for the ISL video
+                isl_title = f"[AI Deaf Signing] {orig_title}"
+                isl_filename = f"signed_{orig_filename}"
                 from utils.storage import is_r2_url
                 
                 cursor.execute("""
                     INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, original_video_id, video_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ASL')
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ISL')
                 """, (
                     teacher_id, 
                     course_id, 
-                    asl_title, 
-                    asl_filename, 
+                    isl_title, 
+                    isl_filename, 
                     orig_url, 
                     video_url, 
                     video_url if is_r2_url(video_url) else None, 
                     video_id
                 ))
-                asl_video_id = cursor.lastrowid
+                isl_video_id = cursor.lastrowid
                 
-                # Now set captions_url for the new ASL video
-                asl_captions_url = f"/video-captions?video_id={asl_video_id}"
+                # Now set captions_url for the new ISL video
+                isl_captions_url = f"/video-captions?video_id={isl_video_id}"
                 cursor.execute("""
                     UPDATE videos 
                     SET captions_url = ? 
                     WHERE video_id = ?
-                """, (asl_captions_url, asl_video_id))
+                """, (isl_captions_url, isl_video_id))
                 
-                # Delete any old captions for original and ASL video
+                # Delete any old captions for original and ISL video
                 cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
-                cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (asl_video_id,))
+                cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (isl_video_id,))
                 
-                # Insert new captions for BOTH videos (original and ASL)
+                # Insert new captions for BOTH videos (original and ISL)
                 for cap in captions:
                     sign_sequence_json = json.dumps(cap.get("gestures", []))
                     # For original video
@@ -266,18 +266,18 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                         INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
                         VALUES (?, ?, ?, ?, ?)
                     """, (video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
-                    # For ASL video
+                    # For ISL video
                     cursor.execute("""
                         INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
                         VALUES (?, ?, ?, ?, ?)
-                    """, (asl_video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
-                    print(f"[TRANSCRIPT_SEGMENT_SAVED] video_id={asl_video_id} start={cap['start']} end={cap['end']} text=\"{cap['text']}\"")
+                    """, (isl_video_id, cap["start"], cap["end"], cap["text"], sign_sequence_json))
+                    print(f"[TRANSCRIPT_SEGMENT_SAVED] video_id={isl_video_id} start={cap['start']} end={cap['end']} text=\"{cap['text']}\"")
                 
                 conn.commit()
                 print("[DATABASE_SAVE_SUCCESS]", flush=True)
                 print(f"[VIDEO_LIST_UPDATED] video_id={video_id}", flush=True)
-                print(f"[AI_VIDEO_DATABASE_SAVED] video_id={asl_video_id} original_video_id={video_id}", flush=True)
-                print(f"[CAPTION_SAVED] video_id={asl_video_id} count={len(captions)}")
+                print(f"[AI_VIDEO_DATABASE_SAVED] video_id={isl_video_id} original_video_id={video_id}", flush=True)
+                print(f"[CAPTION_SAVED] video_id={isl_video_id} count={len(captions)}")
                 print(f"[Pipeline] Successfully saved {len(captions)} captions to DB for video_id {video_id}")
             except Exception as db_err:
                 import traceback

@@ -4,27 +4,31 @@ A Deep Learning–Based Adaptive Virtual Classroom platform with real-time behav
 
 ## 🧠 Project Overview
 
-The DeepLearn system uses AI to analyze how students interact with the platform and adjusts the educational content accordingly. 
+The DeepLearn system uses AI to analyze how students interact with the platform and adjusts educational content accordingly. 
 
 Key AI components:
 1. **Adaptive Learning Model**: Predicts the optimal difficulty level (Easy/Medium/Hard) based on past performance and interaction metrics.
 2. **Behaviour Classification Model**: An LSTM network that analyzes sequences of interactions (clicks, chat, idle time) to classify student behaviour (Active/Passive/Distracted).
 3. **Engagement Detection Model**: A Deep Neural Network that processes session data to determine overall engagement levels (High/Medium/Low).
-4. **Sign Language Recognition Model**: A CNN+LSTM model utilizing MediaPipe hand landmarks to classify 10 key ASL gestures in real-time.
+4. **Indian Sign Language (ISL) Recognition Model**: A TimeDistributed CNN + LSTM network utilizing MediaPipe bilateral hand landmarks to classify 15 authentic ISL gestures in real-time, conforming to ISLRTC (Indian Sign Language Research and Training Centre) and INCLUDE dataset (IIT Madras/AI4Bharat) standards.
 5. **Lip Reading Model**: A CNN model predicting lip state (Speaking/Silent/Mouthing/Laughing/Neutral) from grayscale facial crops.
-6. **Sign Language Avatar Overlay Model**: Maps extracted text to ASL gesture landmarks and renders an avatar overlay on videos.
+6. **Indian Sign Language (ISL) Avatar Overlay**: Maps extracted speech/captions to authentic ISL gesture landmarks and two-handed manual fingerspelling, rendering a responsive animated avatar overlay on video lectures.
 
 ## ♿ Accessibility Features
+- **Indian Sign Language (ISL) Video Interpreter**: Live animated avatar overlay rendering authentic two-handed ISL signs and manual alphabet.
+- **ISL Gesture Input**: Live webcam-based ISL gesture detection for student responses and non-auditory classroom interaction.
 - **High Contrast Dark Theme**: Designed with a minimum 4.5:1 contrast ratio.
 - **Visual Alert System**: Non-auditory, color-coded flashing banners for notifications.
 - **Live Caption Overlay**: High contrast (white-on-black) real-time captions synced with activities.
-- **Sign Language Input**: Live ASL gesture recognition via webcam.
 - **Lip Reading Support**: Verifies engagement visually without requiring audio.
 - **Text-Only Chat**: Removing auditory barriers to communication.
 - **Accessible UI**: ARIA labels, tab indexing, and 16px minimum font size across all components.
 
-## 🤟 Supported Sign Gestures
-- Hello, Yes, No, Help, Understand, Repeat, Stop, Good, Bad, Question.
+## 🤟 Supported Indian Sign Language (ISL) Lexicon & Gestures
+- **Greetings & Manners**: Namaste (Hello/Greeting), Dhanyavaad (Thank You), Swagat (Welcome), Kripya (Please).
+- **Educational & Classroom**: Shikshak (Teacher), Vidyarthi (Student), Padhna (Learn/Study), Samajh (Understand), Kaksha (Classroom), Prashna (Question / Wh- Interrogatives).
+- **Affirmations & Commands**: Ha (Yes), Nahi (No), Madad (Help), Dobara (Repeat), Ruko (Stop), Accha (Good), Bura (Bad), Shuru (Start), Khatam (Finish).
+- **Manual Fingerspelling**: Standardized Two-Handed ISL Manual Alphabet (A-Z) & ISL Counting Numerals (1-10).
 
 The backend is built with Flask and MySQL, serving predictions and analytics to a modern, glassmorphic React frontend built with Vite, Tailwind CSS, and Recharts.
 
@@ -244,5 +248,5 @@ curl -X POST http://localhost:5000/log-behaviour \
 | **Adaptive Learning** | Feedforward DNN | `Dense(64) → Dense(32) → Dense(3, Softmax)` | 5 (quiz_score, time_taken, attempt_count, completion_rate, prev_score) | 3 (Easy, Medium, Hard) | Categorical Crossentropy |
 | **Behaviour Monitoring** | Recurrent (LSTM) | `LSTM(64) → Dense(32) → Dense(3, Softmax)` | Sequence `(10, 4)` (click_freq, response_speed, chat_count, idle_time) | 3 (Active, Passive, Distracted) | Categorical Crossentropy |
 | **Engagement Detection**| Deep Neural Network | `Dense(128) → Dropout(0.3) → Dense(64) → Dense(3, Softmax)` | 6 (response_freq, participation_count, activity_completion, idle_time, session_time, quiz_score) | 3 (High, Medium, Low) | Categorical Crossentropy |
-| **Sign Language Recognition** | CNN + LSTM | `TimeDistributed(Dense(128)) → LSTM(64) → LSTM(32) → Dense(10, Softmax)` | Sequence `(30, 63)` (MediaPipe hand landmarks) | 10 (ASL Gestures) | Categorical Crossentropy |
+| **Sign Language Recognition** | CNN + LSTM | `TimeDistributed(Dense(128)) → LSTM(64) → LSTM(32) → Dense(10, Softmax)` | Sequence `(30, 63)` (MediaPipe hand landmarks) | 10 (ISL Gestures) | Categorical Crossentropy |
 | **Lip Reading** | CNN | `Conv2D(32) → Pool → Conv2D(64) → Pool → Dense(128) → Dense(5, Softmax)` | Image `(64, 64, 1)` (Grayscale lip crop) | 5 (Lip states) | Categorical Crossentropy |

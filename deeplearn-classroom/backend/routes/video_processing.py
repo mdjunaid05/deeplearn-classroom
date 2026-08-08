@@ -342,7 +342,7 @@ def get_videos():
             video_dict["videoType"] = video_dict.get("video_type") or "original"
             video_dict["captionsUrl"] = video_dict.get("captions_url")
 
-            if video_dict.get("video_type") == "ASL":
+            if video_dict.get("video_type") == "ISL":
                 video_dict["aiSigningVideoUrl"] = video_dict.get("processed_url") or video_dict.get("r2_url")
             else:
                 video_dict["aiSigningVideoUrl"] = None
@@ -465,7 +465,7 @@ def get_classroom_videos(classroom_id):
             video_dict["videoType"] = video_dict.get("video_type") or "original"
             video_dict["captionsUrl"] = video_dict.get("captions_url")
 
-            if video_dict.get("video_type") == "ASL":
+            if video_dict.get("video_type") == "ISL":
                 video_dict["aiSigningVideoUrl"] = video_dict.get("processed_url") or video_dict.get("r2_url")
             else:
                 video_dict["aiSigningVideoUrl"] = None
@@ -581,18 +581,18 @@ def is_video_locked_for_student(video_id, student_id, filename=None):
             row = cursor.fetchone()
             if row:
                 v_id, orig_v_id, v_type = row[0], row[1], row[2]
-                if v_type == 'ASL' and orig_v_id:
+                if v_type == 'ISL' and orig_v_id:
                     video_id = orig_v_id
                 else:
                     video_id = v_id
             conn.close()
         elif video_id:
-            # Check if this is an ASL video — if so, use original_video_id for lock check
+            # Check if this is an ISL video — if so, use original_video_id for lock check
             cursor.execute("SELECT original_video_id, video_type FROM videos WHERE video_id = ?", (video_id,))
             row = cursor.fetchone()
             if row:
                 orig_v_id, v_type = row[0], row[1]
-                if v_type == 'ASL' and orig_v_id:
+                if v_type == 'ISL' and orig_v_id:
                     video_id = orig_v_id
             conn.close()
             
@@ -1315,7 +1315,7 @@ def get_video(video_id):
         video["captionsUrl"] = video.get("captions_url")
         video["createdAt"] = video.get("uploaded_at")
 
-        if video.get("video_type") == "ASL":
+        if video.get("video_type") == "ISL":
             video["aiSigningVideoUrl"] = video.get("processed_url") or video.get("r2_url")
         else:
             video["aiSigningVideoUrl"] = None
@@ -1479,61 +1479,61 @@ def upload_generated_video():
             print(f"[VIDEO_UPLOADED] video_id={video_id} url={video_url}", flush=True)
 
         # Create database record
-        asl_title = f"[AI Deaf Signing] {orig_title}"
-        asl_filename = f"signed_{orig_filename}"
+        isl_title = f"[AI Deaf Signing] {orig_title}"
+        isl_filename = f"signed_{orig_filename}"
 
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, original_video_id, video_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ASL')
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ISL')
         """, (
             teacher_id,
             course_id,
-            asl_title,
-            asl_filename,
+            isl_title,
+            isl_filename,
             orig_url,
             video_url,
             video_url if is_r2_url(video_url) else None,
             video_id
         ))
-        asl_video_id = cursor.lastrowid
+        isl_video_id = cursor.lastrowid
 
         # Set captions_url
-        asl_captions_url = f"/video-captions?video_id={asl_video_id}"
-        cursor.execute("UPDATE videos SET captions_url = ? WHERE video_id = ?", (asl_captions_url, asl_video_id))
+        isl_captions_url = f"/video-captions?video_id={isl_video_id}"
+        cursor.execute("UPDATE videos SET captions_url = ? WHERE video_id = ?", (isl_captions_url, isl_video_id))
 
-        # Copy captions from original video to ASL video if they exist
+        # Copy captions from original video to ISL video if they exist
         cursor.execute("SELECT start_time, end_time, text, sign_sequence FROM video_captions WHERE video_id = ?", (video_id,))
         caps = cursor.fetchall()
         for cap in caps:
             cursor.execute("""
                 INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence)
                 VALUES (?, ?, ?, ?, ?)
-            """, (asl_video_id, cap[0], cap[1], cap[2], cap[3]))
+            """, (isl_video_id, cap[0], cap[1], cap[2], cap[3]))
 
         conn.commit()
         conn.close()
 
-        print(f"[AI_VIDEO_DATABASE_SAVED] video_id={asl_video_id} original_video_id={video_id}", flush=True)
+        print(f"[AI_VIDEO_DATABASE_SAVED] video_id={isl_video_id} original_video_id={video_id}", flush=True)
 
         # Prepare response
         return jsonify({
             "status": "success",
             "video": {
-                "videoId": asl_video_id,
-                "video_id": asl_video_id,
+                "videoId": isl_video_id,
+                "video_id": isl_video_id,
                 "originalVideoId": video_id,
                 "original_video_id": video_id,
                 "classroomId": course_id,
                 "course_id": course_id,
-                "title": asl_title,
+                "title": isl_title,
                 "aiSigningVideoUrl": video_url,
                 "processed_url": video_url,
-                "captionsUrl": asl_captions_url,
-                "captions_url": asl_captions_url,
-                "videoType": "ASL",
-                "video_type": "ASL",
+                "captionsUrl": isl_captions_url,
+                "captions_url": isl_captions_url,
+                "videoType": "ISL",
+                "video_type": "ISL",
                 "status": "done"
             }
         })

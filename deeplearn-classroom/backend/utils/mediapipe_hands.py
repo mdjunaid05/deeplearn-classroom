@@ -1,6 +1,6 @@
 """
 MediaPipe Hands Utils
-Extracts landmarks and builds sequences for ASL recognition.
+Extracts landmarks and builds sequences for ISL recognition.
 """
 
 import numpy as np

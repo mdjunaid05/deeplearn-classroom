@@ -596,7 +596,7 @@ export default function VirtualClassroom() {
         }
       `}</style>
 
-      <div className="page-enter bg-nexus-background min-h-screen max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background" role="main" aria-label="Virtual Classroom">
+      <div className="page-enter bg-nexus-background min-h-screen max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8 text-nexus-on-background" role="main" aria-label="Virtual Classroom">
 
         {/* Visual Alert Banner */}
         <div className="mb-6 w-full max-w-3xl mx-auto">
@@ -650,10 +650,10 @@ export default function VirtualClassroom() {
         </div>
 
         {/* ── Main grid ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-7 gap-5">
 
           {/* Left / Main — 3 cols */}
-          <div className="lg:col-span-3 space-y-4">
+          <div className="lg:col-span-5 space-y-4">
 
             {/* ── Video Player stage ── */}
             <div
@@ -738,7 +738,7 @@ export default function VirtualClassroom() {
                 </div>
               )}
 
-              {/* ASL Interpreter Overlay - placed INSIDE video player */}
+              {/* ISL Interpreter Overlay - placed INSIDE video player */}
               {signLangEnabled && (
                 <div className="absolute bottom-6 right-6 z-20 sign-panel-enter">
                   <div className="interpreter-window rounded-2xl overflow-hidden">
@@ -823,7 +823,7 @@ export default function VirtualClassroom() {
                 aria-label="Toggle sign language interpreter"
               >
                 <HandMetal className="w-4 h-4" />
-                ASL Interpreter Overlay
+                ISL Interpreter Overlay
                 {signLangEnabled && signCount > 0 && (
                   <span className="ml-1 text-[10px] font-bold bg-purple-500/20 text-purple-600 px-1.5 py-0.5 rounded-full">
                     {signCount}
@@ -995,10 +995,10 @@ export default function VirtualClassroom() {
           </div>
 
           {/* ── Sidebar — 1 col ── */}
-          <div className="space-y-4">
+          <div className="lg:col-span-2 space-y-3">
 
             {/* Live Engagement */}
-            <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-4 border border-slate-200">
+            <div className="p-4 rounded-2xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-3 border border-slate-200">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider">
                   Class Engagement
@@ -1026,7 +1026,7 @@ export default function VirtualClassroom() {
             </div>
 
             {/* Behaviour Status */}
-            <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-4 border border-slate-200">
+            <div className="p-4 rounded-2xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-3 border border-slate-200">
               <h3 className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider">
                 Behaviour Status
               </h3>
@@ -1051,14 +1051,14 @@ export default function VirtualClassroom() {
             </div>
 
             {/* Session Info */}
-            <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-3 border border-slate-200">
+            <div className="p-4 rounded-2xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-2.5 border border-slate-200">
               <h3 className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider">
                 Session Info
               </h3>
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
                   <span className="text-[#6d797d]">Course</span>
-                  <span className="text-[#131b2e] font-medium truncate max-w-[150px] text-right" title={videoTitle}>{videoTitle}</span>
+                  <span className="text-[#131b2e] font-medium truncate max-w-[120px] text-right" title={videoTitle}>{videoTitle}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-[#6d797d]">Captions</span>
@@ -1073,7 +1073,7 @@ export default function VirtualClassroom() {
 
             {/* Transcript preview */}
             {transcript.length > 0 && (
-              <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-3 border border-slate-200">
+              <div className="p-4 rounded-2xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-2.5 border border-slate-200">
                 <h3 className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider">
                   Transcript ({transcript.length})
                 </h3>
@@ -1089,7 +1089,7 @@ export default function VirtualClassroom() {
             )}
 
             {/* Text Chat */}
-            <div className="p-6 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col h-[400px] border border-slate-200">
+            <div className="p-4 rounded-2xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col h-[350px] border border-slate-200">
               <div className="pb-3 border-b border-[#bcc9cd]/25 flex items-center justify-between">
                 <span className="text-xs font-semibold text-[#6d797d] uppercase tracking-wider flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-purple-500" />
@@ -1235,13 +1235,13 @@ export default function VirtualClassroom() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {(() => {
-                  const originalVideos = videos.filter(v => v.video_type !== 'ASL');
-                  const aslVideos = videos.filter(v => v.video_type === 'ASL');
+                  const originalVideos = videos.filter(v => v.video_type !== 'ISL');
+                  const islVideos = videos.filter(v => v.video_type === 'ISL');
                   
                   return originalVideos.map(video => {
-                    const aslVideo = aslVideos.find(av => av.original_video_id === video.video_id || av.originalVideoId === video.video_id);
-                    if (aslVideo) {
-                      aslVideo.is_locked = video.is_locked;
+                    const islVideo = islVideos.find(av => av.original_video_id === video.video_id || av.originalVideoId === video.video_id);
+                    if (islVideo) {
+                      islVideo.is_locked = video.is_locked;
                     }
 
                     // Play handler helper
@@ -1274,7 +1274,7 @@ export default function VirtualClassroom() {
                         videoUrl = videoUrl.replace('http:', 'https:');
                       }
                       
-                      if (v.video_type === 'ASL') {
+                      if (v.video_type === 'ISL') {
                         console.log('[AI_VIDEO_RENDERED] video_id=' + v.video_id + ' filename=' + (v.filename || ''));
                       }
 
@@ -1382,16 +1382,16 @@ export default function VirtualClassroom() {
                           </div>
                         </div>
 
-                        {/* Associated ASL Video Card */}
-                        {aslVideo && (
+                        {/* Associated ISL Video Card */}
+                        {islVideo && (
                           <div 
                             className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
                               video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
                             }`}
-                            onClick={() => playVideo(aslVideo)}
+                            onClick={() => playVideo(islVideo)}
                           >
                             {(() => {
-                              console.log('[AI_VIDEO_RENDERED] video_id=' + aslVideo.video_id + ' filename=' + (aslVideo.filename || ''));
+                              console.log('[AI_VIDEO_RENDERED] video_id=' + islVideo.video_id + ' filename=' + (islVideo.filename || ''));
                               return null;
                             })()}
                             <div className="relative aspect-video bg-slate-950 group">
@@ -1416,15 +1416,15 @@ export default function VirtualClassroom() {
                             </div>
                             
                             <div className="p-4 flex flex-col flex-1">
-                              <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={aslVideo.title}>
-                                {aslVideo.title}
+                              <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={islVideo.title}>
+                                {islVideo.title}
                               </h3>
                               <div className="space-y-1 mb-3">
                                 <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                                  Uploader: {aslVideo.uploader}
+                                  Uploader: {islVideo.uploader}
                                 </p>
                                 <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                                  Uploaded: {new Date(aslVideo.uploaded_at).toLocaleDateString()}
+                                  Uploaded: {new Date(islVideo.uploaded_at).toLocaleDateString()}
                                 </p>
                                 <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                                   Captions: <span className="text-emerald-500 font-semibold">available</span>
@@ -1433,13 +1433,13 @@ export default function VirtualClassroom() {
 
                               <div className="flex items-center justify-between pt-3 border-t border-[#bcc9cd]/25 mt-auto" onClick={(e) => e.stopPropagation()}>
                                 <button
-                                  onClick={() => playVideo(aslVideo)}
+                                  onClick={() => playVideo(islVideo)}
                                   className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
                                 >
                                   <Play className="w-3 h-3 fill-purple-600" /> Play
                                 </button>
                                 <a
-                                  href={getDownloadUrl(aslVideo)}
+                                  href={getDownloadUrl(islVideo)}
                                   download
                                   className="text-xs font-bold text-purple-500 hover:text-purple-600 flex items-center gap-1"
                                 >

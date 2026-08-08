@@ -22,16 +22,46 @@ if exist "%ROOT_DIR%deeplearn-classroom\backend" (
 )
 
 echo [1/2] Starting Flask Backend Server...
-start "DeepLearn Backend" cmd /k "cd /d "%BACKEND_DIR%" && (if exist venv\Scripts\activate.bat call venv\Scripts\activate.bat) && python app.py"
+echo       Backend dir: %BACKEND_DIR%
+
+REM Create a temporary launcher script for the backend to avoid quoting issues
+set "BACKEND_LAUNCHER=%TEMP%\deeplearn_backend_launcher.bat"
+(
+    echo @echo off
+    echo title DeepLearn Backend
+    echo cd /d "%BACKEND_DIR%"
+    echo if exist venv\Scripts\activate.bat call venv\Scripts\activate.bat
+    echo python app.py
+    echo echo.
+    echo echo [Backend exited. Press any key to close.]
+    echo pause
+) > "%BACKEND_LAUNCHER%"
+start "DeepLearn Backend" cmd /k "%BACKEND_LAUNCHER%"
+
+REM Wait a moment for backend to start before launching frontend
+timeout /t 3 /nobreak > nul
 
 echo [2/2] Starting React Frontend Server...
-start "DeepLearn Frontend" cmd /k "cd /d "%FRONTEND_DIR%" && npm run dev"
+echo       Frontend dir: %FRONTEND_DIR%
+
+REM Create a temporary launcher script for the frontend
+set "FRONTEND_LAUNCHER=%TEMP%\deeplearn_frontend_launcher.bat"
+(
+    echo @echo off
+    echo title DeepLearn Frontend
+    echo cd /d "%FRONTEND_DIR%"
+    echo npm run dev
+    echo echo.
+    echo echo [Frontend exited. Press any key to close.]
+    echo pause
+) > "%FRONTEND_LAUNCHER%"
+start "DeepLearn Frontend" cmd /k "%FRONTEND_LAUNCHER%"
 
 echo.
 echo ======================================================================
 echo   Services launched in separate windows:
 echo   - Backend API:  http://localhost:5000
-echo   - Frontend UI:   http://localhost:5173 (or http://localhost:3000)
+echo   - Frontend UI:  http://localhost:3000
 echo ======================================================================
 echo.
 pause

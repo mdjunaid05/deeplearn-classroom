@@ -481,11 +481,11 @@ def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
             # Check if a signed version exists in processed/
             processed_key = f"processed/signed_{filename}"
             processed_url = orig_url
-            has_asl = False
+            has_isl = False
             try:
                 client.head_object(Bucket=R2_BUCKET_NAME, Key=processed_key)
                 processed_url = get_public_url(processed_key)
-                has_asl = True
+                has_isl = True
             except Exception:
                 pass
 
@@ -500,30 +500,30 @@ def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
                     1, 1, ?, ?, ?, ?, ?, 'done', 
                     'original', 'Cloudflare R2 synced video lesson.', 'Published', ?, 'available', ?
                 )
-            """, (title_clean, filename, orig_url, processed_url, orig_url, file_size, 'available' if has_asl else 'pending'))
+            """, (title_clean, filename, orig_url, processed_url, orig_url, file_size, 'available' if has_isl else 'pending'))
             orig_id = cursor.lastrowid
             synced_count += 1
 
-            # If ASL video exists, insert ASL video record
-            if has_asl:
-                asl_title = f"[AI Deaf Signing] {title_clean}"
-                asl_filename = f"signed_{filename}"
+            # If ISL video exists, insert ISL video record
+            if has_isl:
+                isl_title = f"[AI Deaf Signing] {title_clean}"
+                isl_filename = f"signed_{filename}"
                 cursor.execute("""
                     INSERT INTO videos (
                         teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, 
                         original_video_id, video_type, description, visibility, captions_url, caption_status, signing_status
                     ) VALUES (
                         1, 1, ?, ?, ?, ?, ?, 'done', 
-                        ?, 'ASL', 'Cloudflare R2 synced AI ASL video.', 'Published', ?, 'available', 'available'
+                        ?, 'ISL', 'Cloudflare R2 synced AI ISL video.', 'Published', ?, 'available', 'available'
                     )
-                """, (asl_title, asl_filename, orig_url, processed_url, processed_url, orig_id, f"/video-captions?video_id={orig_id + 1}"))
+                """, (isl_title, isl_filename, orig_url, processed_url, processed_url, orig_id, f"/video-captions?video_id={orig_id + 1}"))
                 synced_count += 1
 
             # Add default demo captions for this video
             demo_captions = [
                 (0.0, 5.0, f"Welcome to this lesson: {title_clean}."),
                 (5.0, 10.0, "This video lesson is powered by Lumina Smart Virtual Classroom."),
-                (10.0, 15.0, "Auto-generated captions and ASL translation enabled.")
+                (10.0, 15.0, "Auto-generated captions and ISL translation enabled.")
             ]
             for start, end, text in demo_captions:
                 sign_seq = json.dumps(["hello", "welcome", "learn"])

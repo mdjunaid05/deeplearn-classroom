@@ -1823,7 +1823,7 @@ export default function TeacherDashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#bcc9cd]/15">
-                    {videos.filter(v => v.video_type !== 'ASL').map(video => (
+                    {videos.filter(v => v.video_type !== 'ISL').map(video => (
                       <tr key={video.video_id} className={`hover:bg-slate-50/50 transition-colors ${video.archived ? 'opacity-50' : ''}`}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
@@ -1838,7 +1838,7 @@ export default function TeacherDashboard() {
                         </td>
                         <td className="px-4 py-3">
                           <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                            video.video_type === 'ASL' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                            video.video_type === 'ISL' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
                           }`}>
                             {video.video_type || 'original'}
                           </span>

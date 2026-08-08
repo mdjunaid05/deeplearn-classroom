@@ -285,7 +285,7 @@ export default function VideoUpload() {
             <UploadCloud className="w-8 h-8 text-[#00687a]" aria-hidden="true" />
             Sign Language Video Pipeline
           </h1>
-          <p className="text-[#3d494c] mt-1">Upload lesson videos to automatically extract captions and render an ASL avatar overlay.</p>
+          <p className="text-[#3d494c] mt-1">Upload lesson videos to automatically extract captions and render an ISL avatar overlay.</p>
         </div>
       </div>
 

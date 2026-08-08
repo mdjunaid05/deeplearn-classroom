@@ -1,36 +1,38 @@
 """
-Engagement Detection Model — Deep Neural Network
-Predicts engagement level: High / Medium / Low
-Input features (6): response_freq, participation_count, activity_completion,
-                     idle_time, session_time, quiz_score
+Engagement Model — Multiclass Neural Classifier
+Predicts High / Medium / Low engagement level.
 """
 
-from tensorflow import keras
-from tensorflow.keras import layers
+import numpy as np
+import torch
+import torch.nn as nn
 
 
-def build_engagement_model(input_dim=6, num_classes=3):
-    """
-    DNN with dropout for engagement detection.
-    Architecture: Dense(128, relu) → Dropout(0.3) → Dense(64, relu) → Dense(3, softmax)
-    """
-    model = keras.Sequential([
-        layers.Input(shape=(input_dim,), name="engagement_input"),
-        layers.Dense(128, activation="relu", name="dense_1"),
-        layers.Dropout(0.3, name="dropout_1"),
-        layers.Dense(64, activation="relu", name="dense_2"),
-        layers.Dense(num_classes, activation="softmax", name="output"),
-    ], name="engagement_detection_model")
+class EngagementNNModel(nn.Module):
+    def __init__(self, input_dim: int = 6, num_classes: int = 3):
+        super().__init__()
+        self.input_dim = input_dim
+        self.num_classes = num_classes
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, num_classes),
+            nn.Softmax(dim=-1),
+        )
 
-    model.compile(
-        optimizer="adam",
-        loss="categorical_crossentropy",
-        metrics=["accuracy"],
-    )
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x)
 
-    return model
+
+def build_engagement_model(input_dim: int = 6, num_classes: int = 3) -> EngagementNNModel:
+    return EngagementNNModel(input_dim=input_dim, num_classes=num_classes)
 
 
 if __name__ == "__main__":
     model = build_engagement_model()
-    model.summary()
+    print(f"[OK] Engagement model created: {type(model).__name__}")
+    dummy_input = torch.randn(2, 6)
+    out = model(dummy_input)
+    print(f"[OK] Engagement output shape: {out.shape}")
