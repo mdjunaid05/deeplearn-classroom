@@ -27,55 +27,25 @@ def _resolve_path(filename):
 
 def load_model(model_name):
     """
-    Load a model (.pkl or .h5) by name (without extension).
+    Load a Keras .h5 model by name (without extension).
     Caches the model after first load.
     """
+    if not HAS_TENSORFLOW:
+        return None
+
     if model_name in _model_cache:
         return _model_cache[model_name]
 
-    # Try .pkl first (scikit-learn / joblib / pickle)
-    pkl_path = _resolve_path(f"{model_name}.pkl")
-    if os.path.exists(pkl_path):
-        try:
-            with open(pkl_path, "rb") as f:
-                model = pickle.load(f)
-            _model_cache[model_name] = model
-            return model
-        except Exception:
-            pass
+    path = _resolve_path(f"{model_name}.h5")
+    if not os.path.exists(path):
+        return None
 
-    # Try .h5 next (Keras / TensorFlow)
-    if HAS_TENSORFLOW and keras is not None:
-        h5_path = _resolve_path(f"{model_name}.h5")
-        if os.path.exists(h5_path):
-            try:
-                model = keras.models.load_model(h5_path)
-                _model_cache[model_name] = model
-                return model
-            except Exception:
-                pass
-
-    return None
-
-
-def _get_probabilities(model, X):
-    """
-    Unified probability extractor for Scikit-Learn, PyTorch, and Keras models.
-    """
     try:
-        if hasattr(model, "predict_proba"):
-            probs = model.predict_proba(X)
-            return np.asarray(probs)[0]
-        elif hasattr(model, "predict"):
-            try:
-                probs = model.predict(X, verbose=0)
-            except TypeError:
-                probs = model.predict(X)
-            return np.asarray(probs)[0]
+        model = keras.models.load_model(path)
+        _model_cache[model_name] = model
+        return model
     except Exception:
-        pass
-    return None
-
+        return None
 
 
 def load_scaler(scaler_name):
@@ -137,9 +107,7 @@ def predict_difficulty(features):
     X = np.array([[features[k] for k in feature_order]])
     X_scaled = scaler.transform(X)
 
-    probs = _get_probabilities(model, X_scaled)
-    if probs is None or len(probs) < len(labels):
-        probs = [0.1, 0.7, 0.2]
+    probs = model.predict(X_scaled, verbose=0)[0]
     predicted_idx = int(np.argmax(probs))
 
     return {
@@ -190,9 +158,7 @@ def predict_engagement(features):
     X = np.array([[features[k] for k in feature_order]])
     X_scaled = scaler.transform(X)
 
-    probs = _get_probabilities(model, X_scaled)
-    if probs is None or len(probs) < len(labels):
-        probs = [0.7, 0.2, 0.1]
+    probs = model.predict(X_scaled, verbose=0)[0]
     predicted_idx = int(np.argmax(probs))
 
     return {
@@ -255,77 +221,138 @@ def predict_behaviour(sequence):
     }
 
 
+def _load_isl_labels(label_file):
+    """Load ISL label mapping from JSON file."""
+    import json
+    path = _resolve_path(label_file)
+    if not os.path.exists(path):
+        return None
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+# ISL confidence threshold — below this, return "Sign not recognized"
+ISL_CONFIDENCE_THRESHOLD = 0.5
+
+# Default ISL alphabet labels (a-z) used when label JSON is unavailable
+_DEFAULT_ISL_ALPHABET_LABELS = {str(i): chr(ord('A') + i) for i in range(26)}
+
+# Default ISL word labels from the Kaggle dataset
+_DEFAULT_ISL_WORD_LABELS = {str(i): w for i, w in enumerate([
+    "afternoon", "animal", "bad", "beautiful", "big", "bird", "blind", "cat",
+    "cheap", "clothing", "cold", "cow", "curved", "deaf", "dog", "dress",
+    "dry", "evening", "expensive", "famous", "fast", "female", "fish", "flat",
+    "friday", "good", "happy", "hat", "healthy", "horse", "hot", "hour",
+    "light", "long", "loose", "loud", "minute", "monday", "month", "morning",
+    "mouse", "narrow", "new", "night", "old", "pant", "pocket", "quiet",
+    "sad", "saturday", "second", "shirt", "shoes", "short", "sick", "skirt",
+    "slow", "small", "suit", "sunday", "tall", "thursday", "time", "today",
+    "tomorrow", "tuesday", "t_shirt", "ugly", "warm", "wednesday", "week",
+    "wet", "wide", "year", "yesterday", "young",
+])}
+
+
+def predict_isl_alphabet(image):
+    """
+    Predict ISL alphabet letter from a hand gesture image.
+    image: array of shape (128, 128, 1) — grayscale, normalized to [0, 1]
+    Returns: dict with language, prediction, and confidence score.
+    """
+    model = load_model("isl_alphabet_model")
+    label_map = _load_isl_labels("isl_alphabet_labels.json") or _DEFAULT_ISL_ALPHABET_LABELS
+
+    if model is None:
+        return {
+            "language": "ISL",
+            "prediction": "Sign not recognized",
+            "confidence": 0.0,
+            "model_loaded": False,
+        }
+
+    X = np.array(image, dtype=np.float32).reshape(1, 128, 128, 1)
+
+    probs = model.predict(X, verbose=0)[0]
+    predicted_idx = int(np.argmax(probs))
+    confidence = float(probs[predicted_idx])
+
+    if confidence < ISL_CONFIDENCE_THRESHOLD:
+        return {
+            "language": "ISL",
+            "prediction": "Sign not recognized",
+            "confidence": confidence,
+            "model_loaded": True,
+        }
+
+    label = label_map.get(str(predicted_idx), f"class_{predicted_idx}")
+
+    return {
+        "language": "ISL",
+        "prediction": label.upper(),
+        "confidence": confidence,
+        "model_loaded": True,
+    }
+
+
+def predict_isl_word(frames):
+    """
+    Predict ISL word from a sequence of video frames.
+    frames: array of shape (8, 128, 128, 3) — RGB, normalized to [0, 1]
+    Returns: dict with language, prediction, and confidence score.
+    """
+    model = load_model("isl_words_model")
+    label_map = _load_isl_labels("isl_word_labels.json") or _DEFAULT_ISL_WORD_LABELS
+
+    if model is None:
+        return {
+            "language": "ISL",
+            "prediction": "Sign not recognized",
+            "confidence": 0.0,
+            "model_loaded": False,
+        }
+
+    X = np.array(frames, dtype=np.float32).reshape(1, 8, 128, 128, 3)
+
+    probs = model.predict(X, verbose=0)[0]
+    predicted_idx = int(np.argmax(probs))
+    confidence = float(probs[predicted_idx])
+
+    if confidence < ISL_CONFIDENCE_THRESHOLD:
+        return {
+            "language": "ISL",
+            "prediction": "Sign not recognized",
+            "confidence": confidence,
+            "model_loaded": True,
+        }
+
+    label = label_map.get(str(predicted_idx), f"class_{predicted_idx}")
+
+    return {
+        "language": "ISL",
+        "prediction": label.upper(),
+        "confidence": confidence,
+        "model_loaded": True,
+    }
+
+
 def predict_sign_language(sequence):
     """
-    Predict Indian Sign Language (ISL) gesture from sequence of hand landmarks.
-    Trained on ISLRTC and INCLUDE standard gestures.
-    sequence: array-like of shape (30, 63) or list of frames
-    Returns: dict with label, confidence score, and per-class probabilities.
+    Legacy wrapper — redirects to ISL alphabet prediction.
+    Kept for backward compatibility with existing endpoints.
     """
-    model = load_scaler("isl_model")
-    scaler = load_scaler("isl_scaler")
-    le = load_scaler("isl_label_encoder")
-    
-    labels = [
-        "Namaste",
-        "Dhanyavaad",
-        "Swagat",
-        "Ha (Yes)",
-        "Nahi (No)",
-        "Madad (Help)",
-        "Samajh (Understand)",
-        "Dobara (Repeat)",
-        "Ruko (Stop)",
-        "Accha (Good)",
-        "Bura (Bad)",
-        "Prashna (Question)",
-        "Padhna (Learn)",
-        "Shikshak (Teacher)",
-        "Vidyarthi (Student)",
-    ]
+    # If the input looks like an image (3+ dims), use alphabet model
+    arr = np.array(sequence)
+    if arr.ndim >= 2 and arr.shape[-1] != 63:
+        return predict_isl_alphabet(arr)
 
-    try:
-        seq_arr = np.array(sequence, dtype=np.float64)
-        if seq_arr.ndim == 1:
-            if len(seq_arr) == 63:
-                seq_arr = np.tile(seq_arr, (30, 1))
-            else:
-                seq_arr = seq_arr.reshape(-1, 63)
-        if seq_arr.shape[0] < 30:
-            pad = np.zeros((30 - seq_arr.shape[0], 63))
-            seq_arr = np.vstack([pad, seq_arr])
-        elif seq_arr.shape[0] > 30:
-            seq_arr = seq_arr[-30:]
-
-        if model is not None and scaler is not None and le is not None:
-            mean_f = np.mean(seq_arr, axis=0)
-            std_f = np.std(seq_arr, axis=0)
-            max_f = np.max(seq_arr, axis=0)
-            diff_f = np.diff(seq_arr, axis=0)
-            mean_diff = np.mean(diff_f, axis=0)
-            feat = np.hstack([mean_f, std_f, max_f, mean_diff]).reshape(1, -1)
-            feat_scaled = scaler.transform(feat)
-            
-            probs = model.predict_proba(feat_scaled)[0]
-            pred_idx = int(np.argmax(probs))
-            pred_label = str(le.classes_[pred_idx])
-            
-            return {
-                "predicted_label": pred_label,
-                "confidence": float(probs[pred_idx]),
-                "probabilities": {str(cls_name): float(p) for cls_name, p in zip(le.classes_, probs)},
-                "standard": "ISLRTC & INCLUDE (IIT Madras / AI4Bharat)",
-            }
-    except Exception:
-        pass
-
-    # Deterministic fallback when raw features differ
-    seq_sum = float(np.sum(sequence)) if sequence is not None else 0.0
-    idx = int(abs(hash(str(seq_sum))) % len(labels))
+    # Otherwise fallback to ISL alphabet with a dummy prediction
     return {
-        "predicted_label": labels[idx],
-        "confidence": 0.94,
-        "standard": "ISLRTC & INCLUDE (IIT Madras / AI4Bharat)",
+        "language": "ISL",
+        "prediction": "Sign not recognized",
+        "confidence": 0.0,
+        "model_loaded": False,
     }
 
 

@@ -1,8 +1,9 @@
 """
-Accessibility Routes — /recognize-sign, /recognize-lip, /generate-caption
+Accessibility Routes — /recognize-sign, /recognize-lip, /generate-caption, /api/isl/predict
 """
 
 import time
+import numpy as np
 from flask import Blueprint, request, jsonify
 
 accessibility_bp = Blueprint("accessibility", __name__)
@@ -10,30 +11,119 @@ accessibility_bp = Blueprint("accessibility", __name__)
 @accessibility_bp.route("/recognize-sign", methods=["POST"])
 def recognize_sign():
     """
-    Predict sign language gesture.
-    Expects JSON: { "sequence": [...] }
+    Predict ISL sign language gesture.
+    Accepts JSON: { "sequence": [...] } or { "image": "<base64>" }
     """
     data = request.get_json(silent=True)
-    if not data or "sequence" not in data:
-        return jsonify({"error": "Missing sequence"}), 400
+    if not data:
+        return jsonify({"error": "Missing JSON body"}), 400
 
     try:
-        from models.model_loader import predict_sign_language
-        # Assuming sequence is a list of 30 frames of 63 landmarks
-        sequence = data["sequence"]
-        
-        # We need a proper shape of 30x63, if mock data, just pad/truncate
-        from utils.mediapipe_hands import build_sequence
-        seq_processed = build_sequence(sequence)
+        # New ISL image-based prediction
+        if "image" in data:
+            from models.model_loader import predict_isl_alphabet
+            from utils.mediapipe_hands import preprocess_image_for_isl
+            image = preprocess_image_for_isl(data["image"])
+            result = predict_isl_alphabet(image)
+            return jsonify({
+                "status": "success",
+                "language": "ISL",
+                "gesture": result["prediction"],
+                "confidence": result["confidence"],
+            })
 
+        # Legacy sequence-based prediction (backward compat)
+        if "sequence" not in data:
+            return jsonify({"error": "Missing 'image' or 'sequence'"}), 400
+
+        from models.model_loader import predict_sign_language
+        from utils.mediapipe_hands import build_sequence
+        seq_processed = build_sequence(data["sequence"])
         result = predict_sign_language(seq_processed)
         return jsonify({
             "status": "success",
-            "gesture": result["predicted_label"],
-            "confidence": result["confidence"],
+            "language": "ISL",
+            "gesture": result.get("prediction", result.get("predicted_label", "Sign not recognized")),
+            "confidence": result.get("confidence", 0.0),
         })
     except Exception as e:
         return jsonify({"error": f"Sign recognition failed: {str(e)}"}), 500
+
+
+@accessibility_bp.route("/api/isl/predict", methods=["POST"])
+def isl_predict():
+    """
+    ISL alphabet prediction endpoint.
+
+    Input:
+      - JSON: { "image": "<base64 image data>" }
+      - Or file upload: form-data with key "image"
+
+    Output:
+      {
+        "language": "ISL",
+        "prediction": "A",
+        "confidence": 0.94
+      }
+    """
+    try:
+        from models.model_loader import predict_isl_alphabet
+        from utils.mediapipe_hands import preprocess_image_for_isl
+
+        image_data = None
+
+        # Check for JSON body
+        data = request.get_json(silent=True)
+        if data and "image" in data:
+            image_data = data["image"]
+
+        # Check for file upload
+        if image_data is None and "image" in request.files:
+            image_data = request.files["image"].read()
+
+        if image_data is None:
+            return jsonify({"error": "No image provided. Send base64 JSON or file upload."}), 400
+
+        processed = preprocess_image_for_isl(image_data)
+        result = predict_isl_alphabet(processed)
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": f"ISL prediction failed: {str(e)}"}), 500
+
+
+@accessibility_bp.route("/api/isl/predict-word", methods=["POST"])
+def isl_predict_word():
+    """
+    ISL word prediction endpoint (video-based).
+
+    Input:
+      - File upload: form-data with key "video"
+
+    Output:
+      {
+        "language": "ISL",
+        "prediction": "HELLO",
+        "confidence": 0.87
+      }
+    """
+    try:
+        from models.model_loader import predict_isl_word
+        from utils.mediapipe_hands import extract_video_frames
+
+        if "video" not in request.files:
+            return jsonify({"error": "No video file provided. Upload with key 'video'."}), 400
+
+        video_bytes = request.files["video"].read()
+        frames = extract_video_frames(video_bytes, max_frames=8, img_size=128)
+        result = predict_isl_word(frames)
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": f"ISL word prediction failed: {str(e)}"}), 500
+
 
 @accessibility_bp.route("/recognize-lip", methods=["POST"])
 def recognize_lip():

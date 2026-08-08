@@ -1,47 +1,48 @@
 """
-Sign Injector Utility — Indian Sign Language (ISL) Edition
-Maps transcribed speech text into authentic Indian Sign Language gesture sequences.
-Conforms to ISLRTC (Indian Sign Language Research and Training Centre) and INCLUDE dataset lexicons.
+Sign Injector Utility
+Maps transcribed text to sign language gesture sequences.
+Each word is mapped to a known ISL sign or fingerspelled letter-by-letter.
 """
 import re
 
-# Comprehensive authentic Indian Sign Language (ISL) vocabulary & glosses
+# Known ISL signs dictionary — maps English words to gesture labels.
+# Based on the 76-word ISL dataset (kaushikyh/indian-sign-language-words-with-landmarks)
+# plus the 26 ISL alphabet letters.
 ISL_SIGNS = {
-    # Greetings & Social
-    "namaste", "namaskar", "pranam", "hello", "hi", "welcome", "swagat",
-    "thank", "thanks", "dhanyavaad", "shukriya", "please", "kripya",
-    "sorry", "help", "madad", "sahayata",
-
-    # Education & Classroom
-    "learn", "study", "padhna", "teach", "teacher", "shikshak", "guru",
-    "student", "vidyarthi", "class", "classroom", "kaksha", "school",
-    "book", "read", "write", "question", "prashna", "sawal", "answer",
-    "test", "quiz", "exam", "pariksha",
-
-    # Affirmation & Negation
-    "yes", "ha", "haan", "correct", "right", "sahi", "good", "accha", "great",
-    "no", "nahi", "na", "wrong", "galat", "bad", "bura", "error",
-    "stop", "ruko", "repeat", "dobara", "phir",
-
-    # Cognition & Understanding
-    "understand", "samajh", "think", "sochna", "know", "pata", "remember",
-    "yaad", "forget", "bhoolna", "start", "shuru", "finish", "khatam",
-
-    # Question markers (ISL Wh- interrogatives)
-    "what", "kya", "where", "kaha", "when", "kab", "why", "kyun", "how", "kaise",
-    "who", "kaun",
-
-    # STEM & Modern Academic Terminology
-    "computer", "network", "data", "model", "train", "neural", "deep",
-    "machine", "artificial", "intelligence", "science", "vigyan", "math", "ganit",
-    "number", "ginti", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten",
-
-    # Time & General
-    "today", "tomorrow", "yesterday", "now", "later", "time", "day", "week", "month", "year",
+    # From the ISL words dataset (76 words)
+    "afternoon", "animal", "bad", "beautiful", "big", "bird", "blind", "cat",
+    "cheap", "clothing", "cold", "cow", "curved", "deaf", "dog", "dress",
+    "dry", "evening", "expensive", "famous", "fast", "female", "fish", "flat",
+    "friday", "good", "happy", "hat", "healthy", "horse", "hot", "hour",
+    "light", "long", "loose", "loud", "minute", "monday", "month", "morning",
+    "mouse", "narrow", "new", "night", "old", "pant", "pocket", "quiet",
+    "sad", "saturday", "second", "shirt", "shoes", "short", "sick", "skirt",
+    "slow", "small", "suit", "sunday", "tall", "thursday", "time", "today",
+    "tomorrow", "tuesday", "ugly", "warm", "wednesday", "week", "wet", "wide",
+    "year", "yesterday", "young",
+    # Common classroom/educational words (mapped via gesture categories)
+    "hello", "welcome", "thank", "thanks", "you", "please", "sorry", "help",
+    "learn", "study", "teach", "teacher", "student", "class", "school",
+    "now", "later", "again",
+    "great", "angry", "tired",
+    "yes", "no", "maybe", "what", "where", "when", "who", "why", "how",
+    "name", "my", "your", "we", "they", "he", "she", "it",
+    "book", "read", "write", "question", "answer", "test", "quiz",
+    "computer", "network", "data", "model", "train", "neural",
+    "deep", "machine", "artificial", "intelligence",
+    "understand", "think", "know", "remember", "forget",
+    "start", "stop", "finish", "begin", "end",
+    "see", "look", "watch", "listen", "speak", "talk", "sign",
+    "right", "wrong", "correct", "try",
+    "work", "practice", "example", "show",
+    "more", "less", "all", "some", "none",
+    "day",
+    "number", "one", "two", "three", "four", "five",
+    "color", "red", "blue", "green", "white", "black",
 }
 
-# ISL Grammar Stopwords (filtered out as ISL uses Topic-Comment / SOV syntax)
-ISL_STOPWORDS = {
+# Common stopwords to skip in sign language (conveyed through context/expression)
+STOPWORDS = {
     "a", "an", "the", "is", "am", "are", "was", "were", "be", "been",
     "being", "have", "has", "had", "do", "does", "did", "will", "would",
     "could", "should", "shall", "can", "may", "might", "must",
@@ -54,37 +55,40 @@ ISL_STOPWORDS = {
 
 def text_to_gesture_sequence(text):
     """
-    Converts a text string into an Indian Sign Language (ISL) gesture sequence.
+    Converts a text string into a list of gesture tokens.
 
     Each token is either:
-      - A standardized ISL sign word (e.g., "NAMASTE", "DHANYAVAAD", "SAMAJH", "PADHNA")
-      - An ISL two-handed fingerspelled token marked as "ISL_FS:WORD" for unknown words
+      - A known ISL sign word (e.g., "HELLO", "GOOD")
+      - A fingerspelled word marked as "FS:WORD" for unknown words
 
-    Returns: list of ISL gesture tokens
+    Stopwords are filtered out as ISL grammar doesn't use them.
+
+    Returns: list of gesture token strings
     """
+    # Clean and tokenize
     cleaned = re.sub(r'[^\w\s]', '', text).lower()
     words = cleaned.split()
 
     gestures = []
     for word in words:
-        if not word or word in ISL_STOPWORDS:
+        if not word or word in STOPWORDS:
             continue
 
         if word in ISL_SIGNS:
             gestures.append(word.upper())
         else:
-            # Fall back to authentic ISL two-handed manual fingerspelling
-            gestures.append(f"ISL_FS:{word.upper()}")
+            # Fingerspell unknown words
+            gestures.append(f"FS:{word.upper()}")
 
     return gestures
 
 
 def get_gesture_duration(gesture):
     """
-    Estimate duration of an ISL gesture in seconds.
-    Direct signs take ~0.75s; two-handed fingerspelling takes ~0.25s per letter.
+    Estimate how long a gesture takes to perform (in seconds).
+    Known signs take ~0.8s, fingerspelled words take ~0.3s per letter.
     """
-    if gesture.startswith("ISL_FS:") or gesture.startswith("FS:"):
-        word = gesture.split(":")[-1]
-        return max(0.5, len(word) * 0.25)
-    return 0.75
+    if gesture.startswith("FS:"):
+        word = gesture[3:]
+        return max(0.5, len(word) * 0.3)
+    return 0.8

@@ -24,7 +24,7 @@ CREATE TABLE students (
     email               VARCHAR(255)  NOT NULL UNIQUE,
     password_hash       VARCHAR(255)  NOT NULL,
     disability_type     VARCHAR(100)  DEFAULT 'Hearing-Impaired',
-    preferred_language  ENUM('ISL', 'BSL') DEFAULT 'ISL',
+    preferred_language  ENUM('ASL', 'ISL', 'BSL') DEFAULT 'ISL',
     enrolled_at         DATETIME      DEFAULT CURRENT_TIMESTAMP,
     profilePhoto        VARCHAR(255)  DEFAULT NULL,
     age                 INT           DEFAULT NULL,
