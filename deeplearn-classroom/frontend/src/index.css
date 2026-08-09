@@ -225,3 +225,61 @@ video::-moz-full-screen-button {
   border-left: 4px solid #00687a;
 }
 
+/* ── ISL Interpreter Panel — Responsive Sizing ────────────────────────────── */
+
+/* Avatar body container — desktop default (large upper body) */
+.isl-avatar-body {
+  width: 280px;
+  height: 280px;
+}
+
+/* Signing stage — ensures 70-80% of panel is the avatar area */
+.isl-signing-stage {
+  min-height: 300px;
+}
+
+/* Interpreter panel — smooth transitions */
+.isl-interpreter-panel {
+  transition: box-shadow 0.4s ease, border-color 0.4s ease;
+}
+.isl-interpreter-panel:hover {
+  box-shadow: 0 12px 40px rgba(0,0,0,0.08), 0 0 0 1px rgba(0,0,0,0.03);
+}
+
+/* Tablet — medium-large upper body */
+@media (max-width: 1280px) {
+  .isl-avatar-body {
+    width: 230px;
+    height: 230px;
+  }
+  .isl-signing-stage {
+    min-height: 250px;
+  }
+}
+
+/* Small tablet — medium upper body */
+@media (max-width: 1024px) {
+  .isl-avatar-body {
+    width: 200px;
+    height: 200px;
+  }
+  .isl-signing-stage {
+    min-height: 220px;
+  }
+}
+
+/* Mobile — prioritize hands and face */
+@media (max-width: 640px) {
+  .isl-avatar-body {
+    width: 180px;
+    height: 180px;
+  }
+  .isl-signing-stage {
+    min-height: 200px;
+  }
+  /* Larger hands relative to body on mobile */
+  .isl-avatar-body svg {
+    width: 64px !important;
+    height: 35px !important;
+  }
+}

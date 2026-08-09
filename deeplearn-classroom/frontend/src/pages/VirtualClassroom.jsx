@@ -650,7 +650,7 @@ export default function VirtualClassroom() {
         </div>
 
         {/* ── Main grid ── */}
-        <div className="grid grid-cols-1 lg:grid-cols-7 gap-5">
+        <div className={`grid grid-cols-1 ${signLangEnabled ? 'lg:grid-cols-9' : 'lg:grid-cols-7'} gap-5 transition-all duration-500`}>
 
           {/* Left / Main — 3 cols */}
           <div className="lg:col-span-5 space-y-4">
@@ -738,20 +738,7 @@ export default function VirtualClassroom() {
                 </div>
               )}
 
-              {/* ISL Interpreter Overlay - placed INSIDE video player */}
-              {signLangEnabled && (
-                <div className="absolute bottom-6 right-6 z-20 sign-panel-enter">
-                  <div className="interpreter-window rounded-2xl overflow-hidden">
-                    <SignAvatarOverlay
-                      currentSign={currentSign}
-                      isActive={isPlaying}
-                      signQueue={signQueue}
-                      isProcessing={signProcessing}
-                      signCount={signCount}
-                    />
-                  </div>
-                </div>
-              )}
+              {/* ISL Interpreter moved to dedicated side column for visibility */}
 
               {/* Caption overlay — only visible in fullscreen */}
               {captionsEnabled && isFullscreen && (
@@ -993,6 +980,21 @@ export default function VirtualClassroom() {
               )}
             </div>
           </div>
+
+          {/* ── ISL Interpreter Panel — dedicated column ── */}
+          {signLangEnabled && (
+            <div className="lg:col-span-2 sign-panel-enter">
+              <div className="sticky top-20" style={{ maxHeight: 'calc(100vh - 100px)' }}>
+                <SignAvatarOverlay
+                  currentSign={currentSign}
+                  isActive={isPlaying}
+                  signQueue={signQueue}
+                  isProcessing={signProcessing}
+                  signCount={signCount}
+                />
+              </div>
+            </div>
+          )}
 
           {/* ── Sidebar — 1 col ── */}
           <div className="lg:col-span-2 space-y-3">
