@@ -89,6 +89,7 @@ export default function VirtualClassroom() {
   const [signLangEnabled, setSignLangEnabled] = useState(true);
   const [captionSize, setCaptionSize] = useState('normal');
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
+  const [vttSrc, setVttSrc] = useState('');
 
   // ── Recordings ────────────────────────────────────────────────────────────
   const { user, token } = useAuth();
@@ -707,7 +708,17 @@ export default function VirtualClassroom() {
                     ? 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg'
                     : undefined
                 }
-              />
+              >
+                {vttSrc && captionsEnabled && (
+                  <track
+                    kind="captions"
+                    src={vttSrc}
+                    srcLang="en"
+                    label="English"
+                    default
+                  />
+                )}
+              </video>
 
               {videoError && (
                 <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30 backdrop-blur-xs">
@@ -1289,6 +1300,11 @@ export default function VirtualClassroom() {
                       setShowResults(false);
                       setAnswers({});
                       setSavedCaptions([]);
+                      if (v.caption_status === 'available' || v.status === 'done') {
+                        setVttSrc(`${API_BASE}/video-captions?video_id=${v.video_id}&format=vtt`);
+                      } else {
+                        setVttSrc('');
+                      }
                       
                       fetch(`${API_BASE}/video-captions?video_id=${v.video_id}&format=json`)
                         .then(res => {
@@ -1409,7 +1425,7 @@ export default function VirtualClassroom() {
                         </div>
 
                         {/* Associated ISL Video Card */}
-                        {islVideo && (
+                        {islVideo ? (
                           <div 
                             className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
                               video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
@@ -1429,7 +1445,7 @@ export default function VirtualClassroom() {
                                 </div>
                               )}
                               <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-purple-600 text-white text-[9px] font-bold uppercase tracking-wider">
-                                AI Deaf Signing
+                                🤟 ISL Interpreter
                               </div>
                               {video.is_locked ? (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
@@ -1471,7 +1487,7 @@ export default function VirtualClassroom() {
                                   onClick={() => playVideo(islVideo)}
                                   className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1"
                                 >
-                                  <Play className="w-3 h-3 fill-purple-600" /> Play
+                                  <Play className="w-3 h-3 fill-purple-600" /> Play ISL Video
                                 </button>
                                 <a
                                   href={getDownloadUrl(islVideo)}
@@ -1483,7 +1499,19 @@ export default function VirtualClassroom() {
                               </div>
                             </div>
                           </div>
-                        )}
+                        ) : (video.signing_status === 'processing' || video.signing_status === 'pending') ? (
+                          <div className="dark-glass-panel card-shadow border border-purple-200/40 rounded-2xl p-5 flex flex-col justify-center items-center text-center bg-purple-50/20">
+                            <Loader2 className="w-8 h-8 text-purple-500 animate-spin mb-2" />
+                            <p className="text-xs font-semibold text-purple-700">🤟 ISL video is being generated...</p>
+                            <p className="text-[10px] text-[#6d797d] mt-1">Overlay and signing translation in progress</p>
+                          </div>
+                        ) : video.signing_status === 'failed' ? (
+                          <div className="dark-glass-panel card-shadow border border-red-200/40 rounded-2xl p-5 flex flex-col justify-center items-center text-center bg-red-50/20">
+                            <AlertCircle className="w-8 h-8 text-red-500 mb-2" />
+                            <p className="text-xs font-semibold text-red-700">🤟 ISL generation failed</p>
+                            <p className="text-[10px] text-red-500/80 mt-1">You can still watch the original video</p>
+                          </div>
+                        ) : null}
                       </React.Fragment>
                     );
                   });
