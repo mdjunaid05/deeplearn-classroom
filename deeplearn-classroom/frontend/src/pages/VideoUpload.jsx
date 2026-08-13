@@ -188,6 +188,11 @@ export default function VideoUpload() {
   const handleFullPipeline = async () => {
     if (!file || isActive) return;
 
+    if (!user) {
+      fail('Your session has expired. Please log in again.', 'auth');
+      return;
+    }
+
     setMachineState(STATE.REQUESTING_URL);
     setError('');
     setTotalBytes(file.size);
@@ -203,7 +208,7 @@ export default function VideoUpload() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            teacher_id: user?.id || user?.user_id,
+            teacher_id: user.id || user.user_id,
             course_id: 1,
             filename: file.name,
             content_type: file.type || 'video/mp4',
@@ -557,6 +562,12 @@ export default function VideoUpload() {
 
   const handleCaptionOnly = async () => {
     if (!file || isActive) return;
+
+    if (!user) {
+      fail('Your session has expired. Please log in again.', 'auth');
+      return;
+    }
+
     setMachineState(STATE.PROCESSING);
     setProcessingStep('Uploading video for caption extraction...');
     setError('');
