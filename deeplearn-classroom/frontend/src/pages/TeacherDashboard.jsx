@@ -1285,12 +1285,31 @@ export default function TeacherDashboard() {
                 {/* ── Card Header ── */}
                 <div>
                   <div className="flex justify-between items-start mb-3 gap-2">
-                    <h4
-                      className="font-bold text-[#131b2e] text-sm truncate max-w-[160px]"
-                      title={video.title}
-                    >
-                      {video.title}
-                    </h4>
+                    <div className="flex items-start gap-3 min-w-0">
+                      {/* Thumbnail */}
+                      {video.thumbnail ? (
+                        <img
+                          src={video.thumbnail}
+                          alt=""
+                          className="w-16 h-10 object-cover rounded-lg border border-slate-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-16 h-10 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-center shrink-0">
+                          <Video className="w-5 h-5 text-[#bcc9cd]" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <h4
+                          className="font-bold text-[#131b2e] text-sm truncate"
+                          title={video.title}
+                        >
+                          {video.title}
+                        </h4>
+                        <p className="text-[10px] text-[#6d797d] truncate" title={video.filename}>
+                          {video.filename}
+                        </p>
+                      </div>
+                    </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
                         video.status === 'done'
@@ -1364,11 +1383,10 @@ export default function TeacherDashboard() {
                     </div>
                   </div>
 
-                  <p className="text-[10px] text-[#6d797d] truncate mb-1" title={video.filename}>
-                    File: {video.filename}
-                  </p>
+                  {/* Metadata */}
                   <p className="text-[10px] text-[#6d797d] mb-1">
                     Uploaded: {new Date(video.uploaded_at).toLocaleString()}
+                    {video.duration ? ` · ${Math.floor(video.duration / 60)}m ${Math.round(video.duration % 60)}s` : ''}
                   </p>
                   {video.subject && (
                     <p className="text-[10px] text-purple-500 font-medium mt-0.5">
@@ -1380,6 +1398,44 @@ export default function TeacherDashboard() {
                       {video.description}
                     </p>
                   )}
+
+                  {/* ── Processing Status Badges ── */}
+                  <div className="flex flex-wrap gap-1.5 mt-2.5">
+                    {/* Caption status */}
+                    <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                      video.caption_status === 'available' ? 'bg-emerald-100 text-emerald-700' :
+                      video.caption_status === 'failed' ? 'bg-red-100 text-red-600' :
+                      video.caption_status === 'processing' ? 'bg-blue-100 text-blue-600' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      CC {video.caption_status || 'pending'}
+                    </span>
+                    {/* Signing status */}
+                    <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                      video.signing_status === 'available' ? 'bg-purple-100 text-purple-700' :
+                      video.signing_status === 'failed' ? 'bg-red-100 text-red-600' :
+                      video.signing_status === 'processing' ? 'bg-blue-100 text-blue-600' :
+                      'bg-slate-100 text-slate-500'
+                    }`}>
+                      ISL {video.signing_status || 'pending'}
+                    </span>
+                    {/* Upload status (only show if not 'uploaded') */}
+                    {video.upload_status && video.upload_status !== 'uploaded' && (
+                      <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                        video.upload_status === 'uploading' ? 'bg-blue-100 text-blue-600 animate-pulse' :
+                        video.upload_status === 'failed' ? 'bg-red-100 text-red-600' :
+                        'bg-slate-100 text-slate-500'
+                      }`}>
+                        ↑ {video.upload_status}
+                      </span>
+                    )}
+                    {/* Video type badge */}
+                    {video.video_type && video.video_type !== 'original' && (
+                      <span className="inline-flex items-center text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">
+                        {video.video_type}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* ── Card Footer ── */}
@@ -1407,6 +1463,11 @@ export default function TeacherDashboard() {
                         Delete
                       </button>
                     </>
+                  ) : video.status === 'error' ? (
+                    <span className="text-[10px] text-red-500 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Pipeline failed — delete and re-upload
+                    </span>
                   ) : (
                     <span className="text-[10px] text-[#6d797d] flex items-center gap-1">
                       <Loader2 className="w-3 h-3 animate-spin text-amber-500" />

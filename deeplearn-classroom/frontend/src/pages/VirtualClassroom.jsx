@@ -15,7 +15,7 @@ import {
   Monitor, CheckCircle, XCircle, Clock,
   MessageSquare, Activity, Send, HandMetal, Mic, MicOff,
   Video, Play, Download, Trash2, Search, Calendar, Lock, AlertCircle,
-  Settings, Type, FastForward, Eye, EyeOff, Maximize, Minimize, Upload
+  Settings, Type, FastForward, Eye, EyeOff, Maximize, Minimize, Upload, Loader2
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -1325,23 +1325,33 @@ export default function VirtualClassroom() {
                         {/* Original Video Card */}
                         <div 
                           className={`dark-glass-panel card-shadow border border-[#bcc9cd]/40 rounded-2xl overflow-hidden border border-[#bcc9cd]/25 transition-all duration-300 flex flex-col group ${
-                            video.is_locked ? 'opacity-50 cursor-not-allowed' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
+                            video.is_locked ? 'opacity-50 cursor-not-allowed' : (video.status === 'processing' || video.status === 'uploading') ? 'opacity-80' : 'hover:border-[#00687a]/40 cursor-pointer hover:shadow-lg'
                           }`}
-                          onClick={() => playVideo(video)}
+                          onClick={() => (video.status !== 'processing' && video.status !== 'uploading') && playVideo(video)}
                         >
                           <div className="relative aspect-video bg-slate-950 group">
-                            <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                               <Video className="w-10 h-10 text-[#6d797d]" />
-                            </div>
+                            {video.thumbnail ? (
+                              <img src={video.thumbnail} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                 <Video className="w-10 h-10 text-[#6d797d]" />
+                              </div>
+                            )}
                             <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-blue-500 text-white text-[9px] font-bold uppercase tracking-wider">
                               Original Video
                             </div>
-                            {video.is_locked ? (
+                            {(video.status === 'processing' || video.status === 'uploading') && (
+                              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-xs">
+                                <Loader2 className="w-8 h-8 text-cyan-400 animate-spin mb-2" />
+                                <span className="text-white/90 text-[10px] font-semibold">{video.status === 'uploading' ? 'Uploading...' : 'Processing...'}</span>
+                              </div>
+                            )}
+                            {video.status !== 'processing' && video.status !== 'uploading' && video.is_locked ? (
                               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 backdrop-blur-xs">
                                 <Lock className="w-6 h-6 text-white/60 mb-2" />
                                 <span className="text-white/80 text-[10px] font-semibold px-4 text-center">Locked: complete previous quiz</span>
                               </div>
-                            ) : (
+                            ) : video.status !== 'processing' && video.status !== 'uploading' && (
                               <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/40">
                                 <div className="w-10 h-10 rounded-full bg-[#00687a] text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
                                   <Play className="w-5 h-5 fill-white ml-0.5" />
@@ -1354,22 +1364,36 @@ export default function VirtualClassroom() {
                             <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={video.title}>
                               {video.title}
                             </h3>
-                            <div className="space-y-1 mb-3">
+                            <div className="space-y-1.5 mb-3">
                               <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                                 Uploader: {video.uploader}
                               </p>
                               <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                                 Uploaded: {new Date(video.uploaded_at).toLocaleDateString()}
                               </p>
-                              <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                                Captions: <span className={video.status === 'done' ? 'text-emerald-500 font-semibold' : 'text-amber-500 font-semibold'}>{video.captions_status}</span>
-                              </p>
+                              <div className="flex flex-wrap gap-1.5 mt-1">
+                                <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                                  video.caption_status === 'available' ? 'bg-emerald-100 text-emerald-700' :
+                                  video.caption_status === 'failed' ? 'bg-red-100 text-red-600' :
+                                  'bg-amber-100 text-amber-700'
+                                }`}>
+                                  CC {video.caption_status || 'pending'}
+                                </span>
+                                <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+                                  video.signing_status === 'available' ? 'bg-purple-100 text-purple-700' :
+                                  video.signing_status === 'failed' ? 'bg-red-100 text-red-600' :
+                                  'bg-slate-100 text-slate-500'
+                                }`}>
+                                  ISL {video.signing_status || 'pending'}
+                                </span>
+                              </div>
                             </div>
 
                             <div className="flex items-center justify-between pt-3 border-t border-[#bcc9cd]/25 mt-auto" onClick={(e) => e.stopPropagation()}>
                               <button
                                 onClick={() => playVideo(video)}
-                                className="text-xs font-bold text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                                disabled={video.status === 'processing' || video.status === 'uploading'}
+                                className={`text-xs font-bold flex items-center gap-1 ${video.status === 'processing' || video.status === 'uploading' ? 'text-slate-400 cursor-not-allowed' : 'text-primary-600 hover:text-primary-700'}`}
                               >
                                 <Play className="w-3 h-3 fill-primary-600" /> Play
                               </button>
@@ -1397,9 +1421,13 @@ export default function VirtualClassroom() {
                               return null;
                             })()}
                             <div className="relative aspect-video bg-slate-950 group">
-                              <div className="w-full h-full flex items-center justify-center bg-slate-900">
-                                 <Video className="w-10 h-10 text-[#6d797d]" />
-                              </div>
+                              {islVideo.thumbnail ? (
+                                <img src={islVideo.thumbnail} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-slate-900">
+                                   <Video className="w-10 h-10 text-[#6d797d]" />
+                                </div>
+                              )}
                               <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-purple-600 text-white text-[9px] font-bold uppercase tracking-wider">
                                 AI Deaf Signing
                               </div>
@@ -1421,16 +1449,21 @@ export default function VirtualClassroom() {
                               <h3 className="font-bold text-[#131b2e] text-sm mb-1 truncate" title={islVideo.title}>
                                 {islVideo.title}
                               </h3>
-                              <div className="space-y-1 mb-3">
+                              <div className="space-y-1.5 mb-3">
                                 <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                                   Uploader: {islVideo.uploader}
                                 </p>
                                 <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
                                   Uploaded: {new Date(islVideo.uploaded_at).toLocaleDateString()}
                                 </p>
-                                <p className="text-[10px] text-[#6d797d] flex items-center gap-1.5">
-                                  Captions: <span className="text-emerald-500 font-semibold">available</span>
-                                </p>
+                                <div className="flex flex-wrap gap-1.5 mt-1">
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                    CC available
+                                  </span>
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                                    ISL available
+                                  </span>
+                                </div>
                               </div>
 
                               <div className="flex items-center justify-between pt-3 border-t border-[#bcc9cd]/25 mt-auto" onClick={(e) => e.stopPropagation()}>

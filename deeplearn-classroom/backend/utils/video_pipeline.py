@@ -191,6 +191,99 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 print(f"[R2_UPLOAD_FAILED] {error_info}", flush=True)
                 print(f"[R2_UPLOAD_FAILED] stack_trace={traceback.format_exc()}", flush=True)
 
+        # ── Step 5: Upload captions to R2 ─────────────────────────
+        caption_vtt_url = None
+        caption_srt_url = None
+        if video_id:
+            try:
+                from utils.storage import upload_file as _upload, is_r2_url as _is_r2, _r2_enabled
+                if _r2_enabled():
+                    import tempfile
+                    # Generate VTT
+                    vtt_lines = ["WEBVTT", ""]
+                    for idx, cap in enumerate(captions):
+                        def _vtt_ts(s):
+                            h = int(s // 3600); m = int((s % 3600) // 60); sec = int(s % 60); ms = int((s % 1) * 1000)
+                            return f"{h:02d}:{m:02d}:{sec:02d}.{ms:03d}"
+                        vtt_lines.append(str(idx + 1))
+                        vtt_lines.append(f"{_vtt_ts(cap['start'])} --> {_vtt_ts(cap['end'])}")
+                        vtt_lines.append(cap["text"])
+                        vtt_lines.append("")
+                    vtt_content = "\n".join(vtt_lines)
+
+                    # Generate SRT
+                    srt_lines = []
+                    for idx, cap in enumerate(captions):
+                        def _srt_ts(s):
+                            h = int(s // 3600); m = int((s % 3600) // 60); sec = int(s % 60); ms = int((s % 1) * 1000)
+                            return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
+                        srt_lines.append(str(idx + 1))
+                        srt_lines.append(f"{_srt_ts(cap['start'])} --> {_srt_ts(cap['end'])}")
+                        srt_lines.append(cap["text"])
+                        srt_lines.append("")
+                    srt_content = "\n".join(srt_lines)
+
+                    # Write to temp files and upload
+                    vtt_tmp = os.path.join(os.path.dirname(input_path), f"captions_{video_id}.vtt")
+                    srt_tmp = os.path.join(os.path.dirname(input_path), f"captions_{video_id}.srt")
+                    with open(vtt_tmp, "w", encoding="utf-8") as f:
+                        f.write(vtt_content)
+                    with open(srt_tmp, "w", encoding="utf-8") as f:
+                        f.write(srt_content)
+
+                    vtt_key = f"captions/{video_id}/captions.vtt"
+                    srt_key = f"captions/{video_id}/captions.srt"
+                    caption_vtt_url = _upload(vtt_tmp, vtt_key, content_type="text/vtt")
+                    caption_srt_url = _upload(srt_tmp, srt_key, content_type="text/plain")
+
+                    # Also upload transcript JSON
+                    transcript_data = json.dumps([{"start": c["start"], "end": c["end"], "text": c["text"]} for c in captions], indent=2)
+                    transcript_tmp = os.path.join(os.path.dirname(input_path), f"transcript_{video_id}.json")
+                    with open(transcript_tmp, "w", encoding="utf-8") as f:
+                        f.write(transcript_data)
+                    _upload(transcript_tmp, f"captions/{video_id}/transcript.json", content_type="application/json")
+
+                    # Cleanup temp files
+                    for tmp in [vtt_tmp, srt_tmp, transcript_tmp]:
+                        try:
+                            os.remove(tmp)
+                        except OSError:
+                            pass
+
+                    print(f"[CAPTION_UPLOADED_TO_R2] video_id={video_id} vtt={vtt_key} srt={srt_key}", flush=True)
+            except Exception as cap_err:
+                print(f"[CAPTION_UPLOAD_FAILED] video_id={video_id} error={cap_err}", flush=True)
+
+        # ── Step 6: Generate and upload thumbnail ─────────────────
+        thumbnail_url = None
+        if video_id:
+            try:
+                import cv2 as _cv2
+                from utils.storage import upload_file as _upload2, is_r2_url as _is_r2_2, _r2_enabled as _r2_on
+                if _r2_on():
+                    thumb_cap = _cv2.VideoCapture(input_path if os.path.exists(input_path) else output_path)
+                    if thumb_cap.isOpened():
+                        # Seek to 1 second or first frame
+                        fps = thumb_cap.get(_cv2.CAP_PROP_FPS) or 30.0
+                        thumb_cap.set(_cv2.CAP_PROP_POS_FRAMES, int(fps))  # 1 second in
+                        ret, thumb_frame = thumb_cap.read()
+                        if not ret:  # fallback to first frame
+                            thumb_cap.set(_cv2.CAP_PROP_POS_FRAMES, 0)
+                            ret, thumb_frame = thumb_cap.read()
+                        thumb_cap.release()
+                        if ret and thumb_frame is not None:
+                            thumb_tmp = os.path.join(os.path.dirname(output_path), f"thumb_{video_id}.jpg")
+                            _cv2.imwrite(thumb_tmp, thumb_frame)
+                            thumb_key = f"thumbnails/{video_id}/thumbnail.jpg"
+                            thumbnail_url = _upload2(thumb_tmp, thumb_key, content_type="image/jpeg")
+                            try:
+                                os.remove(thumb_tmp)
+                            except OSError:
+                                pass
+                            print(f"[THUMBNAIL_UPLOADED_TO_R2] video_id={video_id} key={thumb_key}", flush=True)
+            except Exception as thumb_err:
+                print(f"[THUMBNAIL_GENERATION_FAILED] video_id={video_id} error={thumb_err}", flush=True)
+
         # ── Clean up original input file (already in R2 from upload route) ──
         try:
             if os.path.exists(input_path):
@@ -198,7 +291,7 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
         except OSError:
             pass
 
-        # ── Step 5: Save to Database ──────────────────────────────
+        # ── Step 7: Save to Database ──────────────────────────────
         if video_id:
             from database.db import get_db_connection
             print("[DATABASE_SAVE_STARTED]", flush=True)
@@ -219,12 +312,17 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 teacher_id, course_id, orig_title, orig_filename, orig_url = orig_video
                 print(f"[ORIGINAL_VIDEO_FOUND] video_id={video_id}", flush=True)
                 
-                # Update original video status to 'done' and type to 'original'
+                # Get video duration
+                duration = get_video_duration(output_path if os.path.exists(output_path) else input_path)
+
+                # Update original video: status, caption_status, signing_status, thumbnail, duration
                 cursor.execute("""
                     UPDATE videos 
-                    SET status = 'done', video_type = 'original', processed_at = CURRENT_TIMESTAMP
+                    SET status = 'done', video_type = 'original', processed_at = CURRENT_TIMESTAMP,
+                        caption_status = 'available', signing_status = 'available',
+                        thumbnail = ?, duration = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE video_id = ?
-                """, (video_id,))
+                """, (thumbnail_url, duration, video_id))
                 
                 # Create a NEW record for the ISL video
                 isl_title = f"[AI Deaf Signing] {orig_title}"
@@ -232,8 +330,8 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 from utils.storage import is_r2_url
                 
                 cursor.execute("""
-                    INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, original_video_id, video_type)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ISL')
+                    INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, original_video_id, video_type, caption_status, signing_status, thumbnail, duration, visibility)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ISL', 'available', 'available', ?, ?, 'Published')
                 """, (
                     teacher_id, 
                     course_id, 
@@ -242,7 +340,9 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                     orig_url, 
                     video_url, 
                     video_url if is_r2_url(video_url) else None, 
-                    video_id
+                    video_id,
+                    thumbnail_url,
+                    duration
                 ))
                 isl_video_id = cursor.lastrowid
                 
@@ -253,6 +353,14 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                     SET captions_url = ? 
                     WHERE video_id = ?
                 """, (isl_captions_url, isl_video_id))
+
+                # Also set captions_url on original video
+                orig_captions_url = f"/video-captions?video_id={video_id}"
+                cursor.execute("""
+                    UPDATE videos 
+                    SET captions_url = ? 
+                    WHERE video_id = ?
+                """, (orig_captions_url, video_id))
                 
                 # Delete any old captions for original and ISL video
                 cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
@@ -278,6 +386,8 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 print(f"[VIDEO_LIST_UPDATED] video_id={video_id}", flush=True)
                 print(f"[AI_VIDEO_DATABASE_SAVED] video_id={isl_video_id} original_video_id={video_id}", flush=True)
                 print(f"[CAPTION_SAVED] video_id={isl_video_id} count={len(captions)}")
+                print(f"[CAPTION_SUCCESS] video_id={video_id}")
+                print(f"[ISL_SUCCESS] video_id={video_id}")
                 print(f"[Pipeline] Successfully saved {len(captions)} captions to DB for video_id {video_id}")
             except Exception as db_err:
                 import traceback
@@ -332,9 +442,16 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
             try:
                 conn = get_db_connection()
                 cursor = conn.cursor()
-                cursor.execute("UPDATE videos SET status = 'error' WHERE video_id = ?", (video_id,))
+                cursor.execute("""
+                    UPDATE videos SET status = 'error', 
+                        caption_status = 'failed', signing_status = 'failed',
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE video_id = ?
+                """, (video_id,))
                 conn.commit()
                 conn.close()
+                print(f"[CAPTION_FAILED] video_id={video_id}", flush=True)
+                print(f"[ISL_FAILED] video_id={video_id}", flush=True)
             except Exception:
                 pass
 

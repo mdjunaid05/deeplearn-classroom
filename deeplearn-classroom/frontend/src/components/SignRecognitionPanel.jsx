@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Camera, CheckCircle } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+import { API_BASE } from '../utils/api';
 
 // ISL word labels from the actual Kaggle dataset (76 words)
 const ISL_WORD_LABELS = [

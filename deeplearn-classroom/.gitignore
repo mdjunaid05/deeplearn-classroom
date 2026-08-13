@@ -1,0 +1,50 @@
+# ── Environment Variables (contain secrets) ──
+.env
+backend/.env
+frontend/.env
+
+# ── Python ──
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+venv/
+backend/venv/
+.venv/
+
+# ── Node ──
+node_modules/
+frontend/node_modules/
+
+# ── Build Outputs ──
+frontend/dist/
+
+# ── Uploads & Processed Videos (ephemeral on Render) ──
+backend/uploads/
+backend/processed_videos/
+backend/recordings/
+
+# ── Local SQLite Database ──
+backend/data/deeplearn.db
+backend/database/deeplearn.db
+
+# ── OS Files ──
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# ── IDE ──
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+# ── Saved Models (large binaries) ──
+backend/saved_models/
+*.h5
+*.pkl
+*.joblib
+
+# ── Stitch Screens (design artifacts) ──
+stitch_screens/

@@ -71,8 +71,13 @@ services:
       # Looks like: https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev
       - key: R2_PUBLIC_URL
         sync: false   # Set manually in Render dashboard
+
+      # Frontend URL for CORS (also included in CORS_ORIGINS)
+      - key: FRONTEND_URL
+        sync: false   # Set to your Vercel URL, e.g. https://deeplearn-classroom.vercel.app
+
     # Render polls this path every 30s. Must return HTTP 200 to stay live.
-    healthCheckPath: /
+    healthCheckPath: /health
 
     # ── Persistent Disk ───────────────────────────────────────────────────────
     # NOTE: Persistent disk requires a paid Render plan.

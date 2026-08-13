@@ -287,6 +287,24 @@ def _init_mysql(conn):
             if "signing_status" not in cols:
                 cursor.execute("ALTER TABLE videos ADD COLUMN signing_status VARCHAR(50) DEFAULT 'pending'")
                 altered = True
+            if "upload_status" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN upload_status VARCHAR(50) DEFAULT 'uploading'")
+                altered = True
+            if "processing_status" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN processing_status VARCHAR(50) DEFAULT 'pending'")
+                altered = True
+            if "r2_key" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN r2_key VARCHAR(512) DEFAULT NULL")
+                altered = True
+            if "r2_captions_key" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN r2_captions_key VARCHAR(512) DEFAULT NULL")
+                altered = True
+            if "r2_isl_key" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN r2_isl_key VARCHAR(512) DEFAULT NULL")
+                altered = True
+            if "r2_thumbnail_key" not in cols:
+                cursor.execute("ALTER TABLE videos ADD COLUMN r2_thumbnail_key VARCHAR(512) DEFAULT NULL")
+                altered = True
             if "updated_at" not in cols:
                 cursor.execute("ALTER TABLE videos ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP")
                 altered = True
@@ -544,6 +562,12 @@ def _init_sqlite(conn):
             duration       REAL DEFAULT 0.0,
             caption_status TEXT DEFAULT 'pending',
             signing_status TEXT DEFAULT 'pending',
+            upload_status  TEXT DEFAULT 'uploading',
+            processing_status TEXT DEFAULT 'pending',
+            r2_key         TEXT DEFAULT NULL,
+            r2_captions_key TEXT DEFAULT NULL,
+            r2_isl_key     TEXT DEFAULT NULL,
+            r2_thumbnail_key TEXT DEFAULT NULL,
             updated_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (teacher_id) REFERENCES teachers(teacher_id),
             FOREIGN KEY (course_id) REFERENCES courses(course_id)
@@ -787,6 +811,24 @@ def _init_sqlite(conn):
             altered = True
         if "signing_status" not in cols:
             cursor.execute("ALTER TABLE videos ADD COLUMN signing_status TEXT DEFAULT 'pending'")
+            altered = True
+        if "upload_status" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN upload_status TEXT DEFAULT 'uploading'")
+            altered = True
+        if "processing_status" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN processing_status TEXT DEFAULT 'pending'")
+            altered = True
+        if "r2_key" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN r2_key TEXT DEFAULT NULL")
+            altered = True
+        if "r2_captions_key" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN r2_captions_key TEXT DEFAULT NULL")
+            altered = True
+        if "r2_isl_key" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN r2_isl_key TEXT DEFAULT NULL")
+            altered = True
+        if "r2_thumbnail_key" not in cols:
+            cursor.execute("ALTER TABLE videos ADD COLUMN r2_thumbnail_key TEXT DEFAULT NULL")
             altered = True
         if "updated_at" not in cols:
             # SQLite doesn't allow CURRENT_TIMESTAMP (non-constant) as default in ALTER TABLE.

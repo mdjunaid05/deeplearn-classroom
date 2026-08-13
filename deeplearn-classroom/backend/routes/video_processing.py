@@ -20,7 +20,9 @@ from werkzeug.utils import secure_filename
 from utils.video_pipeline import start_pipeline, get_job_status
 from utils.storage import (
     upload_file, get_public_url, delete_file, download_file,
-    is_r2_url, make_r2_key, _r2_enabled
+    is_r2_url, make_r2_key, make_structured_r2_key,
+    generate_presigned_upload_url, verify_upload, download_from_r2,
+    _r2_enabled
 )
 
 video_bp = Blueprint("video", __name__)
@@ -164,8 +166,12 @@ def upload_video():
             )
 
         cursor.execute("""
-            INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, status, description, thumbnail, visibility, hidden, deleted, archived)
-            VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?, ?, ?, ?, ?)
+            INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, status, 
+                upload_status, processing_status, caption_status, signing_status,
+                description, thumbnail, visibility, hidden, deleted, archived)
+            VALUES (?, ?, ?, ?, ?, ?, 'processing', 
+                'uploading', 'pending', 'pending', 'pending',
+                ?, ?, ?, ?, ?, ?)
         """, (teacher_id, course_id, title, filename, input_path, output_path, description, thumbnail, visibility, hidden, deleted, archived))
         video_id = cursor.lastrowid
         conn.commit()
@@ -193,7 +199,8 @@ def upload_video():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("UPDATE videos SET original_url = ?, r2_url = ? WHERE video_id = ?", (url, url, video_id))
+            r2_input_key = make_r2_key("uploads", filename)
+            cursor.execute("UPDATE videos SET original_url = ?, r2_url = ?, r2_key = ?, upload_status = 'uploaded' WHERE video_id = ?", (url, url, r2_input_key, video_id))
             conn.commit()
             print("[DATABASE_SAVE_SUCCESS]", flush=True)
             print(f"[VIDEO_SAVED_TO_DATABASE] video_id={video_id} updated with r2_url={url}", flush=True)
@@ -225,6 +232,218 @@ def upload_video():
 def _get_app_base_url():
     """Return base URL using https protocol when running behind reverse proxies (Render/Vercel)."""
     return _get_base_url()
+
+
+# ── POST /request-upload-url ──────────────────────────────────────────────────
+
+@video_bp.route("/request-upload-url", methods=["POST"])
+def request_upload_url():
+    """
+    Generate a presigned PUT URL for direct browser-to-R2 upload.
+    
+    The browser will use this URL to upload the file directly to Cloudflare R2.
+    R2 secret credentials NEVER leave the backend.
+    
+    Flow:
+        1. Frontend calls this endpoint with metadata
+        2. Backend creates DB record + generates presigned URL
+        3. Frontend uploads directly to R2 using the presigned URL
+        4. Frontend calls /confirm-upload to verify and start processing
+    
+    Request JSON:
+        { "teacher_id": 1, "course_id": 1, "filename": "lecture.mp4", 
+          "content_type": "video/mp4", "title": "My Lecture", "file_size": 12345678 }
+    
+    Returns:
+        { "upload_url": "https://...", "r2_key": "original/1/42/original.mp4",
+          "video_id": 42, "expires_in": 3600 }
+    """
+    if not _r2_enabled():
+        return jsonify({"error": "R2 storage not configured. Use /upload-video (proxy upload) instead."}), 503
+    
+    data = request.get_json(silent=True) or {}
+    teacher_id = data.get("teacher_id", 1)
+    course_id = data.get("course_id", 1)
+    filename = secure_filename(data.get("filename", "video.mp4"))
+    content_type = data.get("content_type", "video/mp4")
+    title = data.get("title") or filename
+    file_size = data.get("file_size", 0)
+    description = data.get("description", "")
+    visibility = data.get("visibility", "Published")
+    
+    if not _allowed_file(filename):
+        return jsonify({"error": f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"}), 400
+    
+    # Create database record first (status = 'uploading')
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    video_id = None
+    try:
+        # Ensure referenced rows exist
+        cursor.execute("SELECT teacher_id FROM teachers WHERE teacher_id = ?", (teacher_id,))
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO teachers (teacher_id, name, email, password_hash) VALUES (?, ?, ?, ?)",
+                (teacher_id, "Teacher", f"teacher{teacher_id}@deeplearn.edu", "seeded"),
+            )
+        cursor.execute("SELECT course_id FROM courses WHERE course_id = ?", (course_id,))
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO courses (course_id, title, teacher_id) VALUES (?, ?, ?)",
+                (course_id, "Default Course", teacher_id),
+            )
+        
+        cursor.execute("""
+            INSERT INTO videos (
+                teacher_id, course_id, title, filename, status,
+                upload_status, processing_status, caption_status, signing_status,
+                description, visibility, file_size
+            ) VALUES (?, ?, ?, ?, 'uploading',
+                'uploading', 'pending', 'pending', 'pending',
+                ?, ?, ?)
+        """, (teacher_id, course_id, title, filename, description, visibility, file_size))
+        video_id = cursor.lastrowid
+        
+        # Generate R2 key using new structured format
+        r2_key = make_structured_r2_key("original", course_id, video_id, filename)
+        
+        # Update the record with the R2 key
+        cursor.execute("UPDATE videos SET r2_key = ? WHERE video_id = ?", (r2_key, video_id))
+        conn.commit()
+        
+        print(f"[PRESIGNED_UPLOAD_REQUESTED] video_id={video_id} r2_key={r2_key}", flush=True)
+    except Exception as db_err:
+        conn.rollback()
+        print(f"[PRESIGNED_UPLOAD_DB_FAILED] error={db_err}", flush=True)
+        return jsonify({"error": f"Database error: {str(db_err)}"}), 500
+    finally:
+        conn.close()
+    
+    # Generate presigned PUT URL
+    expires_in = 3600  # 1 hour
+    upload_url = generate_presigned_upload_url(r2_key, content_type=content_type, expires_in=expires_in)
+    
+    if not upload_url:
+        # Mark as failed if we can't generate URL
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE videos SET upload_status = 'failed' WHERE video_id = ?", (video_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({"error": "Failed to generate presigned upload URL"}), 500
+    
+    return jsonify({
+        "upload_url": upload_url,
+        "r2_key": r2_key,
+        "video_id": video_id,
+        "expires_in": expires_in,
+        "content_type": content_type,
+    })
+
+
+# ── POST /confirm-upload ──────────────────────────────────────────────────────
+
+@video_bp.route("/confirm-upload", methods=["POST"])
+def confirm_upload():
+    """
+    Verify that a direct-to-R2 upload completed successfully, then start the
+    video processing pipeline.
+    
+    Called by the frontend AFTER uploading directly to R2 via presigned URL.
+    
+    Request JSON:
+        { "video_id": 42, "r2_key": "original/1/42/original.mp4" }
+    
+    Steps:
+        1. Verify R2 object exists (head_object)
+        2. Update DB: upload_status='uploaded', original_url, r2_url
+        3. Download video from R2 to local temp dir for pipeline
+        4. Start pipeline in background
+    
+    Returns:
+        { "status": "processing", "job_id": "...", "video_id": 42 }
+    """
+    data = request.get_json(silent=True) or {}
+    video_id = data.get("video_id")
+    r2_key = data.get("r2_key")
+    
+    if not video_id or not r2_key:
+        return jsonify({"error": "video_id and r2_key are required"}), 400
+    
+    # Step 1: Verify the R2 object exists
+    if not verify_upload(r2_key):
+        # Don't delete the DB record — this is a recoverable state
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE videos SET upload_status = 'failed' WHERE video_id = ?", (video_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "error": "R2 object not found. Upload may have failed.",
+            "video_id": video_id,
+            "recoverable": True,
+        }), 404
+    
+    # Step 2: Update DB with confirmed upload info
+    from database.db import get_db_connection
+    r2_url = get_public_url(r2_key)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE videos SET 
+                upload_status = 'uploaded',
+                original_url = ?, 
+                r2_url = ?, 
+                r2_key = ?,
+                status = 'processing',
+                processing_status = 'pending',
+                updated_at = CURRENT_TIMESTAMP
+            WHERE video_id = ?
+        """, (r2_url, r2_url, r2_key, video_id))
+        
+        # Fetch filename for pipeline
+        cursor.execute("SELECT filename, course_id FROM videos WHERE video_id = ?", (video_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Video record not found"}), 404
+        filename = row[0]
+        course_id = row[1]
+        
+        conn.commit()
+        print(f"[CONFIRM_UPLOAD_SUCCESS] video_id={video_id} r2_key={r2_key}", flush=True)
+    except Exception as db_err:
+        conn.rollback()
+        return jsonify({"error": f"Database error: {str(db_err)}"}), 500
+    finally:
+        conn.close()
+    
+    # Step 3: Download from R2 to local temp for pipeline processing
+    input_path = os.path.join(UPLOAD_FOLDER, filename)
+    output_filename = f"signed_{filename}"
+    output_path = os.path.join(PROCESSED_FOLDER, output_filename)
+    
+    if not download_from_r2(r2_key, input_path):
+        # Fallback: pipeline can still work if R2 public URL is accessible
+        print(f"[CONFIRM_UPLOAD] R2 download failed, pipeline will attempt with URL", flush=True)
+    
+    # Step 4: Start pipeline — ISL output goes to isl/{videoId}/isl-video.mp4
+    isl_r2_key = f"isl/{video_id}/isl-video.mp4"
+    job_id = start_pipeline(
+        input_path,
+        output_path,
+        output_r2_key=isl_r2_key,
+        video_id=video_id
+    )
+    
+    return jsonify({
+        "status": "processing",
+        "job_id": job_id,
+        "video_id": video_id,
+        "filename": output_filename,
+    })
 
 
 # ── GET /videos ──────────────────────────────────────────────────────────────
@@ -1149,6 +1368,11 @@ def delete_video(video_id):
             # Delete both the original upload and the processed signed copy from R2
             delete_file(make_r2_key("uploads", filename))
             delete_file(make_r2_key("processed", f"signed_{filename}"))
+            # Delete captions from R2
+            for cap_ext in ["captions.vtt", "captions.srt", "transcript.json"]:
+                delete_file(f"captions/{video_id}/{cap_ext}")
+            # Delete thumbnail from R2
+            delete_file(f"thumbnails/{video_id}/thumbnail.jpg")
             print(f"[DELETE_VIDEO] R2 objects deleted for video_id={video_id}", flush=True)
         else:
             # Local filesystem cleanup
@@ -1165,6 +1389,28 @@ def delete_video(video_id):
                             print(f"[DELETE_VIDEO] Removed local file: {candidate}", flush=True)
                         except OSError as oe:
                             print(f"[DELETE_VIDEO] Could not remove {candidate}: {oe}", flush=True)
+
+        # ── Delete associated ISL video records ────────────────────────────
+        cursor.execute(
+            "SELECT video_id, filename, r2_url FROM videos WHERE original_video_id = ?",
+            (video_id,)
+        )
+        isl_rows = cursor.fetchall()
+        for isl_row in isl_rows:
+            isl_cols = [d[0] for d in cursor.description]
+            isl_video = dict(zip(isl_cols, isl_row))
+            isl_vid_id = isl_video.get("video_id")
+            isl_r2 = isl_video.get("r2_url") or ""
+            isl_fname = isl_video.get("filename") or ""
+            if isl_r2 and is_r2_url(isl_r2):
+                delete_file(make_r2_key("processed", isl_fname))
+                for cap_ext in ["captions.vtt", "captions.srt", "transcript.json"]:
+                    delete_file(f"captions/{isl_vid_id}/{cap_ext}")
+                delete_file(f"thumbnails/{isl_vid_id}/thumbnail.jpg")
+            cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (isl_vid_id,))
+            cursor.execute("DELETE FROM video_views WHERE video_id = ?", (isl_vid_id,))
+            cursor.execute("DELETE FROM videos WHERE video_id = ?", (isl_vid_id,))
+            print(f"[DELETE_VIDEO] ISL video_id={isl_vid_id} deleted (child of {video_id})", flush=True)
 
         # ── Database cascade cleanup ───────────────────────────────────────
         cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))

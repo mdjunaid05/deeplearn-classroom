@@ -375,10 +375,76 @@ def is_r2_url(path_or_url: str) -> bool:
 
 def make_r2_key(prefix: str, filename: str) -> str:
     """
-    Build a namespaced R2 object key.
+    Build a namespaced R2 object key (flat structure — backward compat).
     Example: make_r2_key("uploads", "lecture.mp4") → "uploads/lecture.mp4"
     """
     return f"{prefix}/{filename}".lstrip("/")
+
+
+def make_structured_r2_key(prefix: str, course_id: int, video_id: int, filename: str) -> str:
+    """
+    Build a structured R2 object key with course/video hierarchy (new uploads).
+    Example: make_structured_r2_key("original", 1, 42, "lecture.mp4")
+             → "original/1/42/original.mp4"
+    """
+    ext = os.path.splitext(filename)[1].lower() or ".mp4"
+    return f"{prefix}/{course_id}/{video_id}/original{ext}"
+
+
+def generate_presigned_upload_url(r2_key: str, content_type: str = "video/mp4", expires_in: int = 3600) -> str:
+    """
+    Generate a presigned PUT URL for direct browser-to-R2 upload.
+
+    The browser will use this URL to upload the file directly to Cloudflare R2,
+    bypassing the backend server. R2 secret keys never leave the backend.
+
+    Args:
+        r2_key:       Object key in R2 (e.g. "original/1/42/original.mp4")
+        content_type: MIME type for the upload
+        expires_in:   URL validity in seconds (default 1 hour)
+
+    Returns:
+        str: Presigned PUT URL, or empty string if R2 is not enabled.
+    """
+    if not _r2_enabled():
+        return ""
+    try:
+        client = _get_client()
+        url = client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": R2_BUCKET_NAME,
+                "Key": r2_key,
+                "ContentType": content_type,
+            },
+            ExpiresIn=expires_in,
+        )
+        print(f"[R2_PRESIGNED_UPLOAD_URL] key={r2_key} expires_in={expires_in}s", flush=True)
+        return url
+    except Exception as e:
+        _log_r2_error("R2_PRESIGNED_UPLOAD_FAILED", e, key=r2_key)
+        return ""
+
+
+def download_from_r2(r2_key: str, local_path: str) -> bool:
+    """
+    Download an R2 object to a local file path.
+    Used to pull uploaded videos from R2 to the local temp dir for pipeline processing.
+
+    Returns True if download succeeded, False otherwise.
+    """
+    if not _r2_enabled():
+        return False
+    try:
+        client = _get_client()
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        client.download_file(R2_BUCKET_NAME, r2_key, local_path)
+        size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+        print(f"[R2_DOWNLOAD_SUCCESS] key={r2_key} local={local_path} size={size}", flush=True)
+        return size > 0
+    except Exception as e:
+        _log_r2_error("R2_DOWNLOAD_FAILED", e, key=r2_key, local_path=local_path)
+        return False
 
 
 def get_r2_diagnostics() -> dict:
@@ -397,9 +463,27 @@ def get_r2_diagnostics() -> dict:
     }
 
 
+def verify_bucket_access() -> bool:
+    """
+    Verify that we can successfully connect to and list the R2 bucket.
+    Used by the /health endpoint for production monitoring.
+    Returns True if bucket is accessible, False otherwise.
+    """
+    if not _r2_enabled():
+        return False
+    try:
+        client = _get_client()
+        # HeadBucket is the lightest S3 API call — just checks access
+        client.head_bucket(Bucket=R2_BUCKET_NAME)
+        return True
+    except Exception as e:
+        print(f"[Storage] verify_bucket_access failed: {e}", flush=True)
+        return False
+
+
 def list_bucket_videos() -> list:
     """
-    List all video objects in R2 bucket (uploads/ and processed/ prefixes).
+    List all video objects in R2 bucket (uploads/, processed/, captions/, thumbnails/).
     Returns list of dicts: [{key, size, last_modified}, ...]
     Used by TeacherDashboard to show storage status.
     """
@@ -408,16 +492,13 @@ def list_bucket_videos() -> list:
     try:
         client = _get_client()
         videos = []
-        for prefix in ["uploads/", "processed/"]:
+        for prefix in ["uploads/", "processed/", "captions/", "thumbnails/"]:
             response = client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix=prefix)
             for obj in response.get("Contents", []):
                 key = obj.get("Key", "")
                 if not key or key.endswith("/"):
                     continue
                 filename = os.path.basename(key)
-                ext = os.path.splitext(filename)[1].lower()
-                if ext not in {".mp4", ".mov", ".webm", ".avi", ".mkv"}:
-                    continue
                 videos.append({
                     "key": key,
                     "filename": filename,
@@ -434,10 +515,18 @@ def list_bucket_videos() -> list:
 
 def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
     """
-    Scans Cloudflare R2 bucket (`uploads/` and `processed/`) and auto-populates
-    database video records for any files that exist in R2 but are missing from DB.
+    Scans Cloudflare R2 bucket and auto-populates database video records
+    for any files that exist in R2 but are missing from DB.
+
+    Scans these prefixes:
+      - uploads/          (flat legacy structure)
+      - original/         (new hierarchical structure: original/{courseId}/{videoId}/original.mp4)
+      - processed/        (legacy ISL videos)
+      - isl/              (new ISL structure: isl/{videoId}/isl-video.mp4)
+
     Returns the count of new videos synced.
     Has a timeout to prevent blocking the request cycle.
+    Idempotent: safe to run multiple times without creating duplicates.
     """
     if not _r2_enabled():
         return 0
@@ -446,17 +535,15 @@ def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
 
     try:
         client = _get_client()
-        response = client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix="uploads/")
-        contents = response.get("Contents", [])
-        if not contents:
-            return 0
-
         synced_count = 0
         import json
         cursor = conn.cursor()
 
+        # ── Scan uploads/ (legacy flat structure) ──
+        response = client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix="uploads/")
+        contents = response.get("Contents", [])
+
         for obj in contents:
-            # Timeout protection
             if time.time() - start_time > timeout_seconds:
                 print(f"[Storage] R2 sync timeout after {timeout_seconds}s, synced {synced_count} so far.", flush=True)
                 break
@@ -466,19 +553,21 @@ def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
                 continue
 
             filename = os.path.basename(key)
-            if not filename or not (filename.endswith(".mp4") or filename.endswith(".mov") or filename.endswith(".avi") or filename.endswith(".webm")):
+            if not filename or not any(filename.lower().endswith(ext) for ext in (".mp4", ".mov", ".avi", ".webm", ".mkv")):
                 continue
 
-            # Check if this video is already in DB
-            cursor.execute("SELECT video_id FROM videos WHERE filename = ? OR title = ? OR r2_url LIKE ?", (filename, filename, f"%{filename}%"))
+            # Idempotency: check by filename, r2_key, or r2_url
+            cursor.execute(
+                "SELECT video_id FROM videos WHERE filename = ? OR r2_key = ? OR r2_url LIKE ?",
+                (filename, key, f"%{filename}%")
+            )
             if cursor.fetchone():
                 continue
 
-            # Get public R2 URL for original video
             orig_url = get_public_url(key)
             file_size = obj.get("Size", 0)
 
-            # Check if a signed version exists in processed/
+            # Check for corresponding processed/signed_ version
             processed_key = f"processed/signed_{filename}"
             processed_url = orig_url
             has_isl = False
@@ -491,38 +580,42 @@ def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
 
             title_clean = filename.replace("_", " ").replace(".mp4", "").replace(".mov", "").replace(".avi", "").replace(".webm", "")
 
-            # Insert original video into DB
             cursor.execute("""
                 INSERT INTO videos (
-                    teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, 
-                    video_type, description, visibility, file_size, caption_status, signing_status
+                    teacher_id, course_id, title, filename, original_url, processed_url, r2_url, r2_key,
+                    status, upload_status, processing_status, video_type, description, visibility, file_size,
+                    caption_status, signing_status
                 ) VALUES (
-                    1, 1, ?, ?, ?, ?, ?, 'done', 
-                    'original', 'Cloudflare R2 synced video lesson.', 'Published', ?, 'available', ?
+                    1, 1, ?, ?, ?, ?, ?, ?,
+                    'done', 'uploaded', 'completed', 'original', 'Cloudflare R2 synced video lesson.', 'Published', ?,
+                    'available', ?
                 )
-            """, (title_clean, filename, orig_url, processed_url, orig_url, file_size, 'available' if has_isl else 'pending'))
+            """, (title_clean, filename, orig_url, processed_url, orig_url, key, file_size,
+                  'available' if has_isl else 'pending'))
             orig_id = cursor.lastrowid
             synced_count += 1
 
-            # If ISL video exists, insert ISL video record
             if has_isl:
                 isl_title = f"[AI Deaf Signing] {title_clean}"
                 isl_filename = f"signed_{filename}"
                 cursor.execute("""
                     INSERT INTO videos (
-                        teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, 
-                        original_video_id, video_type, description, visibility, captions_url, caption_status, signing_status
+                        teacher_id, course_id, title, filename, original_url, processed_url, r2_url, r2_key,
+                        status, upload_status, processing_status, original_video_id, video_type,
+                        description, visibility, captions_url, caption_status, signing_status
                     ) VALUES (
-                        1, 1, ?, ?, ?, ?, ?, 'done', 
-                        ?, 'ISL', 'Cloudflare R2 synced AI ISL video.', 'Published', ?, 'available', 'available'
+                        1, 1, ?, ?, ?, ?, ?, ?,
+                        'done', 'uploaded', 'completed', ?, 'ISL',
+                        'Cloudflare R2 synced AI ISL video.', 'Published', ?, 'available', 'available'
                     )
-                """, (isl_title, isl_filename, orig_url, processed_url, processed_url, orig_id, f"/video-captions?video_id={orig_id + 1}"))
+                """, (isl_title, isl_filename, orig_url, processed_url, processed_url, processed_key,
+                      orig_id, f"/video-captions?video_id={orig_id + 1}"))
                 synced_count += 1
 
-            # Add default demo captions for this video
+            # Add default demo captions for synced video
             demo_captions = [
                 (0.0, 5.0, f"Welcome to this lesson: {title_clean}."),
-                (5.0, 10.0, "This video lesson is powered by Lumina Smart Virtual Classroom."),
+                (5.0, 10.0, "This video lesson is powered by DeepLearn Smart Virtual Classroom."),
                 (10.0, 15.0, "Auto-generated captions and ISL translation enabled.")
             ]
             for start, end, text in demo_captions:
@@ -531,6 +624,34 @@ def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
                     "INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence) VALUES (?, ?, ?, ?, ?)",
                     (orig_id, start, end, text, sign_seq)
                 )
+
+        # ── Scan original/ (new hierarchical structure) ──
+        response2 = client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix="original/")
+        for obj in response2.get("Contents", []):
+            if time.time() - start_time > timeout_seconds:
+                break
+            key = obj.get("Key", "")
+            if not key or key.endswith("/"):
+                continue
+            if not any(key.lower().endswith(ext) for ext in (".mp4", ".mov", ".avi", ".webm", ".mkv")):
+                continue
+
+            # Idempotency: check by r2_key
+            cursor.execute("SELECT video_id FROM videos WHERE r2_key = ?", (key,))
+            if cursor.fetchone():
+                continue
+
+            # Parse courseId/videoId from key: original/{courseId}/{videoId}/original.mp4
+            parts = key.split("/")
+            if len(parts) >= 4:
+                try:
+                    course_id = int(parts[1])
+                    # video_id is already in DB if this was created via presigned upload
+                    # Skip if we can't determine — the confirm-upload flow handles this
+                except ValueError:
+                    pass
+            # If we can't parse the structure, just log and skip
+            print(f"[R2_SYNC] Found new-structure object {key}, skipping auto-insert (managed by confirm-upload flow)", flush=True)
 
         conn.commit()
         elapsed = round(time.time() - start_time, 2)
