@@ -242,11 +242,12 @@ export default function TeacherDashboard() {
       const stored = localStorage.getItem('user') || localStorage.getItem('teacher');
       if (stored) {
         const u = JSON.parse(stored);
-        return u.teacher_id || u.id || u.user_id || 1;
+        return u.teacher_id || u.id || u.user_id || null;
       }
     } catch { /* ignore */ }
-    return 1;
+    return user?.teacher_id || user?.id || user?.user_id || null;
   };
+
 
   const showVideoToast = (type, msg) => {
     setVideoToast({ type, msg });

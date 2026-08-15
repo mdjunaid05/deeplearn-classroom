@@ -132,42 +132,52 @@ def create_app():
         })
 
     # ── Health check ──
+    # ── Health check ──
     @app.route("/health", methods=["GET"])
     def health_check():
         """Production health endpoint — checks backend, database, and R2."""
-        checks = {"backend": "ok"}
+        checks = {
+            "backend": "ok",
+            "database": "disconnected",
+            "r2": "not_configured",
+        }
 
         # Check database connectivity
         try:
-            from database.db import get_db_connection
+            from database.db import get_db_connection, _get_postgres_url
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT 1")
             cursor.fetchone()
             conn.close()
-            checks["database"] = "ok"
+            checks["database"] = "connected"
+            checks["db_engine"] = "postgresql (supabase)" if _get_postgres_url() else ("mysql" if os.environ.get("DB_HOST") else "sqlite")
         except Exception as db_err:
             checks["database"] = "error"
+            checks["db_error"] = str(db_err)
             print(f"[HEALTH_CHECK] Database error: {db_err}", flush=True)
 
         # Check R2 connectivity
-        from utils.storage import get_r2_diagnostics, _r2_enabled
-        r2_diag = get_r2_diagnostics()
+        from utils.storage import _r2_enabled
         if _r2_enabled():
             try:
                 from utils.storage import verify_bucket_access
                 if verify_bucket_access():
-                    checks["r2"] = "ok"
+                    checks["r2"] = "connected"
                 else:
                     checks["r2"] = "error"
             except Exception as r2_err:
                 checks["r2"] = "error"
+                checks["r2_error"] = str(r2_err)
                 print(f"[HEALTH_CHECK] R2 error: {r2_err}", flush=True)
         else:
             checks["r2"] = "not_configured"
 
-        overall = "ok" if checks["backend"] == "ok" and checks["database"] == "ok" else "degraded"
-        return jsonify({"status": overall, **checks})
+        is_healthy = checks["backend"] == "ok" and checks["database"] == "connected"
+        return jsonify({
+            "status": "healthy" if is_healthy else "degraded",
+            **checks
+        }), 200 if is_healthy else 503
 
     # ── Storage health endpoint ──
     @app.route("/storage-health", methods=["GET"])

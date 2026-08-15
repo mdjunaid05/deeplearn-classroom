@@ -47,7 +47,14 @@ services:
       - key: PYTHONDONTWRITEBYTECODE
         value: "1"
 
+      # ── Supabase PostgreSQL Database ─────────────────────────────────────────
+      # Get from: Supabase Dashboard → Settings → Database → Connection String → URI
+      # Example: postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres
+      - key: DATABASE_URL
+        sync: false   # Set manually in Render dashboard as Secret variable
+
       # ── Cloudflare R2 Video Storage ─────────────────────────────────────────
+
       # Get these from: Cloudflare Dashboard → R2 → Manage R2 API Tokens
       # Leave blank to use local disk storage (not recommended for production).
       #

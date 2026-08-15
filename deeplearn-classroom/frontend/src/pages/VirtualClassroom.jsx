@@ -73,8 +73,9 @@ export default function VirtualClassroom() {
   // ── Video state ───────────────────────────────────────────────────────────
   const videoRef      = useRef(null);
   const videoContainerRef = useRef(null);
-  const [videoSrc,    setVideoSrc]    = useState(`${API_BASE}/download-signed-video?filename=mock_video.mp4`);
-  const [videoTitle,  setVideoTitle]  = useState('Deep Learning Fundamentals');
+  const [videoSrc,    setVideoSrc]    = useState('');
+  const [videoTitle,  setVideoTitle]  = useState('Deep Learning Classroom');
+  const [selectedVideo, setSelectedVideo] = useState(null);
   const [isVideoLoaded, setIsVideoLoaded] = useState(false);
   const [isPlaying,   setIsPlaying]   = useState(false);
   const [videoTime,   setVideoTime]   = useState(0);
@@ -93,10 +94,98 @@ export default function VirtualClassroom() {
   const [vttSrc, setVttSrc] = useState('');
   const [islSignToTextOpen, setIslSignToTextOpen] = useState(false);
 
-  // ── Recordings ────────────────────────────────────────────────────────────
+  // ── Recordings & Videos ───────────────────────────────────────────────────
   const { user, token } = useAuth();
   const [recordings, setRecordings] = useState([]);
   const [loadingRecordings, setLoadingRecordings] = useState(true);
+  const [videos, setVideos] = useState([]);
+  const [loadingVideos, setLoadingVideos] = useState(true);
+  const [videosError, setVideosError] = useState(null);
+  const [recordingsError, setRecordingsError] = useState(null);
+
+  // ── getPlayableVideoUrl ──────────────────────────────────────────────────
+  const getPlayableVideoUrl = useCallback((video) => {
+    if (!video) return null;
+    const candidates = [
+      video.videoUrl,
+      video.r2_url,
+      video.processed_url,
+      video.original_url,
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (candidate.startsWith('C:\\') || candidate.startsWith('/home') || candidate.startsWith('/tmp')) continue;
+      if (!candidate.startsWith('http')) continue;
+      if (window.location.protocol === 'https:' && candidate.startsWith('http:')) {
+        return candidate.replace('http:', 'https:');
+      }
+      return candidate;
+    }
+    return null;
+  }, []);
+
+  // ── playVideo ────────────────────────────────────────────────────────────
+  const playVideo = useCallback((v) => {
+    if (!v) return;
+    const isTeacher = user?.role === 'teacher';
+    if (v.is_locked && !isTeacher) {
+      setActiveAlert({
+        type: 'warning',
+        message: 'You must score at least 35% on the previous quiz to unlock this lesson.',
+        flash: true,
+        duration: 3000
+      });
+      return;
+    }
+
+    const videoUrl = getPlayableVideoUrl(v);
+    if (!videoUrl) {
+      console.error('[VIDEO_STREAM_FAILED] No playable URL found for video_id=' + v.video_id + ' title=' + v.title, {
+        videoUrl: v.videoUrl, r2_url: v.r2_url, processed_url: v.processed_url, original_url: v.original_url
+      });
+      setVideoError('Video unavailable. No playable URL available for this video.');
+      return;
+    }
+
+    console.log(`[VIDEO PLAYER] video ID: ${v.video_id || v.videoId} | filename: ${v.filename} | URL: ${videoUrl.substring(0, 80)}...`);
+
+    if (v.video_type === 'ISL') {
+      console.log('[AI_VIDEO_RENDERED] video_id=' + v.video_id + ' filename=' + (v.filename || ''));
+    }
+
+    setSelectedVideo(v);
+    setVideoSrc(videoUrl);
+    setVideoTitle(v.title || "Uploaded Video");
+    setIsVideoLoaded(true);
+    setVideoError(null);
+    setActiveRecording(null);
+    setVideoEnded(false);
+    setQuizReady(false);
+    setShowResults(false);
+    setAnswers({});
+    setSavedCaptions([]);
+    if (v.caption_status === 'available' || v.status === 'done') {
+      setVttSrc(`${API_BASE}/video-captions?video_id=${v.video_id || v.videoId}&format=vtt`);
+    } else {
+      setVttSrc('');
+    }
+    
+    fetch(`${API_BASE}/video-captions?video_id=${v.video_id || v.videoId}&format=json`)
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error('No captions');
+      })
+      .then(data => {
+        if (data.captions && data.captions.length > 0) {
+          setSavedCaptions(data.captions);
+        }
+      })
+      .catch(() => console.log('No captions found for this video.'));
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [user, getPlayableVideoUrl]);
+
+
 
   const localProgress = recordings.length > 0 
     ? Math.round((recordings.filter(r => !r.is_locked).length / recordings.length) * 100) 
@@ -145,11 +234,13 @@ export default function VirtualClassroom() {
       // 1. If we have videoId/jobId/filename in query params, try fetching direct video URL from backend
       if (videoId || jobId || filename) {
         try {
+          const uid = user?.user_id || user?.id || user?.teacher_id || user?.student_id;
           const userIdParam = user?.role === 'teacher' 
-            ? `teacher_id=${user.id || user?.user_id || 1}` 
-            : `student_id=${user?.id || user?.user_id || 1}`;
+            ? (uid ? `teacher_id=${uid}` : '') 
+            : (uid ? `student_id=${uid}` : '');
           
-          const urlRes = await fetch(`${API_BASE}/video-url?${params.toString()}&${userIdParam}`);
+          const queryStr = [params.toString(), userIdParam].filter(Boolean).join('&');
+          const urlRes = await fetch(`${API_BASE}/video-url?${queryStr}`);
           if (urlRes.ok) {
             const urlData = await urlRes.json();
             if (urlData.video_url) {
@@ -262,26 +353,21 @@ export default function VirtualClassroom() {
     setQuizReady(true);
   }, [videoEnded, transcript, generateQuiz]);
 
-  // ── Fetch Recordings ──────────────────────────────────────────────────────
-  const [videos, setVideos] = useState([]);
-  const [loadingVideos, setLoadingVideos] = useState(true);
-  const [videosError, setVideosError] = useState(null);
-  const [recordingsError, setRecordingsError] = useState(null);
-
   const fetchVideos = async () => {
     try {
       setLoadingVideos(true);
       setVideosError(null);
-      console.log('[VIDEO_LIST_REQUEST] Fetching video catalog...');
+      const uid = user?.user_id || user?.id || user?.teacher_id || user?.student_id;
       const userIdParam = user?.role === 'teacher' 
-        ? `teacher_id=${user.id || user?.user_id || 1}` 
-        : `student_id=${user?.id || user?.user_id || 1}`;
+        ? (uid ? `teacher_id=${uid}` : '') 
+        : (uid ? `student_id=${uid}` : '');
       
       // Add timeout to prevent infinite loading
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
-      const res = await fetch(`${API_BASE}/videos?${userIdParam}`, { signal: controller.signal });
+      const fetchUrl = userIdParam ? `${API_BASE}/videos?${userIdParam}` : `${API_BASE}/videos`;
+      const res = await fetch(fetchUrl, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
@@ -295,11 +381,35 @@ export default function VirtualClassroom() {
         throw new Error(`Server returned ${res.status}: ${errText.substring(0, 200)}`);
       }
       const data = await res.json();
-      setVideos(data.videos || []);
-      console.log('[VIDEO_LIST_RESPONSE] count=' + (data.videos?.length || 0));
-      console.log('[VIDEOS_RENDERED] count=' + (data.videos?.length || 0));
-      if ((data.videos?.length || 0) > 0) {
-        console.log('[VIDEO_RENDER_SUCCESS] Rendered ' + data.videos.length + ' video card(s)');
+      const videoList = data.videos || [];
+      setVideos(videoList);
+      console.log('[VIDEO_LIST_RESPONSE] count=' + videoList.length);
+      console.log('[VIDEOS_RENDERED] count=' + videoList.length);
+      if (videoList.length > 0) {
+        console.log('[VIDEO_RENDER_SUCCESS] Rendered ' + videoList.length + ' video card(s)');
+      }
+
+      // Auto-select and play the first uploaded video if no URL param was specified and no video is currently loaded
+      const params = new URLSearchParams(window.location.search);
+      const hasUrlParam = params.get('video_id') || params.get('job_id') || params.get('filename');
+      if (!hasUrlParam && videoList.length > 0) {
+        setVideoSrc(currentSrc => {
+          if (!currentSrc) {
+            const firstPlayable = videoList.find(v => !v.is_locked && (v.status === 'done' || v.upload_status === 'uploaded')) || videoList[0];
+            if (firstPlayable) {
+              const url = getPlayableVideoUrl(firstPlayable);
+              if (url) {
+                setVideoTitle(firstPlayable.title || 'Uploaded Video');
+                setIsVideoLoaded(true);
+                if (firstPlayable.caption_status === 'available' || firstPlayable.status === 'done') {
+                  setVttSrc(`${API_BASE}/video-captions?video_id=${firstPlayable.video_id}&format=vtt`);
+                }
+                return url;
+              }
+            }
+          }
+          return currentSrc;
+        });
       }
     } catch (err) {
       console.error('[VIDEO_RENDER_FAILED] Error fetching videos:', err);
@@ -320,10 +430,10 @@ export default function VirtualClassroom() {
     try {
       setLoadingRecordings(true);
       setRecordingsError(null);
-      const studentId = user?.id || user?.user_id || 1;
+      const uid = user?.user_id || user?.id || user?.teacher_id || user?.student_id;
       const url = user?.role === 'teacher' 
-        ? `${API_BASE}/recordings?teacher_id=${user.id || user?.user_id || 1}`
-        : `${API_BASE}/recordings?student_id=${studentId}`;
+        ? `${API_BASE}/recordings${uid ? `?teacher_id=${uid}` : ''}`
+        : `${API_BASE}/recordings${uid ? `?student_id=${uid}` : ''}`;
         
       const res = await fetch(url);
       if (!res.ok) {
@@ -359,7 +469,8 @@ export default function VirtualClassroom() {
   const fetchCourseProgress = async () => {
     if (!user || user?.role !== 'student') return;
     try {
-      const studentId = user?.id || user?.user_id || 1;
+      const studentId = user?.student_id || user?.user_id || user?.id;
+      if (!studentId) return;
       const res = await fetch(`${API_BASE}/course/progress?student_id=${studentId}&course_id=1`);
       if (res.ok) {
         const data = await res.json();
@@ -385,6 +496,7 @@ export default function VirtualClassroom() {
       });
     }
   };
+
 
   useEffect(() => {
     if (user) {
@@ -472,8 +584,9 @@ export default function VirtualClassroom() {
 
     if (user?.role === 'student') {
       try {
+        const studentId = user?.student_id || user?.user_id || user?.id;
         const payload = {
-          student_id: user.id || user?.user_id || 1,
+          student_id: studentId,
           quiz_title: videoTitle || "General Quiz",
           recording_id: activeRecording ? activeRecording.recording_id : null,
           time_taken: Math.round((Date.now() - quizStartTime) / 1000) || 30,
@@ -681,35 +794,28 @@ export default function VirtualClassroom() {
                 onTimeUpdate={(e) => setVideoTime(e.target.currentTime)}
                 onEnded={() => { setIsPlaying(false); setVideoEnded(true); }}
                 onError={(e) => {
-                  console.error('[VIDEO_STREAM_FAILED] src=' + videoSrc);
                   const err = videoRef.current?.error;
-                  let errorMsg = "An unknown playback error occurred.";
+                  let errorMsg = "Unable to play this video.";
                   let codeStr = "UNKNOWN";
                   if (err) {
-                    if (err.code === 1) { codeStr = "MEDIA_ERR_ABORTED"; errorMsg = "Video playback aborted by user."; }
-                    else if (err.code === 2) { codeStr = "MEDIA_ERR_NETWORK"; errorMsg = "A network error caused the video download to fail."; }
-                    else if (err.code === 3) { codeStr = "MEDIA_ERR_DECODE"; errorMsg = "The video playback was aborted due to a corruption problem or because the video used features your browser did not support."; }
-                    else if (err.code === 4) { codeStr = "MEDIA_ERR_SRC_NOT_SUPPORTED"; errorMsg = "The video could not be loaded, either because the server or network failed or because the format is not supported."; }
+                    if (err.code === 1) { codeStr = "MEDIA_ERR_ABORTED"; errorMsg = "Video loading was interrupted."; }
+                    else if (err.code === 2) { codeStr = "MEDIA_ERR_NETWORK"; errorMsg = "Network error while loading the video."; }
+                    else if (err.code === 3) { codeStr = "MEDIA_ERR_DECODE"; errorMsg = "This video could not be decoded."; }
+                    else if (err.code === 4) { codeStr = "MEDIA_ERR_SRC_NOT_SUPPORTED"; errorMsg = "This video format or URL is not supported."; }
                   }
                   
-                  // Log the required playback failure details
-                  console.error('[VIDEO_PLAYBACK_FAILED]', {
-                    file: "VirtualClassroom.jsx",
-                    function: "video.onError",
-                    line: 660,
+                  console.error('[VIDEO PLAYER] playback error:', {
+                    video_id: selectedVideo?.video_id || selectedVideo?.videoId || 'unknown',
+                    filename: selectedVideo?.filename || 'unknown',
+                    src: videoSrc,
                     error_code: codeStr,
-                    root_cause: `Browser video playback failed with ${codeStr}: ${errorMsg}. This occurs when the video format is incompatible (e.g. mp4v), has no faststart MOOV atom, or is blocked by network/CORS rules.`,
-                    fix_implemented: "Transcoded all generated sign language videos to H.264 video and AAC audio with -movflags +faststart using imageio_ffmpeg."
+                    error_message: errorMsg
                   });
                   
                   setVideoError(errorMsg);
                 }}
                 onLoadedMetadata={() => console.log('[VIDEO_RENDERED] src=' + videoSrc)}
-                poster={
-                  isVideoLoaded && videoSrc.includes('Sintel')
-                    ? 'https://storage.googleapis.com/gtv-videos-bucket/sample/images/Sintel.jpg'
-                    : undefined
-                }
+                poster={selectedVideo?.thumbnail || undefined}
               >
                 {vttSrc && captionsEnabled && (
                   <track
@@ -722,24 +828,49 @@ export default function VirtualClassroom() {
                 )}
               </video>
 
+              {!videoSrc && (
+                <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 text-center z-20">
+                  <div className="w-16 h-16 rounded-2xl bg-[#00687a]/20 border border-[#00687a]/40 flex items-center justify-center mb-4">
+                    <Video className="w-8 h-8 text-[#00687a]" />
+                  </div>
+                  <p className="text-white font-semibold text-lg">{videos.length === 0 && !loadingVideos ? 'No videos available' : 'Select a lesson to begin'}</p>
+                  <p className="text-slate-400 text-xs max-w-sm mt-1">{videos.length === 0 && !loadingVideos ? 'No uploaded lesson videos found in this classroom.' : 'Choose a lesson from the classroom catalog below.'}</p>
+                </div>
+              )}
+
               {videoError && (
                 <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center z-30 backdrop-blur-xs">
                   <AlertCircle className="w-12 h-12 text-rose-500 mb-3 animate-pulse" />
-                  <p className="text-white font-semibold text-lg">Playback Error</p>
+                  <p className="text-white font-semibold text-lg">Video unavailable</p>
                   <p className="text-slate-300 text-xs max-w-md mt-2">{videoError}</p>
                   <button 
                     onClick={async () => {
                       setVideoError(null);
-                      // Re-fetch the video list to get a fresh presigned URL from the server
-                      // (presigned URLs expire; the server always generates a fresh one)
-                      await fetchVideos();
-                      // After re-fetch, attempt reload with the updated src
-                      setTimeout(() => {
-                        if (videoRef.current) {
-                          videoRef.current.load();
-                          videoRef.current.play().catch(err => console.log('Retry play failed:', err));
+                      try {
+                        const uid = user?.user_id || user?.id || user?.teacher_id || user?.student_id;
+                        const userIdParam = user?.role === 'teacher' ? (uid ? `teacher_id=${uid}` : '') : (uid ? `student_id=${uid}` : '');
+                        const fetchUrl = userIdParam ? `${API_BASE}/videos?${userIdParam}` : `${API_BASE}/videos`;
+                        const res = await fetch(fetchUrl);
+                        if (res.ok) {
+                          const data = await res.json();
+                          const freshList = data.videos || [];
+                          setVideos(freshList);
+                          const target = selectedVideo 
+                            ? (freshList.find(v => (v.video_id && v.video_id === selectedVideo.video_id) || (v.filename && v.filename === selectedVideo.filename)) || freshList[0])
+                            : freshList[0];
+                          if (target) {
+                            playVideo(target);
+                            setTimeout(() => {
+                              if (videoRef.current) {
+                                videoRef.current.load();
+                                videoRef.current.play().catch(err => console.log('Retry play failed:', err));
+                              }
+                            }, 150);
+                          }
                         }
-                      }, 300);
+                      } catch (retryErr) {
+                        console.error('Retry fetch failed:', retryErr);
+                      }
                     }} 
                     className="mt-4 px-4 py-2 bg-[#00687a] hover:bg-[#005260] text-white rounded-xl text-xs font-semibold transition-all duration-300 cursor-pointer shadow-md hover:scale-105"
                   >
@@ -747,6 +878,7 @@ export default function VirtualClassroom() {
                   </button>
                 </div>
               )}
+
 
 
               {/* Video-ended overlay */}
@@ -1286,105 +1418,20 @@ export default function VirtualClassroom() {
                       islVideo.is_locked = video.is_locked;
                     }
 
-                    // Play handler helper
-                    const playVideo = (v) => {
-                      const isTeacher = user?.role === 'teacher';
-                      if (v.is_locked && !isTeacher) {
-                        setActiveAlert({
-                          type: 'warning',
-                          message: 'You must score at least 35% on the previous quiz to unlock this lesson.',
-                          flash: true,
-                          duration: 3000
-                        });
-                        return;
-                      }
 
-                      // ── getPlayableVideoUrl ────────────────────────────────
-                      // Priority:
-                      //  1. videoUrl  — server-resolved fresh R2 URL (always current)
-                      //  2. r2_url    — may be stale presigned URL; fallback only
-                      //  3. processed_url / original_url — last resort
-                      //  4. null      — no playable source
-                      //
-                      // Never return: undefined, null, localhost, http:// on HTTPS page
-                      const getPlayableVideoUrl = (video) => {
-                        const candidates = [
-                          video.videoUrl,
-                          video.r2_url,
-                          video.processed_url,
-                          video.original_url,
-                        ];
-                        for (const candidate of candidates) {
-                          if (!candidate) continue;
-                          // Skip local filesystem paths (Windows/Linux)
-                          if (candidate.startsWith('C:\\') || candidate.startsWith('/home') || candidate.startsWith('/tmp')) continue;
-                          // Skip relative paths that don't start with http
-                          if (!candidate.startsWith('http')) continue;
-                          // In production (HTTPS), upgrade http: to https: to avoid mixed-content block
-                          if (window.location.protocol === 'https:' && candidate.startsWith('http:')) {
-                            return candidate.replace('http:', 'https:');
-                          }
-                          return candidate;
-                        }
-                        return null;
-                      };
-
-                      const videoUrl = getPlayableVideoUrl(v);
-                      if (!videoUrl) {
-                        console.error('[VIDEO_STREAM_FAILED] No playable URL found for video_id=' + v.video_id + ' title=' + v.title, {
-                          videoUrl: v.videoUrl, r2_url: v.r2_url, processed_url: v.processed_url, original_url: v.original_url
-                        });
-                        setVideoError('No playable URL available for this video. The video may still be processing.');
-                        return;
-                      }
-
-                      console.log('[VIDEO_PLAY_REQUEST] video_id=' + v.video_id + ' resolved_url=' + videoUrl.substring(0, 80) + '...');
-
-                      if (v.video_type === 'ISL') {
-                        console.log('[AI_VIDEO_RENDERED] video_id=' + v.video_id + ' filename=' + (v.filename || ''));
-                      }
-
-                      setVideoSrc(videoUrl);
-                      setVideoTitle(v.title || "Uploaded Video");
-                      setVideoError(null);
-                      setActiveRecording(null);
-                      setVideoEnded(false);
-                      setQuizReady(false);
-                      setShowResults(false);
-                      setAnswers({});
-                      setSavedCaptions([]);
-                      if (v.caption_status === 'available' || v.status === 'done') {
-                        setVttSrc(`${API_BASE}/video-captions?video_id=${v.video_id}&format=vtt`);
-                      } else {
-                        setVttSrc('');
-                      }
-                      
-                      fetch(`${API_BASE}/video-captions?video_id=${v.video_id}&format=json`)
-                        .then(res => {
-                          if (res.ok) return res.json();
-                          throw new Error('No captions');
-                        })
-                        .then(data => {
-                          if (data.captions && data.captions.length > 0) {
-                            setSavedCaptions(data.captions);
-                          }
-                        })
-                        .catch(() => console.log('No captions found for this video.'));
-
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    };
 
 
                     // Download url helper
                     const getDownloadUrl = (v) => {
                       const rawUrl = v.original_url || v.processed_url || v.r2_url || '';
+                      const uid = user?.user_id || user?.id || user?.teacher_id || user?.student_id;
                       const authParam = user?.role === 'teacher' 
-                        ? `teacher_id=${user.id || 1}` 
-                        : `student_id=${user?.id || user?.user_id || 1}`;
+                        ? (uid ? `teacher_id=${uid}` : '') 
+                        : (uid ? `student_id=${uid}` : '');
                       if (rawUrl && !rawUrl.startsWith('http')) {
-                        return `${API_BASE}${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
+                        return `${API_BASE}${rawUrl}${authParam ? (rawUrl.includes('?') ? '&' : '?') + authParam : ''}`;
                       }
-                      if (rawUrl && !rawUrl.includes('student_id=') && !rawUrl.includes('teacher_id=')) {
+                      if (rawUrl && authParam && !rawUrl.includes('student_id=') && !rawUrl.includes('teacher_id=')) {
                         return `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
                       }
                       return rawUrl;

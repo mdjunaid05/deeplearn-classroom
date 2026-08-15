@@ -33,8 +33,8 @@ def _job_path(job_id: str) -> str:
     return os.path.join(_JOBS_DIR, f"{job_id}.json")
 
 
-def _write_job(job_id: str, state: dict) -> None:
-    """Persist job state to disk (atomic write via temp file + rename)."""
+def _write_job(job_id: str, state: dict, video_id: int = None) -> None:
+    """Persist job state to disk and database (video_processing_jobs)."""
     state["_ts"] = time.time()  # timestamp for cleanup
     path = _job_path(job_id)
     tmp = path + ".tmp"
@@ -44,13 +44,60 @@ def _write_job(job_id: str, state: dict) -> None:
         os.replace(tmp, path)  # atomic on POSIX and Windows
     except OSError as e:
         print(f"[Pipeline] Warning: could not persist job {job_id} to disk: {e}")
+    
     # Always keep in-memory as well (for same-worker fast reads)
     with _JOBS_LOCK:
         _JOBS_MEMORY[job_id] = state
 
+    # Persist / sync to video_processing_jobs table in database
+    try:
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        status_val = state.get("status", "processing")
+        if status_val == "done":
+            db_status = "completed"
+        elif status_val == "error":
+            db_status = "failed"
+        else:
+            db_status = "processing"
+            
+        progress_val = int(state.get("progress", 0))
+        current_step = str(state.get("step", ""))[:255]
+        error_msg = str(state.get("error", "")) if state.get("error") else None
+        video_url = state.get("video_url")
+        captions_json = json.dumps(state.get("captions")) if state.get("captions") else None
+
+        cursor.execute("SELECT id FROM video_processing_jobs WHERE job_id = ?", (job_id,))
+        existing = cursor.fetchone()
+        if existing:
+            cursor.execute("""
+                UPDATE video_processing_jobs 
+                SET status = ?, progress = ?, current_step = ?, error_message = ?, 
+                    video_url = ?, formatted_captions = ?, updated_at = CURRENT_TIMESTAMP,
+                    completed_at = CASE WHEN ? IN ('completed', 'failed') THEN CURRENT_TIMESTAMP ELSE completed_at END
+                WHERE job_id = ?
+            """, (db_status, progress_val, current_step, error_msg, video_url, captions_json, db_status, job_id))
+        else:
+            cursor.execute("""
+                INSERT INTO video_processing_jobs 
+                    (job_id, video_id, status, progress, current_step, error_message, video_url, formatted_captions, started_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (job_id, video_id, db_status, progress_val, current_step, error_msg, video_url, captions_json))
+        conn.commit()
+        conn.close()
+    except Exception as db_err:
+        # Non-fatal DB sync warning
+        pass
+
 
 def _read_job(job_id: str) -> dict:
-    """Read job state. Prefer disk (cross-worker), fall back to memory."""
+    """Read job state. Prefer memory, then disk, then database fallback."""
+    with _JOBS_LOCK:
+        if job_id in _JOBS_MEMORY:
+            return _JOBS_MEMORY[job_id]
+
     path = _job_path(job_id)
     try:
         if os.path.exists(path):
@@ -58,8 +105,43 @@ def _read_job(job_id: str) -> dict:
                 return json.load(f)
     except (OSError, json.JSONDecodeError):
         pass
-    with _JOBS_LOCK:
-        return _JOBS_MEMORY.get(job_id, {})
+
+    # Database fallback (survives Render restarts)
+    try:
+        from database.db import get_db_connection
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT status, progress, current_step, error_message, video_url, formatted_captions
+            FROM video_processing_jobs WHERE job_id = ?
+        """, (job_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            status_db = row[0] if isinstance(row, (tuple, list)) else row.get("status")
+            frontend_status = "done" if status_db == "completed" else "error" if status_db == "failed" else "processing"
+            progress_db = row[1] if isinstance(row, (tuple, list)) else row.get("progress", 0)
+            step_db = row[2] if isinstance(row, (tuple, list)) else row.get("current_step", "")
+            err_db = row[3] if isinstance(row, (tuple, list)) else row.get("error_message")
+            vurl_db = row[4] if isinstance(row, (tuple, list)) else row.get("video_url")
+            captions_raw = row[5] if isinstance(row, (tuple, list)) else row.get("formatted_captions")
+            captions_list = json.loads(captions_raw) if captions_raw and isinstance(captions_raw, str) else captions_raw
+
+            job_state = {
+                "status": frontend_status,
+                "progress": progress_db,
+                "step": step_db,
+                "error": err_db,
+                "video_url": vurl_db,
+                "captions": captions_list,
+            }
+            with _JOBS_LOCK:
+                _JOBS_MEMORY[job_id] = job_state
+            return job_state
+    except Exception:
+        pass
+
+    return {}
 
 
 def _cleanup_old_jobs(max_age_seconds: int = 3600) -> None:
@@ -314,15 +396,22 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 
                 # Get video duration
                 duration = get_video_duration(output_path if os.path.exists(output_path) else input_path)
+                
+                # Cloudflare R2 Keys
+                r2_cap_key = f"captions/{video_id}/captions.vtt" if caption_vtt_url else None
+                r2_thumb_key = f"thumbnails/{video_id}/thumbnail.jpg" if thumbnail_url else None
+                isl_r2_key_val = output_r2_key or f"isl/{video_id}/isl-video.mp4"
 
-                # Update original video: status, caption_status, signing_status, thumbnail, duration
+                # Update original video: status, caption_status, signing_status, thumbnail, duration, R2 keys
                 cursor.execute("""
                     UPDATE videos 
-                    SET status = 'done', video_type = 'original', processed_at = CURRENT_TIMESTAMP,
+                    SET status = 'done', upload_status = 'uploaded', processing_status = 'completed',
+                        video_type = 'original', processed_at = CURRENT_TIMESTAMP,
                         caption_status = 'available', signing_status = 'available',
+                        r2_captions_key = ?, r2_thumbnail_key = ?, r2_isl_key = ?,
                         thumbnail = ?, duration = ?, updated_at = CURRENT_TIMESTAMP
                     WHERE video_id = ?
-                """, (thumbnail_url, duration, video_id))
+                """, (r2_cap_key, r2_thumb_key, isl_r2_key_val, thumbnail_url, duration, video_id))
                 
                 # Create a NEW record for the ISL video
                 isl_title = f"[AI Deaf Signing] {orig_title}"
@@ -330,8 +419,13 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                 from utils.storage import is_r2_url
                 
                 cursor.execute("""
-                    INSERT INTO videos (teacher_id, course_id, title, filename, original_url, processed_url, r2_url, status, original_video_id, video_type, caption_status, signing_status, thumbnail, duration, visibility)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, 'done', ?, 'ISL', 'available', 'available', ?, ?, 'Published')
+                    INSERT INTO videos (
+                        teacher_id, course_id, title, filename, original_url, processed_url, r2_url,
+                        status, upload_status, processing_status, original_video_id, video_type,
+                        caption_status, signing_status, r2_key, r2_isl_key, r2_captions_key, r2_thumbnail_key,
+                        thumbnail, duration, visibility
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'done', 'uploaded', 'completed', ?, 'ISL', 'available', 'available', ?, ?, ?, ?, ?, ?, 'Published')
                 """, (
                     teacher_id, 
                     course_id, 
@@ -341,6 +435,10 @@ def process_video_pipeline(job_id, input_path, output_path, output_r2_key=None, 
                     video_url, 
                     video_url if is_r2_url(video_url) else None, 
                     video_id,
+                    isl_r2_key_val,
+                    isl_r2_key_val,
+                    r2_cap_key,
+                    r2_thumb_key,
                     thumbnail_url,
                     duration
                 ))

@@ -558,11 +558,19 @@ def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
 
             # Idempotency: check by filename, r2_key, or r2_url
             cursor.execute(
-                "SELECT video_id FROM videos WHERE filename = ? OR r2_key = ? OR r2_url LIKE ?",
+                "SELECT video_id, r2_key FROM videos WHERE filename = ? OR r2_key = ? OR r2_url LIKE ?",
                 (filename, key, f"%{filename}%")
             )
-            if cursor.fetchone():
+            existing_row = cursor.fetchone()
+            if existing_row:
+                # Backfill missing r2_key on existing records
+                if not existing_row[1]:
+                    cursor.execute(
+                        "UPDATE videos SET r2_key = ?, upload_status = 'uploaded' WHERE video_id = ?",
+                        (key, existing_row[0])
+                    )
                 continue
+
 
             orig_url = get_public_url(key)
             file_size = obj.get("Size", 0)

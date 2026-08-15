@@ -27,6 +27,8 @@ backend/recordings/
 # ── Local SQLite Database ──
 backend/data/deeplearn.db
 backend/database/deeplearn.db
+backend/backups/
+*.sqlite
 
 # ── OS Files ──
 .DS_Store

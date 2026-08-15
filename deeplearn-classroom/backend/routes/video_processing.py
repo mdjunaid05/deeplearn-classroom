@@ -495,6 +495,9 @@ def get_videos():
                 FROM videos v
                 LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
                 WHERE v.teacher_id = ?
+                  AND (v.deleted = 0 OR v.deleted IS NULL)
+                  AND (v.hidden = 0 OR v.hidden IS NULL)
+                  AND (v.archived = 0 OR v.archived IS NULL)
                 ORDER BY v.uploaded_at DESC
             """
             cursor.execute(query, (teacher_id,))
@@ -518,6 +521,12 @@ def get_videos():
         videos_list = []
         for row in rows:
             video_dict = dict(zip(columns, row))
+            fname = video_dict.get("filename")
+            
+            # Skip mock / test placeholders completely
+            if fname in ("mock_video.mp4", "signed_mock_video.mp4"):
+                continue
+
             if video_dict.get("uploaded_at"):
                 if not isinstance(video_dict["uploaded_at"], str):
                     video_dict["uploaded_at"] = video_dict["uploaded_at"].isoformat()
@@ -532,16 +541,25 @@ def get_videos():
             # CRITICAL FIX: Presigned URLs stored in the DB expire after 7 days.
             # Always regenerate the playable URL from r2_key at request time so
             # the browser always receives a valid, non-expired URL.
-            # If R2_PUBLIC_URL is set (bucket is public), get_public_url() returns
-            # a permanent URL with no expiry. If not set, it generates a fresh
-            # 7-day presigned URL. Either way, it is always current.
             r2_key = video_dict.get("r2_key")
-            if r2_key:
+            v_type = video_dict.get("video_type") or "original"
+
+            # If r2_key is missing in DB record, verify candidate paths in R2
+            if not r2_key and fname:
+                if v_type == "ISL" or fname.startswith("signed_"):
+                    cand = make_r2_key("processed", fname)
+                else:
+                    cand = make_r2_key("uploads", fname)
+                if verify_upload(cand):
+                    r2_key = cand
+
+            if r2_key and _r2_enabled():
                 fresh_r2_url = get_public_url(r2_key)
-                if fresh_r2_url and fresh_r2_url != r2_key:  # r2_key returned as-is when R2 disabled
+                if fresh_r2_url and is_r2_url(fresh_r2_url):
                     video_dict["r2_url"] = fresh_r2_url
                     video_dict["original_url"] = fresh_r2_url
                     video_dict["processed_url"] = fresh_r2_url
+                    video_dict["r2_key"] = r2_key
                     print(f"[VIDEO_URL_REFRESHED] video_id={video_dict.get('video_id')} r2_key={r2_key}", flush=True)
             else:
                 # No r2_key: fall back to local/legacy URL handling
@@ -584,6 +602,7 @@ def get_videos():
             else:
                 video_dict["aiSigningVideoUrl"] = None
 
+            print(f"[VIDEO] video_id={video_dict.get('videoId')} filename={fname} r2_key={r2_key} R2 object exists={bool(is_r2_url(video_dict.get('videoUrl')))} resolved URL type={'presigned' if is_r2_url(video_dict.get('videoUrl')) else 'local'} content type=video/mp4", flush=True)
             videos_list.append(video_dict)
 
         if student_id:
@@ -672,6 +691,12 @@ def get_classroom_videos(classroom_id):
         videos_list = []
         for row in rows:
             video_dict = dict(zip(columns, row))
+            fname = video_dict.get("filename")
+
+            # Skip mock / test placeholders completely
+            if fname in ("mock_video.mp4", "signed_mock_video.mp4"):
+                continue
+
             if video_dict.get("uploaded_at"):
                 if not isinstance(video_dict["uploaded_at"], str):
                     video_dict["uploaded_at"] = video_dict["uploaded_at"].isoformat()
@@ -683,12 +708,23 @@ def get_classroom_videos(classroom_id):
 
             # CRITICAL FIX: Refresh stale presigned URL from r2_key at request time
             r2_key = video_dict.get("r2_key")
-            if r2_key:
+            v_type = video_dict.get("video_type") or "original"
+
+            if not r2_key and fname:
+                if v_type == "ISL" or fname.startswith("signed_"):
+                    cand = make_r2_key("processed", fname)
+                else:
+                    cand = make_r2_key("uploads", fname)
+                if verify_upload(cand):
+                    r2_key = cand
+
+            if r2_key and _r2_enabled():
                 fresh_r2_url = get_public_url(r2_key)
-                if fresh_r2_url and fresh_r2_url != r2_key:
+                if fresh_r2_url and is_r2_url(fresh_r2_url):
                     video_dict["r2_url"] = fresh_r2_url
                     video_dict["original_url"] = fresh_r2_url
                     video_dict["processed_url"] = fresh_r2_url
+                    video_dict["r2_key"] = r2_key
 
             video_dict["R2 URL"] = video_dict.get("r2_url") or video_dict.get("processed_url") or video_dict.get("original_url")
             video_dict["upload timestamp"] = video_dict.get("uploaded_at")
@@ -717,7 +753,9 @@ def get_classroom_videos(classroom_id):
             else:
                 video_dict["aiSigningVideoUrl"] = None
 
+            print(f"[VIDEO] video_id={video_dict.get('videoId')} filename={fname} r2_key={r2_key} R2 object exists={bool(is_r2_url(video_dict.get('videoUrl')))} resolved URL type={'presigned' if is_r2_url(video_dict.get('videoUrl')) else 'local'} content type=video/mp4", flush=True)
             videos_list.append(video_dict)
+
 
         print(f"[VIDEOS_FETCHED] count={len(videos_list)}", flush=True)
         print(f"[VIDEO_LIST_RESPONSE] classroom_id={classroom_id} count={len(videos_list)}", flush=True)
@@ -770,7 +808,8 @@ def video_status():
 
 def _find_video_url_in_db(video_id=None, filename=None):
     """
-    Search database for video record and return the best available URL and filename.
+    Search database for video record and return the best available fresh URL and filename.
+    Always prioritizes canonical R2 keys and generates non-expired URLs.
     """
     if not video_id and not filename:
         return None, None
@@ -781,14 +820,14 @@ def _find_video_url_in_db(video_id=None, filename=None):
     try:
         if video_id:
             cursor.execute("""
-                SELECT r2_url, processed_url, original_url, status, filename 
+                SELECT r2_key, r2_isl_key, r2_url, processed_url, original_url, status, filename, video_type 
                 FROM videos 
                 WHERE video_id = ?
             """, (video_id,))
         else:
             # Query by filename or title
             cursor.execute("""
-                SELECT r2_url, processed_url, original_url, status, filename 
+                SELECT r2_key, r2_isl_key, r2_url, processed_url, original_url, status, filename, video_type 
                 FROM videos 
                 WHERE filename = ? OR title = ? OR filename = ?
                 ORDER BY uploaded_at DESC LIMIT 1
@@ -799,19 +838,33 @@ def _find_video_url_in_db(video_id=None, filename=None):
             columns = [desc[0] for desc in cursor.description]
             video_data = dict(zip(columns, row))
             
-            # Prefer r2_url or processed_url
-            url = video_data.get("r2_url") or video_data.get("processed_url")
+            db_filename = video_data.get("filename")
+            v_type = video_data.get("video_type") or "original"
+
+            # 1. Check direct r2_key / r2_isl_key
+            r2_k = video_data.get("r2_key") or video_data.get("r2_isl_key")
             
-            # Fallback to original_url
-            if not url:
-                url = video_data.get("original_url")
-                
-            return url, video_data.get("filename")
+            # 2. Derive key from filename if r2_key was NULL
+            if not r2_k and db_filename and db_filename != "mock_video.mp4":
+                if v_type == "ISL" or db_filename.startswith("signed_"):
+                    r2_k = make_r2_key("processed", db_filename)
+                else:
+                    r2_k = make_r2_key("uploads", db_filename)
+
+            if r2_k and _r2_enabled():
+                fresh_url = get_public_url(r2_k)
+                if is_r2_url(fresh_url):
+                    return fresh_url, db_filename
+
+            # 3. Check existing stored URLs
+            url = video_data.get("r2_url") or video_data.get("processed_url") or video_data.get("original_url")
+            return url, db_filename
     except Exception as e:
         print(f"Error querying DB for video: {e}", flush=True)
     finally:
         conn.close()
     return None, None
+
 
 
 def is_video_locked_for_student(video_id, student_id, filename=None):
@@ -920,9 +973,28 @@ def download_signed_video():
             return send_file(local_cache, as_attachment=False, conditional=True, mimetype="video/mp4")
         return redirect(db_url, code=307)
 
-    # Search disk candidates for any match in search_names
+    # 1. If video_id is provided, check database for real r2_key first
+    if video_id and _r2_enabled():
+        try:
+            from database.db import get_db_connection
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute("SELECT r2_key, filename FROM videos WHERE video_id = ?", (video_id,))
+            row = cur.fetchone()
+            conn.close()
+            if row and row[0]:
+                db_r2_key = row[0]
+                if verify_upload(db_r2_key):
+                    pub_url = get_public_url(db_r2_key)
+                    if is_r2_url(pub_url):
+                        print(f"[VIDEO_STREAM_REDIRECT] database r2_key={db_r2_key}", flush=True)
+                        return redirect(pub_url, code=307)
+        except Exception as e:
+            print(f"[Storage] DB r2_key lookup error: {e}", flush=True)
+
+    # 2. Search disk candidates for any match in search_names
     for name in dict.fromkeys(search_names): # deduplicated list
-        if not name:
+        if not name or name == "mock_video.mp4":
             continue
         candidates = [
             name if os.path.isabs(name) else os.path.join(BACKEND_DIR, name),
@@ -941,22 +1013,23 @@ def download_signed_video():
                     print(f"[VIDEO_STREAM_FAILED] path={candidate} error={e}", flush=True)
                     raise
 
-    # 3. Fallback: check R2 if enabled
-    for name in dict.fromkeys(search_names):
-        if _r2_enabled() and name:
-            r2_key  = make_r2_key("processed", name)
-            pub_url = get_public_url(r2_key)
-            if is_r2_url(pub_url):
-                return redirect(pub_url, code=307)
+    # 3. Fallback: check R2 if enabled (check both uploads and processed folders with verify_upload)
+    if _r2_enabled():
+        for name in dict.fromkeys(search_names):
+            if not name or name == "mock_video.mp4":
+                continue
+            for prefix in ["uploads", "processed"]:
+                r2_key = make_r2_key(prefix, name)
+                if verify_upload(r2_key):
+                    pub_url = get_public_url(r2_key)
+                    if is_r2_url(pub_url):
+                        print(f"[VIDEO_STREAM_REDIRECT] verified R2 key={r2_key}", flush=True)
+                        return redirect(pub_url, code=307)
 
-    # 4. Ultimate fallback: if mock_video.mp4 exists in BACKEND_DIR, serve it
-    default_mock = os.path.join(BACKEND_DIR, "mock_video.mp4")
-    if os.path.exists(default_mock):
-        print(f"[VIDEO_STREAM_FALLBACK] serving default mock_video.mp4 from {default_mock}", flush=True)
-        return send_file(default_mock, as_attachment=False, conditional=True, mimetype="video/mp4")
+    print(f"[VIDEO_STREAM_FAILED] file not found filename={filename} video_id={video_id}", flush=True)
+    return jsonify({"error": "Video not found in storage", "video_id": video_id, "filename": filename}), 404
 
-    print(f"[VIDEO_STREAM_FAILED] file not found filename={filename}", flush=True)
-    return jsonify({"error": "File not found. Processing may still be in progress."}), 404
+
 
 
 # ── GET /video-url ────────────────────────────────────────────────────────────
@@ -999,7 +1072,10 @@ def get_video_url():
 
     # 2. Try database lookup by video_id or filename
     db_url, db_filename = _find_video_url_in_db(video_id=video_id, filename=filename)
-    if db_url:
+    if db_url and is_r2_url(db_url):
+        print(f"[VIDEO_URL_RETURNED] r2_direct video_url={db_url[:80]}...", flush=True)
+        return jsonify({"video_url": db_url, "source": "r2_direct"})
+    elif db_url:
         target_name = db_filename or os.path.basename(db_url)
         proxy_url = f"{_get_base_url()}/download-signed-video?filename={target_name}{auth_query}"
         if video_id:
@@ -1007,16 +1083,23 @@ def get_video_url():
         print(f"[VIDEO_URL_RETURNED] video_url={proxy_url}", flush=True)
         return jsonify({"video_url": proxy_url, "source": "database_proxied"})
 
-    # 3. Fallback: construct URL from filename
-    if not filename:
-        return jsonify({"error": "Missing job_id, video_id, or filename"}), 400
+    # 3. Fallback: construct URL from filename if provided
+    if filename and filename != "mock_video.mp4":
+        if _r2_enabled():
+            for prefix in ["uploads", "processed"]:
+                cand_key = make_r2_key(prefix, filename)
+                if verify_upload(cand_key):
+                    fresh_url = get_public_url(cand_key)
+                    if is_r2_url(fresh_url):
+                        return jsonify({"video_url": fresh_url, "source": "r2_direct"})
 
-    filename = secure_filename(filename)
-    proxy_url = f"{_get_base_url()}/download-signed-video?filename={filename}{auth_query}"
-    print(f"[VIDEO_URL_RETURNED] video_url={proxy_url}", flush=True)
-    return jsonify({"video_url": proxy_url, "source": "filename_proxied"})
+        filename = secure_filename(filename)
+        proxy_url = f"{_get_base_url()}/download-signed-video?filename={filename}{auth_query}"
+        print(f"[VIDEO_URL_RETURNED] video_url={proxy_url}", flush=True)
+        return jsonify({"video_url": proxy_url, "source": "filename_proxied"})
 
-    return jsonify({"error": "Video not found"}), 404
+    return jsonify({"error": "Video not found", "video_id": video_id}), 404
+
 
 
 # ── POST /extract-captions ────────────────────────────────────────────────────
@@ -1111,10 +1194,10 @@ def extract_captions():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("UPDATE videos SET original_url = ?, processed_url = ?, r2_url = ? WHERE video_id = ?", (url, url, url, video_id))
+            cursor.execute("UPDATE videos SET original_url = ?, processed_url = ?, r2_url = ?, r2_key = ?, upload_status = 'uploaded' WHERE video_id = ?", (url, url, url, r2_key, video_id))
             conn.commit()
             print("[DATABASE_SAVE_SUCCESS]", flush=True)
-            print(f"[VIDEO_LIST_UPDATED] video_id={video_id} url={url}", flush=True)
+            print(f"[VIDEO_LIST_UPDATED] video_id={video_id} url={url} r2_key={r2_key}", flush=True)
         except Exception as e:
             conn.rollback()
             print(f"[DATABASE_SAVE_FAILED] error={e} traceback={traceback.format_exc()}", flush=True)
@@ -1374,7 +1457,7 @@ def delete_video(video_id):
     try:
         # Fetch video record and verify ownership
         cursor.execute(
-            "SELECT video_id, teacher_id, filename, r2_url, original_url, processed_url "
+            "SELECT video_id, teacher_id, course_id, filename, r2_url, original_url, processed_url, r2_key, r2_captions_key, r2_isl_key, r2_thumbnail_key "
             "FROM videos WHERE video_id = ?",
             (video_id,),
         )
@@ -1390,37 +1473,54 @@ def delete_video(video_id):
 
         filename = video.get("filename") or ""
         r2_url   = video.get("r2_url") or ""
+        course_id = video.get("course_id") or 1
 
-        # ── Storage cleanup ────────────────────────────────────────────────
-        if r2_url and is_r2_url(r2_url):
-            # Delete both the original upload and the processed signed copy from R2
-            delete_file(make_r2_key("uploads", filename))
-            delete_file(make_r2_key("processed", f"signed_{filename}"))
-            # Delete captions from R2
-            for cap_ext in ["captions.vtt", "captions.srt", "transcript.json"]:
-                delete_file(f"captions/{video_id}/{cap_ext}")
-            # Delete thumbnail from R2
-            delete_file(f"thumbnails/{video_id}/thumbnail.jpg")
-            print(f"[DELETE_VIDEO] R2 objects deleted for video_id={video_id}", flush=True)
-        else:
-            # Local filesystem cleanup
-            for folder, name in [
-                (UPLOAD_FOLDER, filename),
-                (PROCESSED_FOLDER, f"signed_{filename}"),
-                (UPLOAD_FOLDER, video.get("original_url", "")),
-                (PROCESSED_FOLDER, video.get("processed_url", "")),
-            ]:
-                for candidate in [os.path.join(folder, name), name]:
-                    if candidate and os.path.isfile(candidate):
-                        try:
-                            os.remove(candidate)
-                            print(f"[DELETE_VIDEO] Removed local file: {candidate}", flush=True)
-                        except OSError as oe:
-                            print(f"[DELETE_VIDEO] Could not remove {candidate}: {oe}", flush=True)
+        # ── Comprehensive Storage Cleanup ──────────────────────────────────
+        keys_to_delete = set()
+        # Direct DB keys
+        for k in ["r2_key", "r2_isl_key", "r2_captions_key", "r2_thumbnail_key"]:
+            if video.get(k):
+                keys_to_delete.add(video[k])
+        
+        # Structured keys
+        keys_to_delete.add(f"original/{course_id}/{video_id}/{filename}")
+        keys_to_delete.add(f"isl/{video_id}/isl-video.mp4")
+        keys_to_delete.add(f"captions/{video_id}/captions.vtt")
+        keys_to_delete.add(f"captions/{video_id}/captions.srt")
+        keys_to_delete.add(f"captions/{video_id}/transcript.json")
+        keys_to_delete.add(f"thumbnails/{video_id}/thumbnail.jpg")
+        
+        # Legacy flat keys
+        if filename:
+            keys_to_delete.add(make_r2_key("uploads", filename))
+            keys_to_delete.add(make_r2_key("processed", f"signed_{filename}"))
+
+        for r2_k in keys_to_delete:
+            try:
+                delete_file(r2_k)
+            except Exception:
+                pass
+        print(f"[DELETE_VIDEO] Cleaned up {len(keys_to_delete)} potential R2 keys for video_id={video_id}", flush=True)
+
+        # Local filesystem cleanup
+        for folder, name in [
+            (UPLOAD_FOLDER, filename),
+            (PROCESSED_FOLDER, f"signed_{filename}"),
+            (UPLOAD_FOLDER, video.get("original_url", "")),
+            (PROCESSED_FOLDER, video.get("processed_url", "")),
+        ]:
+            for candidate in [os.path.join(folder, name), name]:
+                if candidate and os.path.isfile(candidate):
+                    try:
+                        os.remove(candidate)
+                        print(f"[DELETE_VIDEO] Removed local file: {candidate}", flush=True)
+                    except OSError:
+                        pass
 
         # ── Delete associated ISL video records ────────────────────────────
         cursor.execute(
-            "SELECT video_id, filename, r2_url FROM videos WHERE original_video_id = ?",
+            "SELECT video_id, filename, r2_url, r2_key, r2_isl_key, r2_captions_key, r2_thumbnail_key "
+            "FROM videos WHERE original_video_id = ?",
             (video_id,)
         )
         isl_rows = cursor.fetchall()
@@ -1428,23 +1528,32 @@ def delete_video(video_id):
             isl_cols = [d[0] for d in cursor.description]
             isl_video = dict(zip(isl_cols, isl_row))
             isl_vid_id = isl_video.get("video_id")
-            isl_r2 = isl_video.get("r2_url") or ""
-            isl_fname = isl_video.get("filename") or ""
-            if isl_r2 and is_r2_url(isl_r2):
-                delete_file(make_r2_key("processed", isl_fname))
-                for cap_ext in ["captions.vtt", "captions.srt", "transcript.json"]:
-                    delete_file(f"captions/{isl_vid_id}/{cap_ext}")
-                delete_file(f"thumbnails/{isl_vid_id}/thumbnail.jpg")
-            cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (isl_vid_id,))
-            cursor.execute("DELETE FROM video_views WHERE video_id = ?", (isl_vid_id,))
-            cursor.execute("DELETE FROM videos WHERE video_id = ?", (isl_vid_id,))
-            print(f"[DELETE_VIDEO] ISL video_id={isl_vid_id} deleted (child of {video_id})", flush=True)
+            for k in ["r2_key", "r2_isl_key", "r2_captions_key", "r2_thumbnail_key"]:
+                if isl_video.get(k):
+                    try:
+                        delete_file(isl_video[k])
+                    except Exception:
+                        pass
+            if isl_vid_id:
+                try:
+                    delete_file(f"isl/{isl_vid_id}/isl-video.mp4")
+                    delete_file(f"captions/{isl_vid_id}/captions.vtt")
+                    delete_file(f"thumbnails/{isl_vid_id}/thumbnail.jpg")
+                except Exception:
+                    pass
+                cursor.execute("DELETE FROM video_processing_jobs WHERE video_id = ?", (isl_vid_id,))
+                cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (isl_vid_id,))
+                cursor.execute("DELETE FROM video_views WHERE video_id = ?", (isl_vid_id,))
+                cursor.execute("DELETE FROM videos WHERE video_id = ?", (isl_vid_id,))
+                print(f"[DELETE_VIDEO] ISL video_id={isl_vid_id} deleted (child of {video_id})", flush=True)
 
         # ── Database cascade cleanup ───────────────────────────────────────
+        cursor.execute("DELETE FROM video_processing_jobs WHERE video_id = ?", (video_id,))
         cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
         cursor.execute("DELETE FROM video_views    WHERE video_id = ?", (video_id,))
         cursor.execute("DELETE FROM videos         WHERE video_id = ?", (video_id,))
         conn.commit()
+
 
         print(f"[DELETE_VIDEO] video_id={video_id} deleted by teacher_id={teacher_id}", flush=True)
         return jsonify({"success": True, "video_id": video_id, "message": "Video deleted successfully"})

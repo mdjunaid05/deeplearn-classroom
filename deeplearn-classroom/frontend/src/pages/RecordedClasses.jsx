@@ -18,9 +18,11 @@ export default function RecordedClasses() {
 
   const fetchRecordings = async () => {
     try {
+      const teacherId = user?.teacher_id || user?.id || user?.user_id;
       const url = user?.role === 'teacher' 
-        ? `${API_BASE}/recordings?teacher_id=${user.id || 1}`
+        ? `${API_BASE}/recordings${teacherId ? `?teacher_id=${teacherId}` : ''}`
         : `${API_BASE}/recordings`;
+
         
       const res = await fetch(url);
       const data = await res.json();

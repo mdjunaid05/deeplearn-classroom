@@ -118,9 +118,10 @@ export default function LiveClassroom() {
   const startLiveClass = async () => {
     try {
       if (user?.role === 'teacher') {
+        const teacherId = user.user_id || user.id || user.teacher_id;
         const res  = await fetch(`${API_BASE}/start-class`, {
           method: 'POST', headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ teacher_id: user.user_id||user.id||1, course_id: 1 }),
+          body: JSON.stringify({ teacher_id: teacherId, course_id: 1 }),
         });
         if (res.ok) {
           const data = await res.json();
@@ -177,15 +178,17 @@ export default function LiveClassroom() {
   const uploadRecording = useCallback(async () => {
     if (!recordedChunksRef.current.length) return;
     setIsUploading(true);
+    const teacherId = user?.user_id || user?.id || user?.teacher_id || '';
     const blob = new Blob(recordedChunksRef.current, { type:'video/webm' });
     const fd = new FormData();
     fd.append('video', blob, 'recording.webm');
     fd.append('session_id', sessionIdRef.current || `local_${Date.now()}`);
-    fd.append('teacher_id', user?.user_id||user?.id||1);
+    fd.append('teacher_id', teacherId);
     fd.append('course_id', 1);
     fd.append('duration', recordingTimeRef.current);
     fd.append('participants_count', participantsLenRef.current);
     fd.append('transcript', JSON.stringify(transcriptRef.current));
+
     try {
       const res = await fetch(`${API_BASE}/upload-recording`, { method:'POST', body:fd });
       if (res.ok) setActiveAlert({ type:'success', message:'Recording saved!', duration:5000 });
