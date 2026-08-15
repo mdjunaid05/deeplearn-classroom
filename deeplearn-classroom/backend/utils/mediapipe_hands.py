@@ -135,3 +135,62 @@ def extract_video_frames(video_data, max_frames=8, img_size=128):
     finally:
         if cleanup:
             os.unlink(video_path)
+
+
+def preprocess_frame_sequence_for_isl(frames_data, max_frames=8, img_size=128):
+    """
+    Preprocess a sequence of video frames (from webcam or API payload) for ISL word recognition.
+
+    Args:
+        frames_data: List of base64 image strings, raw image bytes, or numpy arrays
+        max_frames: Target sequence length (default 8)
+        img_size: Target image size (default 128)
+
+    Returns:
+        numpy array of shape (max_frames, img_size, img_size, 3), normalized [0, 1]
+    """
+    from PIL import Image
+    import io
+    import base64
+
+    if not isinstance(frames_data, (list, tuple)) or len(frames_data) == 0:
+        return np.zeros((max_frames, img_size, img_size, 3), dtype=np.float32)
+
+    frames = []
+    for item in frames_data:
+        try:
+            if isinstance(item, str):
+                if ',' in item:
+                    item = item.split(',')[1]
+                img_bytes = base64.b64decode(item)
+                img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
+            elif isinstance(item, bytes):
+                img = Image.open(io.BytesIO(item)).convert('RGB')
+            elif isinstance(item, np.ndarray):
+                if item.ndim == 2:
+                    img = Image.fromarray((item * 255 if item.max() <= 1.0 else item).astype(np.uint8), 'L').convert('RGB')
+                else:
+                    img = Image.fromarray((item * 255 if item.max() <= 1.0 else item).astype(np.uint8))
+            else:
+                continue
+
+            img = img.resize((img_size, img_size), Image.BILINEAR)
+            arr = np.array(img, dtype=np.float32) / 255.0
+            frames.append(arr)
+        except Exception:
+            continue
+
+    if not frames:
+        return np.zeros((max_frames, img_size, img_size, 3), dtype=np.float32)
+
+    # Subsample or evenly sample if we got more than max_frames
+    if len(frames) > max_frames:
+        indices = np.linspace(0, len(frames) - 1, max_frames, dtype=int).tolist()
+        frames = [frames[i] for i in indices]
+
+    # Pad if we got fewer frames than max_frames
+    while len(frames) < max_frames:
+        frames.append(frames[-1].copy())
+
+    return np.array(frames[:max_frames], dtype=np.float32)
+

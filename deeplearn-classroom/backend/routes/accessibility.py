@@ -93,33 +93,48 @@ def isl_predict():
         return jsonify({"error": f"ISL prediction failed: {str(e)}"}), 500
 
 
+@accessibility_bp.route("/api/isl/word-predict", methods=["POST"])
 @accessibility_bp.route("/api/isl/predict-word", methods=["POST"])
-def isl_predict_word():
+def isl_word_predict():
     """
-    ISL word prediction endpoint (video-based).
-
-    Input:
-      - File upload: form-data with key "video"
-
-    Output:
+    ISL Word Prediction endpoint.
+    Accepts:
+      - JSON: { "frames": ["<base64>", "<base64>", ...] } (temporal frame sequence)
+      - JSON: { "sequence": [...] }
+      - Multipart file upload: "video" form-data (.mp4, .mov, etc.)
+    
+    Returns:
       {
         "language": "ISL",
         "prediction": "HELLO",
-        "confidence": 0.87
+        "confidence": 0.94
       }
     """
     try:
         from models.model_loader import predict_isl_word
-        from utils.mediapipe_hands import extract_video_frames
+        from utils.mediapipe_hands import extract_video_frames, preprocess_frame_sequence_for_isl
 
-        if "video" not in request.files:
-            return jsonify({"error": "No video file provided. Upload with key 'video'."}), 400
+        frames = None
 
-        video_bytes = request.files["video"].read()
-        frames = extract_video_frames(video_bytes, max_frames=8, img_size=128)
+        # Check for JSON body
+        data = request.get_json(silent=True)
+        if data:
+            frame_list = data.get("frames") or data.get("sequence") or data.get("images")
+            if frame_list and isinstance(frame_list, list):
+                frames = preprocess_frame_sequence_for_isl(frame_list, max_frames=8, img_size=128)
+
+        # Check for video file upload
+        if frames is None and "video" in request.files:
+            video_bytes = request.files["video"].read()
+            frames = extract_video_frames(video_bytes, max_frames=8, img_size=128)
+
+        if frames is None:
+            return jsonify({
+                "error": "No frames or video provided. Send JSON with 'frames': [<base64>, ...] or multipart file 'video'."
+            }), 400
+
         result = predict_isl_word(frames)
-
-        return jsonify(result)
+        return jsonify(result), 200
 
     except Exception as e:
         return jsonify({"error": f"ISL word prediction failed: {str(e)}"}), 500

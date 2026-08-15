@@ -296,7 +296,7 @@ def predict_isl_alphabet(image):
     }
 
 
-def predict_isl_word(frames):
+def predict_isl_word(frames, threshold=0.55):
     """
     Predict ISL word from a sequence of video frames.
     frames: array of shape (8, 128, 128, 3) — RGB, normalized to [0, 1]
@@ -319,7 +319,7 @@ def predict_isl_word(frames):
     predicted_idx = int(np.argmax(probs))
     confidence = float(probs[predicted_idx])
 
-    if confidence < ISL_CONFIDENCE_THRESHOLD:
+    if confidence < threshold:
         return {
             "language": "ISL",
             "prediction": "Sign not recognized",
@@ -328,10 +328,11 @@ def predict_isl_word(frames):
         }
 
     label = label_map.get(str(predicted_idx), f"class_{predicted_idx}")
+    formatted_label = label.replace("_", " ").upper()
 
     return {
         "language": "ISL",
-        "prediction": label.upper(),
+        "prediction": formatted_label,
         "confidence": confidence,
         "model_loaded": True,
     }

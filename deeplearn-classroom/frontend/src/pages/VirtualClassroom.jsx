@@ -26,6 +26,7 @@ import { useSignLanguage }        from '../utils/useSignLanguage';
 import CaptionOverlay             from '../components/CaptionOverlay';
 import VisualAlertBanner          from '../components/VisualAlertBanner';
 import SignAvatarOverlay          from '../components/SignAvatarOverlay';
+import ISLSignToText              from '../components/ISLSignToText';
 import { API_BASE }               from '../utils/api';
 
 // ---------------------------------------------------------------------------
@@ -90,6 +91,7 @@ export default function VirtualClassroom() {
   const [captionSize, setCaptionSize] = useState('normal');
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [vttSrc, setVttSrc] = useState('');
+  const [islSignToTextOpen, setIslSignToTextOpen] = useState(false);
 
   // ── Recordings ────────────────────────────────────────────────────────────
   const { user, token } = useAuth();
@@ -726,12 +728,18 @@ export default function VirtualClassroom() {
                   <p className="text-white font-semibold text-lg">Playback Error</p>
                   <p className="text-slate-300 text-xs max-w-md mt-2">{videoError}</p>
                   <button 
-                    onClick={() => {
+                    onClick={async () => {
                       setVideoError(null);
-                      if (videoRef.current) {
-                        videoRef.current.load();
-                        videoRef.current.play().catch(err => console.log('Retry play failed:', err));
-                      }
+                      // Re-fetch the video list to get a fresh presigned URL from the server
+                      // (presigned URLs expire; the server always generates a fresh one)
+                      await fetchVideos();
+                      // After re-fetch, attempt reload with the updated src
+                      setTimeout(() => {
+                        if (videoRef.current) {
+                          videoRef.current.load();
+                          videoRef.current.play().catch(err => console.log('Retry play failed:', err));
+                        }
+                      }, 300);
                     }} 
                     className="mt-4 px-4 py-2 bg-[#00687a] hover:bg-[#005260] text-white rounded-xl text-xs font-semibold transition-all duration-300 cursor-pointer shadow-md hover:scale-105"
                   >
@@ -739,6 +747,7 @@ export default function VirtualClassroom() {
                   </button>
                 </div>
               )}
+
 
               {/* Video-ended overlay */}
               {videoEnded && (
@@ -828,6 +837,21 @@ export default function VirtualClassroom() {
                   </span>
                 )}
               </button>
+
+              <button
+                id="toggle-isl-sign-to-text"
+                onClick={() => setIslSignToTextOpen(!islSignToTextOpen)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all duration-200 ${
+                  islSignToTextOpen
+                    ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shadow-sm shadow-emerald-500/5'
+                    : 'bg-slate-100 text-[#6d797d] hover:bg-slate-200'
+                }`}
+                aria-pressed={islSignToTextOpen}
+                aria-label="Toggle ISL Sign Language to Text"
+              >
+                <HandMetal className="w-4 h-4" />
+                ISL Sign → Text
+              </button>
               
               <div className="flex items-center gap-2 ml-auto">
                 <Type className="w-4 h-4 text-[#6d797d]" />
@@ -858,6 +882,11 @@ export default function VirtualClassroom() {
                 </select>
               </div>
             </div>
+
+            {/* ── ISL Sign to Text Panel ── */}
+            {islSignToTextOpen && (
+              <ISLSignToText onClose={() => setIslSignToTextOpen(false)} />
+            )}
 
             {/* ── Quiz Section (Bento Card Style) ── */}
             <div className="p-8 rounded-3xl dark-glass-panel card-shadow border border-[#bcc9cd]/40 flex flex-col gap-6 border border-slate-200 transition-all duration-300">
@@ -1269,24 +1298,48 @@ export default function VirtualClassroom() {
                         });
                         return;
                       }
-                      const rawUrl = v.r2_url || v.processed_url || v.original_url || '';
-                      const authParam = user?.role === 'teacher' 
-                        ? `teacher_id=${user.id || 1}` 
-                        : `student_id=${user?.id || user?.user_id || 1}`;
-                      let videoUrl = rawUrl;
-                      if (rawUrl && !rawUrl.startsWith('http')) {
-                        videoUrl = `${API_BASE}${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
-                      } else if (rawUrl && (rawUrl.startsWith(API_BASE) || rawUrl.includes('/download-signed-video'))) {
-                        if (!rawUrl.includes('student_id=') && !rawUrl.includes('teacher_id=')) {
-                          videoUrl = `${rawUrl}${rawUrl.includes('?') ? '&' : '?'}${authParam}`;
+
+                      // ── getPlayableVideoUrl ────────────────────────────────
+                      // Priority:
+                      //  1. videoUrl  — server-resolved fresh R2 URL (always current)
+                      //  2. r2_url    — may be stale presigned URL; fallback only
+                      //  3. processed_url / original_url — last resort
+                      //  4. null      — no playable source
+                      //
+                      // Never return: undefined, null, localhost, http:// on HTTPS page
+                      const getPlayableVideoUrl = (video) => {
+                        const candidates = [
+                          video.videoUrl,
+                          video.r2_url,
+                          video.processed_url,
+                          video.original_url,
+                        ];
+                        for (const candidate of candidates) {
+                          if (!candidate) continue;
+                          // Skip local filesystem paths (Windows/Linux)
+                          if (candidate.startsWith('C:\\') || candidate.startsWith('/home') || candidate.startsWith('/tmp')) continue;
+                          // Skip relative paths that don't start with http
+                          if (!candidate.startsWith('http')) continue;
+                          // In production (HTTPS), upgrade http: to https: to avoid mixed-content block
+                          if (window.location.protocol === 'https:' && candidate.startsWith('http:')) {
+                            return candidate.replace('http:', 'https:');
+                          }
+                          return candidate;
                         }
+                        return null;
+                      };
+
+                      const videoUrl = getPlayableVideoUrl(v);
+                      if (!videoUrl) {
+                        console.error('[VIDEO_STREAM_FAILED] No playable URL found for video_id=' + v.video_id + ' title=' + v.title, {
+                          videoUrl: v.videoUrl, r2_url: v.r2_url, processed_url: v.processed_url, original_url: v.original_url
+                        });
+                        setVideoError('No playable URL available for this video. The video may still be processing.');
+                        return;
                       }
-                      
-                      // Upgrade http: to https: when loaded on HTTPS page to avoid browser Mixed Content block
-                      if (typeof window !== 'undefined' && window.location.protocol === 'https:' && videoUrl.startsWith('http:')) {
-                        videoUrl = videoUrl.replace('http:', 'https:');
-                      }
-                      
+
+                      console.log('[VIDEO_PLAY_REQUEST] video_id=' + v.video_id + ' resolved_url=' + videoUrl.substring(0, 80) + '...');
+
                       if (v.video_type === 'ISL') {
                         console.log('[AI_VIDEO_RENDERED] video_id=' + v.video_id + ' filename=' + (v.filename || ''));
                       }
@@ -1320,6 +1373,7 @@ export default function VirtualClassroom() {
 
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     };
+
 
                     // Download url helper
                     const getDownloadUrl = (v) => {

@@ -51,14 +51,41 @@ export default function SignLanguageInput() {
                  <Activity className="w-5 h-5 text-indigo-600" aria-hidden="true" />
                  Recognized Transcript
                </h2>
-               <button
-                 onClick={() => setRecognizedText("")}
-                 className="text-sm text-[#3d494c] hover:text-red-600 font-medium"
-                 aria-label="Clear transcript"
-                 tabIndex={0}
-               >
-                 Clear
-               </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (!recognizedText) return;
+                      navigator.clipboard.writeText(recognizedText);
+                    }}
+                    disabled={!recognizedText}
+                    className="text-xs text-[#00687a] hover:text-[#00687a]/80 font-medium px-2 py-1 rounded bg-[#00687a]/10 disabled:opacity-40"
+                    title="Copy text"
+                  >
+                    Copy
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!recognizedText || !('speechSynthesis' in window)) return;
+                      window.speechSynthesis.cancel();
+                      const u = new SpeechSynthesisUtterance(recognizedText);
+                      u.lang = 'en-IN';
+                      window.speechSynthesis.speak(u);
+                    }}
+                    disabled={!recognizedText}
+                    className="text-xs text-purple-600 hover:text-purple-700 font-medium px-2 py-1 rounded bg-purple-50 disabled:opacity-40"
+                    title="Speak text"
+                  >
+                    🔊 Speak
+                  </button>
+                  <button
+                    onClick={() => setRecognizedText("")}
+                    className="text-xs text-[#6d797d] hover:text-red-600 font-medium px-2 py-1 rounded bg-red-50 disabled:opacity-40"
+                    aria-label="Clear transcript"
+                    tabIndex={0}
+                  >
+                    Clear
+                  </button>
+                </div>
             </div>
             <div 
               className="flex-1 bg-surface-800/50 rounded-xl border border-white/5 p-4 min-h-[200px] shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300"

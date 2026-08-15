@@ -528,16 +528,33 @@ def get_videos():
             # Use the dedicated caption_status column if available, fallback to status check
             video_dict["captions_status"] = video_dict.get("caption_status") or ("available" if video_dict.get("status") == "done" else "unavailable")
 
-            auth_query = f"&student_id={student_id}" if student_id else f"&teacher_id={teacher_id}" if teacher_id else ""
-            p_url = video_dict.get("processed_url")
-            if p_url and not is_r2_url(p_url):
-                rel_name = os.path.basename(p_url)
-                video_dict["processed_url"] = f"{base_app_url}/download-signed-video?filename={rel_name}{auth_query}"
+            # ── FRESH URL RESOLUTION ──────────────────────────────────────────
+            # CRITICAL FIX: Presigned URLs stored in the DB expire after 7 days.
+            # Always regenerate the playable URL from r2_key at request time so
+            # the browser always receives a valid, non-expired URL.
+            # If R2_PUBLIC_URL is set (bucket is public), get_public_url() returns
+            # a permanent URL with no expiry. If not set, it generates a fresh
+            # 7-day presigned URL. Either way, it is always current.
+            r2_key = video_dict.get("r2_key")
+            if r2_key:
+                fresh_r2_url = get_public_url(r2_key)
+                if fresh_r2_url and fresh_r2_url != r2_key:  # r2_key returned as-is when R2 disabled
+                    video_dict["r2_url"] = fresh_r2_url
+                    video_dict["original_url"] = fresh_r2_url
+                    video_dict["processed_url"] = fresh_r2_url
+                    print(f"[VIDEO_URL_REFRESHED] video_id={video_dict.get('video_id')} r2_key={r2_key}", flush=True)
+            else:
+                # No r2_key: fall back to local/legacy URL handling
+                auth_query = f"&student_id={student_id}" if student_id else f"&teacher_id={teacher_id}" if teacher_id else ""
+                p_url = video_dict.get("processed_url")
+                if p_url and not is_r2_url(p_url):
+                    rel_name = os.path.basename(p_url)
+                    video_dict["processed_url"] = f"{base_app_url}/download-signed-video?filename={rel_name}{auth_query}"
 
-            o_url = video_dict.get("original_url")
-            if o_url and not is_r2_url(o_url):
-                rel_name = os.path.basename(o_url)
-                video_dict["original_url"] = f"{base_app_url}/download-signed-video?filename={rel_name}{auth_query}"
+                o_url = video_dict.get("original_url")
+                if o_url and not is_r2_url(o_url):
+                    rel_name = os.path.basename(o_url)
+                    video_dict["original_url"] = f"{base_app_url}/download-signed-video?filename={rel_name}{auth_query}"
 
             video_dict["R2 URL"] = video_dict.get("r2_url") or video_dict.get("processed_url") or video_dict.get("original_url")
             video_dict["upload timestamp"] = video_dict.get("uploaded_at")
@@ -553,7 +570,8 @@ def get_videos():
             video_dict["classroomId"] = video_dict.get("course_id")
             video_dict["courseId"] = video_dict.get("course_id")
             video_dict["teacherId"] = video_dict.get("teacher_id")
-            video_dict["videoUrl"] = video_dict.get("processed_url") or video_dict.get("original_url") or video_dict.get("r2_url")
+            # videoUrl: fresh R2 URL is the source of truth when available
+            video_dict["videoUrl"] = video_dict.get("r2_url") or video_dict.get("processed_url") or video_dict.get("original_url")
             video_dict["thumbnail"] = video_dict.get("thumbnail") or ""
             video_dict["visibility"] = video_dict.get("visibility") or "Published"
             video_dict["createdAt"] = video_dict.get("uploaded_at")
@@ -562,7 +580,7 @@ def get_videos():
             video_dict["captionsUrl"] = video_dict.get("captions_url")
 
             if video_dict.get("video_type") == "ISL":
-                video_dict["aiSigningVideoUrl"] = video_dict.get("processed_url") or video_dict.get("r2_url")
+                video_dict["aiSigningVideoUrl"] = video_dict.get("r2_url") or video_dict.get("processed_url")
             else:
                 video_dict["aiSigningVideoUrl"] = None
 
@@ -661,7 +679,17 @@ def get_classroom_videos(classroom_id):
                 if not isinstance(video_dict["processed_at"], str):
                     video_dict["processed_at"] = video_dict["processed_at"].isoformat()
 
-            video_dict["captions_status"] = "available" if video_dict.get("status") == "done" else "unavailable"
+            video_dict["captions_status"] = video_dict.get("caption_status") or ("available" if video_dict.get("status") == "done" else "unavailable")
+
+            # CRITICAL FIX: Refresh stale presigned URL from r2_key at request time
+            r2_key = video_dict.get("r2_key")
+            if r2_key:
+                fresh_r2_url = get_public_url(r2_key)
+                if fresh_r2_url and fresh_r2_url != r2_key:
+                    video_dict["r2_url"] = fresh_r2_url
+                    video_dict["original_url"] = fresh_r2_url
+                    video_dict["processed_url"] = fresh_r2_url
+
             video_dict["R2 URL"] = video_dict.get("r2_url") or video_dict.get("processed_url") or video_dict.get("original_url")
             video_dict["upload timestamp"] = video_dict.get("uploaded_at")
             if not video_dict.get("title"):
@@ -676,7 +704,7 @@ def get_classroom_videos(classroom_id):
             video_dict["classroomId"] = video_dict.get("course_id")
             video_dict["courseId"] = video_dict.get("course_id")
             video_dict["teacherId"] = video_dict.get("teacher_id")
-            video_dict["videoUrl"] = video_dict.get("processed_url") or video_dict.get("original_url") or video_dict.get("r2_url")
+            video_dict["videoUrl"] = video_dict.get("r2_url") or video_dict.get("processed_url") or video_dict.get("original_url")
             video_dict["thumbnail"] = video_dict.get("thumbnail") or ""
             video_dict["visibility"] = video_dict.get("visibility") or "Published"
             video_dict["createdAt"] = video_dict.get("uploaded_at")
@@ -685,7 +713,7 @@ def get_classroom_videos(classroom_id):
             video_dict["captionsUrl"] = video_dict.get("captions_url")
 
             if video_dict.get("video_type") == "ISL":
-                video_dict["aiSigningVideoUrl"] = video_dict.get("processed_url") or video_dict.get("r2_url")
+                video_dict["aiSigningVideoUrl"] = video_dict.get("r2_url") or video_dict.get("processed_url")
             else:
                 video_dict["aiSigningVideoUrl"] = None
 
