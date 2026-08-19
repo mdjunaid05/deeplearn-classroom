@@ -78,11 +78,13 @@ export const AuthProvider = ({ children }) => {
         const userData = {
           id: data.user_id,
           user_id: data.user_id,
+          teacher_id: data.teacher_id || (data.role === 'teacher' ? data.user_id : undefined),
+          student_id: data.student_id || (data.role === 'student' ? data.user_id : undefined),
           email: data.email,
           name: data.name,
           role: data.role,
         };
-        console.log('[TOKEN_VALIDATED] user logged in:', userData.email, 'role:', userData.role);
+        console.log('[TOKEN_VALIDATED] user logged in:', userData.email, 'role:', userData.role, 'teacher_id:', userData.teacher_id);
         setToken(data.token);
         setUser(userData);
         localStorage.setItem('auth_token', data.token);

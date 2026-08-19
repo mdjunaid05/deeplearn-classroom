@@ -446,6 +446,72 @@ def confirm_upload():
     })
 
 
+def _resolve_teacher_ids(teacher_id_param=None, current_user=None):
+    """
+    Resolve all possible teacher_id values for a given teacher_id or user.
+    Handles matching across teachers and users tables.
+    """
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    ids = set()
+    try:
+        if teacher_id_param is not None:
+            try:
+                t_int = int(teacher_id_param)
+                ids.add(t_int)
+                # Find email in teachers table
+                cursor.execute("SELECT email FROM teachers WHERE teacher_id = ?", (t_int,))
+                t_row = cursor.fetchone()
+                if t_row:
+                    t_email = t_row["email"] if hasattr(t_row, "keys") else t_row[0]
+                    cursor.execute("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?)", (t_email,))
+                    u_row = cursor.fetchone()
+                    if u_row:
+                        ids.add(u_row["user_id"] if hasattr(u_row, "keys") else u_row[0])
+                
+                # Find email in users table
+                cursor.execute("SELECT email FROM users WHERE user_id = ?", (t_int,))
+                u_row = cursor.fetchone()
+                if u_row:
+                    u_email = u_row["email"] if hasattr(u_row, "keys") else u_row[0]
+                    cursor.execute("SELECT teacher_id FROM teachers WHERE LOWER(email) = LOWER(?)", (u_email,))
+                    t_row = cursor.fetchone()
+                    if t_row:
+                        ids.add(t_row["teacher_id"] if hasattr(t_row, "keys") else t_row[0])
+            except (ValueError, TypeError):
+                pass
+
+        if current_user and current_user.get("role") in ("teacher", "admin"):
+            c_uid = current_user.get("user_id")
+            c_tid = current_user.get("teacher_id")
+            c_email = current_user.get("email")
+            if c_uid:
+                try:
+                    ids.add(int(c_uid))
+                except (ValueError, TypeError):
+                    pass
+            if c_tid:
+                try:
+                    ids.add(int(c_tid))
+                except (ValueError, TypeError):
+                    pass
+            if c_email:
+                cursor.execute("SELECT teacher_id FROM teachers WHERE LOWER(email) = LOWER(?)", (c_email,))
+                t_row = cursor.fetchone()
+                if t_row:
+                    ids.add(t_row["teacher_id"] if hasattr(t_row, "keys") else t_row[0])
+                cursor.execute("SELECT user_id FROM users WHERE LOWER(email) = LOWER(?)", (c_email,))
+                u_row = cursor.fetchone()
+                if u_row:
+                    ids.add(u_row["user_id"] if hasattr(u_row, "keys") else u_row[0])
+    except Exception as e:
+        print(f"[WARN] Error resolving teacher IDs: {e}", flush=True)
+    finally:
+        conn.close()
+    return list(ids)
+
+
 # ── GET /videos ──────────────────────────────────────────────────────────────
 
 @video_bp.route("/videos", methods=["GET"])
@@ -453,15 +519,22 @@ def get_videos():
     """
     Return all videos from the database.
     If student_id is provided, filters for published videos in classes the student is enrolled in.
+    If teacher_id is provided or teacher is authenticated, filters for videos owned by that teacher.
     """
     student_id = request.args.get("student_id", type=int)
-    teacher_id = request.args.get("teacher_id", type=int)
-    print(f"[VIDEO_LIST_REQUEST] student_id={student_id} teacher_id={teacher_id}", flush=True)
+    teacher_id_param = request.args.get("teacher_id")
+    
+    teacher_id = None
+    if teacher_id_param and str(teacher_id_param).isdigit():
+        teacher_id = int(teacher_id_param)
+
+    from routes.auth import get_current_user
+    current_user = get_current_user()
+
+    print(f"[VIDEO_LIST_REQUEST] student_id={student_id} teacher_id={teacher_id} auth_user={current_user.get('email') if current_user else None}", flush=True)
 
     from database.db import get_db_connection
     conn = get_db_connection()
-    # NOTE: R2 sync now runs at startup in app.py, not per-request
-
     cursor = conn.cursor()
 
     try:
@@ -489,18 +562,44 @@ def get_videos():
                 ORDER BY v.uploaded_at DESC
             """
             cursor.execute(query, tuple(enrolled_courses))
-        elif teacher_id:
-            query = """
-                SELECT v.*, t.name as uploader
-                FROM videos v
-                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
-                WHERE v.teacher_id = ?
-                  AND (v.deleted = 0 OR v.deleted IS NULL)
-                  AND (v.hidden = 0 OR v.hidden IS NULL)
-                  AND (v.archived = 0 OR v.archived IS NULL)
-                ORDER BY v.uploaded_at DESC
-            """
-            cursor.execute(query, (teacher_id,))
+        elif teacher_id is not None or (current_user and current_user.get("role") in ("teacher", "admin")):
+            if current_user and current_user.get("role") == "admin" and not teacher_id:
+                query = """
+                    SELECT v.*, t.name as uploader
+                    FROM videos v
+                    LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                    WHERE (v.deleted = 0 OR v.deleted IS NULL)
+                      AND (v.hidden = 0 OR v.hidden IS NULL)
+                      AND (v.archived = 0 OR v.archived IS NULL)
+                    ORDER BY v.uploaded_at DESC
+                """
+                cursor.execute(query)
+            else:
+                matched_teacher_ids = _resolve_teacher_ids(teacher_id, current_user)
+                if not matched_teacher_ids and teacher_id:
+                    matched_teacher_ids = [teacher_id]
+
+                if matched_teacher_ids:
+                    placeholders = ",".join("?" for _ in matched_teacher_ids)
+                    query = f"""
+                        SELECT v.*, t.name as uploader
+                        FROM videos v
+                        LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                        WHERE v.teacher_id IN ({placeholders})
+                          AND (v.deleted = 0 OR v.deleted IS NULL)
+                          AND (v.hidden = 0 OR v.hidden IS NULL)
+                          AND (v.archived = 0 OR v.archived IS NULL)
+                        ORDER BY v.uploaded_at DESC
+                    """
+                    cursor.execute(query, tuple(matched_teacher_ids))
+                else:
+                    query = """
+                        SELECT v.*, t.name as uploader
+                        FROM videos v
+                        LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                        WHERE 1=0
+                    """
+                    cursor.execute(query)
         else:
             query = """
                 SELECT v.*, t.name as uploader
@@ -1446,8 +1545,14 @@ def delete_video(video_id):
         - R2: deletes uploads/<filename> and processed/signed_<filename>
         - Local: removes files from uploads/ and processed_videos/ directories
     """
+    from routes.auth import get_current_user
+    current_user = get_current_user()
+
     teacher_id = request.args.get("teacher_id", type=int)
-    if not teacher_id:
+    if not teacher_id and current_user:
+        teacher_id = current_user.get("teacher_id") or current_user.get("user_id")
+
+    if not teacher_id and not (current_user and current_user.get("role") == "admin"):
         return jsonify({"error": "teacher_id is required"}), 400
 
     from database.db import get_db_connection
@@ -1468,7 +1573,12 @@ def delete_video(video_id):
         cols = [d[0] for d in cursor.description]
         video = dict(zip(cols, row))
 
-        if video["teacher_id"] != teacher_id:
+        matched_teacher_ids = _resolve_teacher_ids(teacher_id, current_user)
+        if not matched_teacher_ids and teacher_id:
+            matched_teacher_ids = [teacher_id]
+
+        is_admin = current_user and current_user.get("role") == "admin"
+        if video["teacher_id"] not in matched_teacher_ids and not is_admin:
             return jsonify({"error": "Forbidden: you do not own this video"}), 403
 
         filename = video.get("filename") or ""
@@ -1571,19 +1681,27 @@ def delete_video(video_id):
 @video_bp.route("/videos/<int:video_id>", methods=["PUT"])
 def update_video(video_id):
     """
-    Update video metadata (title, description, subject, chapter).
+    Update video metadata (title, description, subject, chapter, archived, visibility).
 
     Body (JSON):
         title       (str, optional)
         description (str, optional)
         subject     (str, optional)
         chapter     (str, optional)
+        archived    (int, optional)
+        visibility  (str, optional)
 
     Query params:
         teacher_id (required) — must match the video's uploader
     """
+    from routes.auth import get_current_user
+    current_user = get_current_user()
+
     teacher_id = request.args.get("teacher_id", type=int)
-    if not teacher_id:
+    if not teacher_id and current_user:
+        teacher_id = current_user.get("teacher_id") or current_user.get("user_id")
+
+    if not teacher_id and not (current_user and current_user.get("role") == "admin"):
         return jsonify({"error": "teacher_id is required"}), 400
 
     body = request.get_json(force=True, silent=True) or {}
@@ -1604,27 +1722,24 @@ def update_video(video_id):
 
         cols = [d[0] for d in cursor.description]
         video = dict(zip(cols, row))
-        if video["teacher_id"] != teacher_id:
+        matched_teacher_ids = _resolve_teacher_ids(teacher_id, current_user)
+        if not matched_teacher_ids and teacher_id:
+            matched_teacher_ids = [teacher_id]
+
+        is_admin = current_user and current_user.get("role") == "admin"
+        if video["teacher_id"] not in matched_teacher_ids and not is_admin:
             return jsonify({"error": "Forbidden: you do not own this video"}), 403
 
         # Build dynamic UPDATE
-        allowed_fields = ["title", "description", "subject", "chapter"]
+        allowed_fields = ["title", "description", "subject", "chapter", "archived", "visibility"]
         updates = {f: body[f] for f in allowed_fields if f in body}
         if not updates:
             return jsonify({"error": "No updatable fields provided"}), 400
 
         set_clause = ", ".join(f"{f} = ?" for f in updates)
-        values = list(updates.values()) + [video_id]
+        params = list(updates.values()) + [video_id]
 
-        # Use ALTER TABLE … ADD COLUMN IF NOT EXISTS (SQLite-safe via try/except)
-        for col, col_type in [("description", "TEXT"), ("subject", "VARCHAR(100)"), ("chapter", "VARCHAR(100)")]:
-            try:
-                cursor.execute(f"ALTER TABLE videos ADD COLUMN {col} {col_type} DEFAULT NULL")
-                conn.commit()
-            except Exception:
-                pass  # Column already exists
-
-        cursor.execute(f"UPDATE videos SET {set_clause} WHERE video_id = ?", values)
+        cursor.execute(f"UPDATE videos SET {set_clause} WHERE video_id = ?", params)
         conn.commit()
 
         # Return updated record
@@ -1634,13 +1749,15 @@ def update_video(video_id):
             (video_id,),
         )
         updated_row = cursor.fetchone()
-        updated_cols = [d[0] for d in cursor.description]
-        updated = dict(zip(updated_cols, updated_row))
-        if updated.get("uploaded_at") and not isinstance(updated["uploaded_at"], str):
-            updated["uploaded_at"] = updated["uploaded_at"].isoformat()
+        updated = {}
+        if updated_row:
+            updated_cols = [d[0] for d in cursor.description]
+            updated = dict(zip(updated_cols, updated_row))
+            if updated.get("uploaded_at") and not isinstance(updated["uploaded_at"], str):
+                updated["uploaded_at"] = updated["uploaded_at"].isoformat()
 
         print(f"[UPDATE_VIDEO] video_id={video_id} updated by teacher_id={teacher_id} fields={list(updates.keys())}", flush=True)
-        return jsonify({"success": True, "video": updated})
+        return jsonify({"success": True, "video_id": video_id, "video": updated, "updated": updates})
 
     except Exception as e:
         conn.rollback()

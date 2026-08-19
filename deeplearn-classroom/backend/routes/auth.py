@@ -287,7 +287,17 @@ def register():
                         "INSERT INTO teachers (name, email, password_hash) VALUES (?, ?, ?)",
                         (name, email, pwd_hash),
                     )
-            
+        teacher_id = None
+        student_id = None
+        if role == "teacher":
+            cursor.execute("SELECT teacher_id FROM teachers WHERE LOWER(email) = ?", (email,))
+            t_row = cursor.fetchone()
+            teacher_id = t_row["teacher_id"] if t_row and hasattr(t_row, "keys") else (t_row[0] if t_row else user_id)
+        elif role == "student":
+            cursor.execute("SELECT student_id FROM students WHERE LOWER(email) = ?", (email,))
+            s_row = cursor.fetchone()
+            student_id = s_row["student_id"] if s_row and hasattr(s_row, "keys") else (s_row[0] if s_row else user_id)
+
         conn.commit()
     except Exception as e:
         conn.rollback()
@@ -298,6 +308,8 @@ def register():
     # Generate token
     token = create_jwt({
         "user_id": user_id,
+        "teacher_id": teacher_id,
+        "student_id": student_id,
         "email": email,
         "name": name,
         "role": role,
@@ -309,6 +321,8 @@ def register():
         "token": token,
         "user": {
             "user_id": user_id,
+            "teacher_id": teacher_id,
+            "student_id": student_id,
             "email": email,
             "name": name,
             "role": role,
@@ -353,6 +367,8 @@ def login():
 
     # Look up user in database
     conn = get_db_connection()
+    teacher_id = None
+    student_id = None
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -404,6 +420,23 @@ def login():
                     user_id = cursor.lastrowid
                     conn.commit()
                     row = (user_id, s_name, s_email, s_pwd, "student")
+
+        if row:
+            if hasattr(row, "keys"):
+                u_email = row["email"]
+                db_role = row["role"]
+                u_id = row["user_id"]
+            else:
+                u_id, _, u_email, _, db_role = row
+
+            if db_role == "teacher":
+                cursor.execute("SELECT teacher_id FROM teachers WHERE LOWER(email) = ?", (u_email.lower(),))
+                t_row = cursor.fetchone()
+                teacher_id = t_row["teacher_id"] if t_row and hasattr(t_row, "keys") else (t_row[0] if t_row else u_id)
+            elif db_role == "student":
+                cursor.execute("SELECT student_id FROM students WHERE LOWER(email) = ?", (u_email.lower(),))
+                s_row = cursor.fetchone()
+                student_id = s_row["student_id"] if s_row and hasattr(s_row, "keys") else (s_row[0] if s_row else u_id)
     finally:
         conn.close()
 
@@ -422,6 +455,8 @@ def login():
     # Generate JWT
     token = create_jwt({
         "user_id": user_id,
+        "teacher_id": teacher_id,
+        "student_id": student_id,
         "email": db_email,
         "name": name,
         "role": db_role,
@@ -431,6 +466,8 @@ def login():
         "status": "success",
         "token": token,
         "user_id": user_id,
+        "teacher_id": teacher_id,
+        "student_id": student_id,
         "email": db_email,
         "name": name,
         "role": db_role,
@@ -447,13 +484,47 @@ def get_me():
     if not user:
         return jsonify({"error": "Not authenticated"}), 401
 
+    user_id = user.get("user_id")
+    email = user.get("email")
+    role = user.get("role")
+    teacher_id = user.get("teacher_id")
+    student_id = user.get("student_id")
+
+    if not teacher_id and role == "teacher" and email:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT teacher_id FROM teachers WHERE LOWER(email) = ?", (email.lower(),))
+            t_row = cursor.fetchone()
+            if t_row:
+                teacher_id = t_row["teacher_id"] if hasattr(t_row, "keys") else t_row[0]
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
+    if not student_id and role == "student" and email:
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT student_id FROM students WHERE LOWER(email) = ?", (email.lower(),))
+            s_row = cursor.fetchone()
+            if s_row:
+                student_id = s_row["student_id"] if hasattr(s_row, "keys") else s_row[0]
+        except Exception:
+            pass
+        finally:
+            conn.close()
+
     return jsonify({
         "status": "success",
         "user": {
-            "user_id": user.get("user_id"),
-            "email": user.get("email"),
+            "user_id": user_id,
+            "teacher_id": teacher_id,
+            "student_id": student_id,
+            "email": email,
             "name": user.get("name"),
-            "role": user.get("role"),
+            "role": role,
         },
     }), 200
 

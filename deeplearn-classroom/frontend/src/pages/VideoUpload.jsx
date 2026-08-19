@@ -66,7 +66,7 @@ function inferPipelinePhase(step, progress) {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function VideoUpload() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
 
   // File selection
@@ -204,11 +204,14 @@ export default function VideoUpload() {
       let useProxy = false;
 
       try {
+        const reqHeaders = { 'Content-Type': 'application/json' };
+        if (token) reqHeaders['Authorization'] = `Bearer ${token}`;
+
         const res = await fetch(`${API_BASE}/request-upload-url`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: reqHeaders,
           body: JSON.stringify({
-            teacher_id: user.id || user.user_id,
+            teacher_id: user.teacher_id || user.id || user.user_id || 1,
             course_id: 1,
             filename: file.name,
             content_type: file.type || 'video/mp4',
@@ -262,9 +265,12 @@ export default function VideoUpload() {
         // ── Step 2: Confirm upload ──
         setMachineState(STATE.CONFIRMING);
 
+        const confHeaders = { 'Content-Type': 'application/json' };
+        if (token) confHeaders['Authorization'] = `Bearer ${token}`;
+
         const confirmRes = await fetch(`${API_BASE}/confirm-upload`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: confHeaders,
           body: JSON.stringify({
             video_id: presignedData.video_id,
             r2_key: presignedData.r2_key,
@@ -385,7 +391,7 @@ export default function VideoUpload() {
   const performProxyUpload = useCallback(() => {
     const formData = new FormData();
     formData.append('video_file', file);
-    formData.append('teacher_id', user?.id || user?.user_id || '');
+    formData.append('teacher_id', user?.teacher_id || user?.id || user?.user_id || '');
     formData.append('course_id', 1);
     formData.append('title', file.name);
     formData.append('filename', file.name);
@@ -451,9 +457,12 @@ export default function VideoUpload() {
       });
 
       xhr.open('POST', `${API_BASE}/upload-video`);
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
       xhr.send(formData);
     });
-  }, [file, user]);
+  }, [file, user, token]);
 
   // ── Processing status polling ─────────────────────────────────────────────
 

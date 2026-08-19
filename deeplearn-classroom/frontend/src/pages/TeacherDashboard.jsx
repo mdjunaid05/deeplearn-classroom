@@ -10,6 +10,7 @@ import { BehaviourBarChart, BehaviourPieChart } from '../components/BehaviourCha
 import { EngagementAreaChart } from '../components/EngagementChart';
 import BehaviourHeatmap from '../components/BehaviourHeatmap';
 import { API_BASE } from '../utils/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const EMPTY_DATA = {
   total_students: 0,
@@ -22,6 +23,7 @@ const EMPTY_DATA = {
 };
 
 export default function TeacherDashboard() {
+  const { user, token } = useAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('Loading dashboard data...');
@@ -236,8 +238,11 @@ export default function TeacherDashboard() {
   const [savingEdit, setSavingEdit]         = useState(false);    // saving edit in progress
   const [videoToast, setVideoToast]         = useState(null);     // {type:'success'|'error', msg}
 
-  // Get teacher_id from localStorage (set on login) — same approach used by VideoUpload.jsx
+  // Get teacher_id reliably from user context or localStorage
   const getTeacherId = () => {
+    if (user?.teacher_id) return user.teacher_id;
+    if (user?.id) return user.id;
+    if (user?.user_id) return user.user_id;
     try {
       const stored = localStorage.getItem('user') || localStorage.getItem('teacher');
       if (stored) {
@@ -245,9 +250,8 @@ export default function TeacherDashboard() {
         return u.teacher_id || u.id || u.user_id || null;
       }
     } catch { /* ignore */ }
-    return user?.teacher_id || user?.id || user?.user_id || null;
+    return null;
   };
-
 
   const showVideoToast = (type, msg) => {
     setVideoToast({ type, msg });
@@ -258,9 +262,11 @@ export default function TeacherDashboard() {
     const teacherId = getTeacherId();
     setDeletingVideoId(video.video_id);
     try {
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(
         `${API_BASE}/videos/${video.video_id}?teacher_id=${teacherId}`,
-        { method: 'DELETE' }
+        { method: 'DELETE', headers }
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `Delete failed (${res.status})`);
@@ -282,11 +288,13 @@ export default function TeacherDashboard() {
     const teacherId = getTeacherId();
     setSavingEdit(true);
     try {
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const res = await fetch(
         `${API_BASE}/videos/${editVideo.video_id}?teacher_id=${teacherId}`,
         {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify(editForm),
         }
       );
@@ -312,17 +320,37 @@ export default function TeacherDashboard() {
   const fetchVideos = async () => {
     try {
       const teacherId = getTeacherId();
-      const res = await fetch(`${API_BASE}/videos?teacher_id=${teacherId}`);
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const url = teacherId ? `${API_BASE}/videos?teacher_id=${teacherId}` : `${API_BASE}/videos`;
+      const res = await fetch(url, { headers });
       if (res.ok) {
         const json = await res.json();
-        setVideos(json.videos || []);
-        console.log('[VIDEO_LIST_FETCHED] count=' + (json.videos?.length || 0));
+        const videoList = json.videos || [];
+        setVideos(videoList);
+        console.log(`[VIDEO_LIST_FETCHED] count=${videoList.length} teacher_id=${teacherId}`);
       }
     } catch (err) {
       console.error('Failed to fetch videos:', err);
     }
   };
 
+  // Re-fetch videos when user session changes
+  useEffect(() => {
+    if (user) {
+      fetchVideos();
+    }
+  }, [user, token]);
+
+  // Listen to video list update events from VideoUpload or other tabs
+  useEffect(() => {
+    const handleVideoListUpdated = () => {
+      console.log('[VIDEO_LIST_UPDATED] event received, refreshing videos in TeacherDashboard');
+      fetchVideos();
+    };
+    window.addEventListener('video-list-updated', handleVideoListUpdated);
+    return () => window.removeEventListener('video-list-updated', handleVideoListUpdated);
+  }, []);
 
   useEffect(() => {
     const loadingTimer = setTimeout(() => {
