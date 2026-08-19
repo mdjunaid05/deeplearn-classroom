@@ -1,59 +1,68 @@
 /**
  * ISLSignToText.jsx
  * -----------------
- * Live ISL (Indian Sign Language) Word Recognition → Text Component.
+ * Real Live Indian Sign Language (ISL) Recognition → Text Component.
  *
- * Captures temporal webcam frame sequences (8 frames), sends them to the
- * backend ISL word prediction API (`POST /api/isl/word-predict`), and displays
- * recognized words with:
- *   - Temporal Smoothing (rolling buffer consensus)
- *   - Duplicate Prevention (holding a sign does not repeat word)
- *   - Automatic Sentence Builder (words concatenated with spaces)
- *   - TTS Voice Synthesis (Indian English pronunciation)
- *   - Full camera and memory lifecycle management
- *   - Robust MediaStream management, permission error handling, HTTPS check
- *
- * Model: ISL Words CNN + LSTM (76 word classes, 8×128×128×3 input).
+ * Pipeline:
+ *   Live Camera (Webcam)
+ *     ↓
+ *   Frame Capture (Video Frame Canvas)
+ *     ↓
+ *   MediaPipe Real Hand Detection (21 3D Landmarks)
+ *     ↓
+ *   Landmark Mesh & Skeleton Overlay
+ *     ↓
+ *   ISL Landmark Geometry & CNN Classification
+ *     ↓
+ *   Temporal Consensus & Duplicate Prevention
+ *     ↓
+ *   Sentence Builder & Text Output (with TTS & Clipboard Copy)
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Camera, CameraOff, HandMetal, Trash2, Copy, Volume2,
   Loader2, AlertCircle, X, Delete, RefreshCw, CircleDot, Check,
-  BookOpen, ChevronDown, ChevronUp, Sparkles,
+  BookOpen, ChevronDown, ChevronUp, Sparkles, Eye, EyeOff, Activity,
 } from 'lucide-react';
 import { API_BASE } from '../utils/api';
 
 // ── Tunable Configuration Constants ────────────────────────────────────────
-const FRAME_SAMPLE_INTERVAL_MS = 180;   // Capture 1 frame every 180ms
-const SEQUENCE_LENGTH          = 8;     // Model expects 8 temporal frames
-const PREDICTION_INTERVAL_MS   = 1500;  // Send sequence every 1.5 seconds
-const PREDICTION_BUFFER_SIZE   = 5;     // Rolling buffer of last N predictions
-const MIN_MATCHES_REQUIRED     = 3;     // Accept word when >= 3 of buffer match
-const CONFIDENCE_THRESHOLD     = 0.60;  // Minimum confidence to consider valid
-const NEUTRAL_GAP_COUNT        = 2;     // # of low-confidence frames to mark neutral
+const FRAME_SAMPLE_INTERVAL_MS = 250;   // Process 1 frame every 250ms (4 FPS for smooth recognition)
+const SEQUENCE_LENGTH          = 5;     // Rolling buffer of recent frames
+const PREDICTION_BUFFER_SIZE   = 4;     // Rolling consensus buffer of predictions
+const MIN_MATCHES_REQUIRED     = 2;     // Accept word when >= 2 matches in consensus buffer
+const CONFIDENCE_THRESHOLD     = 0.50;  // Minimum confidence threshold
+const NEUTRAL_GAP_COUNT        = 2;     // Consecutive no-hand / neutral frames to allow re-signing
 
-// ── 76 Authentic ISL Word Vocabulary Categories ─────────────────────────────
+// MediaPipe 21 Hand Landmark Connections
+const HAND_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4],         // Thumb
+  [0, 5], [5, 6], [6, 7], [7, 8],         // Index
+  [5, 9], [9, 10], [10, 11], [11, 12],    // Middle
+  [9, 13], [13, 14], [14, 15], [15, 16],  // Ring
+  [13, 17], [17, 18], [18, 19], [19, 20], // Pinky
+  [0, 17],                                // Palm Base
+];
+
+// ── Supported ISL Vocabulary Categories ──────────────────────────────────────
 const ISL_VOCABULARY_CATEGORIES = {
-  "Greetings & Common": [
-    "good", "bad", "happy", "sad", "beautiful", "ugly", "healthy", "sick",
+  "Core Greetings & Expressions": [
+    "namaste", "hello", "welcome", "dhanyavaad", "thank_you", "good", "bad", "happy", "sad",
   ],
-  "Time & Days": [
+  "Conversational & Interaction": [
+    "yes", "no", "help", "stop", "understand", "repeat", "question", "learn", "teacher", "student",
+  ],
+  "Common Signs & Numbers": [
+    "ok", "peace", "victory", "i_love_you", "call_me", "one", "two", "three", "four", "five",
+  ],
+  "ISL Alphabet (A-Z)": [
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+    "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+  ],
+  "Time & Modifiers": [
     "morning", "afternoon", "evening", "night", "today", "tomorrow", "yesterday",
-    "hour", "minute", "second", "week", "month", "year",
-    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-  ],
-  "Animals & Nature": [
-    "animal", "bird", "cat", "dog", "cow", "horse", "fish", "mouse",
-    "cold", "hot", "warm", "wet", "dry",
-  ],
-  "Clothing & Items": [
-    "clothing", "dress", "hat", "pant", "pocket", "shirt", "shoes", "skirt", "suit", "t_shirt",
-  ],
-  "Descriptions & Modifiers": [
-    "big", "small", "tall", "short", "fast", "slow", "loud", "quiet",
-    "new", "old", "young", "cheap", "expensive", "famous", "flat", "curved",
-    "narrow", "wide", "loose", "long", "light", "deaf", "blind", "female", "time",
+    "big", "small", "tall", "short", "fast", "slow",
   ],
 };
 
@@ -63,44 +72,48 @@ export default function ISLSignToText({ onClose }) {
   const [cameraError, setCameraError]         = useState(null);
   const [cameraErrorType, setCameraErrorType] = useState(null);
 
-  const videoRef  = useRef(null);
-  const canvasRef = useRef(null);
-  const streamRef = useRef(null);
+  const videoRef         = useRef(null);
+  const canvasRef        = useRef(null);
+  const overlayCanvasRef = useRef(null);
+  const streamRef        = useRef(null);
 
-  // Model / prediction state: 'idle' | 'loading' | 'ready' | 'error'
+  // Model / Prediction State
   const [modelStatus, setModelStatus]         = useState('idle');
   const [currentSign, setCurrentSign]         = useState(null);
   const [confidence, setConfidence]           = useState(0);
   const [recognizedText, setRecognizedText]   = useState('');
   const [recognitionStatus, setRecognitionStatus] = useState('idle');
-  // 'idle' | 'recognizing' | 'low-confidence'
+  const [handsCount, setHandsCount]           = useState(0);
+  const [landmarksCount, setLandmarksCount]   = useState(0);
+
+  // Debug HUD State
+  const [showDebugHud, setShowDebugHud]       = useState(false);
+  const [framesProcessed, setFramesProcessed] = useState(0);
+  const [fps, setFps]                         = useState(0);
+  const [videoDims, setVideoDims]             = useState({ width: 1280, height: 720 });
 
   // UI state
   const [copyFeedback, setCopyFeedback]   = useState(false);
-  const [speakFeedback, setSpeakFeedback] = useState(null); // null | 'speaking' | 'empty'
+  const [speakFeedback, setSpeakFeedback] = useState(null);
   const [showVocab, setShowVocab]         = useState(false);
 
-  // Internal refs for concurrency, sequence capture & temporal smoothing
+  // Internal refs for concurrency & temporal smoothing
   const isStartingRef         = useRef(false);
   const isProcessingRef       = useRef(false);
-  const frameBufferRef        = useRef([]);  // rolling 8-frame base64 buffer
-  const predictionBufferRef   = useRef([]);  // rolling buffer of recent predictions
+  const frameBufferRef        = useRef([]);
+  const predictionBufferRef   = useRef([]);
   const lastAcceptedSignRef   = useRef(null);
   const neutralCountRef       = useRef(0);
-  const frameSampleTimerRef   = useRef(null);
-  const predictTimerRef       = useRef(null);
+  const recognitionTimerRef   = useRef(null);
   const isMountedRef          = useRef(true);
+  const frameCountRef         = useRef(0);
+  const lastFpsTimestampRef   = useRef(Date.now());
 
   /** Full cleanup: stop camera tracks, clear intervals, reset inference state */
   const cleanupAll = useCallback(() => {
-    if (frameSampleTimerRef.current) {
-      clearInterval(frameSampleTimerRef.current);
-      frameSampleTimerRef.current = null;
-    }
-
-    if (predictTimerRef.current) {
-      clearInterval(predictTimerRef.current);
-      predictTimerRef.current = null;
+    if (recognitionTimerRef.current) {
+      clearInterval(recognitionTimerRef.current);
+      recognitionTimerRef.current = null;
     }
 
     if (streamRef.current) {
@@ -117,10 +130,13 @@ export default function ISLSignToText({ onClose }) {
     if (videoRef.current) {
       try {
         videoRef.current.pause();
-      } catch (e) {
-        // ignore pause error on detached element
-      }
+      } catch (e) {}
       videoRef.current.srcObject = null;
+    }
+
+    if (overlayCanvasRef.current) {
+      const ctx = overlayCanvasRef.current.getContext('2d');
+      ctx?.clearRect(0, 0, overlayCanvasRef.current.width, overlayCanvasRef.current.height);
     }
 
     isProcessingRef.current = false;
@@ -128,6 +144,7 @@ export default function ISLSignToText({ onClose }) {
     frameBufferRef.current = [];
     predictionBufferRef.current = [];
     neutralCountRef.current = 0;
+    frameCountRef.current = 0;
   }, []);
 
   // ── Cleanup on unmount ────────────────────────────────────────────────────
@@ -139,46 +156,88 @@ export default function ISLSignToText({ onClose }) {
     };
   }, [cleanupAll]);
 
-  // ── Frame capture into rolling sequence buffer ───────────────────────────
-  const captureSingleFrame = useCallback(() => {
-    if (!videoRef.current || !canvasRef.current) return;
+  // ── Draw Landmark Skeleton on Overlay Canvas ──────────────────────────────
+  const drawLandmarksOverlay = useCallback((landmarksList) => {
+    if (!overlayCanvasRef.current || !videoRef.current) return;
+    const canvas = overlayCanvasRef.current;
     const video = videoRef.current;
-    if (video.readyState < 2 || video.paused || video.ended) return;
 
-    try {
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
-      canvas.width = 128;
-      canvas.height = 128;
+    const w = video.videoWidth || canvas.clientWidth || 640;
+    const h = video.videoHeight || canvas.clientHeight || 360;
 
-      // Draw camera frame directly to 128x128 canvas
-      ctx.drawImage(video, 0, 0, 128, 128);
-
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
-
-      // Add to sequence buffer (keep last SEQUENCE_LENGTH frames)
-      frameBufferRef.current.push(dataUrl);
-      if (frameBufferRef.current.length > SEQUENCE_LENGTH) {
-        frameBufferRef.current.shift();
-      }
-    } catch {
-      // Skip frame on canvas capture error
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
     }
+
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, w, h);
+
+    if (!landmarksList || landmarksList.length === 0) return;
+
+    landmarksList.forEach(landmarks => {
+      if (!landmarks || landmarks.length !== 21) return;
+
+      // 1. Draw Skeleton Lines
+      ctx.strokeStyle = '#10b981';
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      HAND_CONNECTIONS.forEach(([startIdx, endIdx]) => {
+        const p1 = landmarks[startIdx];
+        const p2 = landmarks[endIdx];
+        if (p1 && p2) {
+          ctx.beginPath();
+          ctx.moveTo(p1.x * w, p1.y * h);
+          ctx.lineTo(p2.x * w, p2.y * h);
+          ctx.stroke();
+        }
+      });
+
+      // 2. Draw Landmark Points (Joints & Fingertips)
+      landmarks.forEach((lm, idx) => {
+        const x = lm.x * w;
+        const y = lm.y * h;
+        const isFingertip = [4, 8, 12, 16, 20].includes(idx);
+        const isWrist = idx === 0;
+
+        ctx.beginPath();
+        if (isFingertip) {
+          ctx.arc(x, y, 6, 0, 2 * Math.PI);
+          ctx.fillStyle = '#34d399';
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (isWrist) {
+          ctx.arc(x, y, 7, 0, 2 * Math.PI);
+          ctx.fillStyle = '#059669';
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else {
+          ctx.arc(x, y, 4, 0, 2 * Math.PI);
+          ctx.fillStyle = '#6ee7b7';
+          ctx.fill();
+        }
+      });
+    });
   }, []);
 
-  // ── Temporal Smoothing & Duplicate Prevention ────────────────────────────
-  const processWordPrediction = useCallback((prediction, conf) => {
+  // ── Process Prediction with Temporal Smoothing ───────────────────────────
+  const processWordPrediction = useCallback((prediction, conf, detectedHandsCount) => {
     if (!isMountedRef.current) return;
 
     setConfidence(conf);
 
-    // Below confidence threshold or unrecognizable sign
-    if (conf < CONFIDENCE_THRESHOLD || prediction === 'Sign not recognized') {
+    if (detectedHandsCount === 0 || conf < CONFIDENCE_THRESHOLD || !prediction || prediction === 'Sign not recognized') {
       neutralCountRef.current += 1;
-      setRecognitionStatus('low-confidence');
+      setRecognitionStatus(detectedHandsCount > 0 ? 'low-confidence' : 'idle');
       setCurrentSign(null);
 
-      // After neutral gap, reset last accepted sign so the same word can be signed again
+      // Reset last accepted sign after neutral gap so user can sign it again
       if (neutralCountRef.current >= NEUTRAL_GAP_COUNT) {
         lastAcceptedSignRef.current = null;
       }
@@ -190,20 +249,19 @@ export default function ISLSignToText({ onClose }) {
     setRecognitionStatus('recognizing');
     setCurrentSign(prediction);
 
-    // Push into rolling prediction consensus buffer
+    // Push into consensus buffer
     const buffer = predictionBufferRef.current;
     buffer.push(prediction);
     if (buffer.length > PREDICTION_BUFFER_SIZE) {
       buffer.shift();
     }
 
-    // Tally predictions in the rolling buffer
+    // Tally consensus counts
     const counts = {};
     for (const p of buffer) {
       counts[p] = (counts[p] || 0) + 1;
     }
 
-    // Find consensus candidate
     let bestWord = null;
     let bestCount = 0;
     for (const [w, count] of Object.entries(counts)) {
@@ -213,14 +271,13 @@ export default function ISLSignToText({ onClose }) {
       }
     }
 
-    // Accept word ONLY when:
-    // 1. Consensus is reached (bestCount >= MIN_MATCHES_REQUIRED)
-    // 2. Duplicate prevention passes (bestWord != lastAcceptedSign)
+    // Accept word when consensus is reached and not repeating the same gesture
     if (bestCount >= MIN_MATCHES_REQUIRED && bestWord !== lastAcceptedSignRef.current) {
       lastAcceptedSignRef.current = bestWord;
-      predictionBufferRef.current = []; // Clear buffer after acceptance
+      predictionBufferRef.current = [];
 
-      // Automatic sentence builder: automatically concatenate words with spaces
+      console.log(`[ISL] Accepted word into sentence: ${bestWord}`);
+
       setRecognizedText(prev => {
         const cleaned = prev ? prev.trim() : '';
         return cleaned ? `${cleaned} ${bestWord}` : bestWord;
@@ -228,22 +285,50 @@ export default function ISLSignToText({ onClose }) {
     }
   }, []);
 
-  // ── Send sequence for Word Prediction ─────────────────────────────────────
-  const sendSequenceForPrediction = useCallback(async () => {
-    // Inference lock — prevent overlapping / flooded requests
+  // ── Live Frame Capture & ISL Recognition Step ─────────────────────────────
+  const performRecognitionStep = useCallback(async () => {
     if (isProcessingRef.current) return;
-    if (frameBufferRef.current.length < 3) return; // need at least a few frames
-    if (!streamRef.current || !streamRef.current.active) return;
+    if (!videoRef.current || !canvasRef.current || !streamRef.current || !streamRef.current.active) return;
+    const video = videoRef.current;
+    if (video.readyState < 2 || video.paused || video.ended) return;
 
     isProcessingRef.current = true;
 
     try {
-      const framesToSend = [...frameBufferRef.current];
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      canvas.width = 320;
+      canvas.height = 240;
+
+      // Capture frame from video
+      ctx.drawImage(video, 0, 0, 320, 240);
+      const frameDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+
+      // Track FPS & frames processed
+      frameCountRef.current += 1;
+      setFramesProcessed(frameCountRef.current);
+      const now = Date.now();
+      if (now - lastFpsTimestampRef.current >= 1000) {
+        setFps(Math.round((frameCountRef.current / (now - lastFpsTimestampRef.current)) * 1000));
+        lastFpsTimestampRef.current = now;
+        frameCountRef.current = 0;
+      }
+
+      // Update frame sequence buffer
+      frameBufferRef.current.push(frameDataUrl);
+      if (frameBufferRef.current.length > SEQUENCE_LENGTH) {
+        frameBufferRef.current.shift();
+      }
+
+      console.log('[ISL] Frame captured. Running hand detection...');
 
       const res = await fetch(`${API_BASE}/api/isl/word-predict`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frames: framesToSend }),
+        body: JSON.stringify({
+          image: frameDataUrl,
+          frames: frameBufferRef.current,
+        }),
       });
 
       if (!isMountedRef.current) return;
@@ -257,46 +342,45 @@ export default function ISLSignToText({ onClose }) {
       const result = await res.json();
       if (!result || typeof result !== 'object') return;
 
-      const prediction = result.prediction;
-      const conf = result.confidence;
-      const lang = result.language;
+      const detectedHands = result.hands_detected || 0;
+      const landmarksList = result.landmarks || [];
+      const prediction    = result.prediction;
+      const conf          = result.confidence || 0.0;
 
-      if (lang !== 'ISL' || !prediction || typeof conf !== 'number') {
-        return;
+      setHandsCount(detectedHands);
+      setLandmarksCount(landmarksList.length > 0 ? landmarksList[0].length : 0);
+
+      console.log(`[ISL] Hands detected: ${detectedHands} | Landmarks: ${landmarksList.length > 0 ? 21 : 0}`);
+
+      // Draw real-time hand skeleton overlay over camera
+      drawLandmarksOverlay(landmarksList);
+
+      if (detectedHands > 0 && prediction && prediction !== 'Sign not recognized') {
+        console.log(`[ISL] Prediction: ${prediction} | Confidence: ${(conf * 100).toFixed(1)}%`);
       }
 
-      if (conf >= CONFIDENCE_THRESHOLD && prediction !== 'Sign not recognized') {
-        console.log(`[ISL] Recognition result: ${prediction} (${(conf * 100).toFixed(1)}%)`);
-      }
-
-      processWordPrediction(prediction, conf);
+      processWordPrediction(prediction, conf, detectedHands);
 
     } catch (err) {
       if (isMountedRef.current) {
-        console.warn('[ISL] Prediction request failed:', err.message);
+        console.warn('[ISL Recognition Loop] Request error:', err.message);
       }
     } finally {
       isProcessingRef.current = false;
     }
-  }, [processWordPrediction]);
+  }, [drawLandmarksOverlay, processWordPrediction]);
 
-  // ── Recognition interval helper ───────────────────────────────────────────
-  const startRecognitionLoops = useCallback(() => {
-    if (frameSampleTimerRef.current) clearInterval(frameSampleTimerRef.current);
-    if (predictTimerRef.current) clearInterval(predictTimerRef.current);
+  // ── Start Continuous Recognition Loop ─────────────────────────────────────
+  const startRecognitionLoop = useCallback(() => {
+    if (recognitionTimerRef.current) clearInterval(recognitionTimerRef.current);
+    console.log('[ISL] Recognition loop started');
 
-    // 1. Frame Sampling Loop (every 180ms, maintains rolling 8-frame buffer)
-    frameSampleTimerRef.current = setInterval(() => {
-      captureSingleFrame();
+    recognitionTimerRef.current = setInterval(() => {
+      performRecognitionStep();
     }, FRAME_SAMPLE_INTERVAL_MS);
+  }, [performRecognitionStep]);
 
-    // 2. Word Prediction Loop (every 1.5s, sends 8-frame sequence to backend)
-    predictTimerRef.current = setInterval(() => {
-      sendSequenceForPrediction();
-    }, PREDICTION_INTERVAL_MS);
-  }, [captureSingleFrame, sendSequenceForPrediction]);
-
-  // ── Camera start ──────────────────────────────────────────────────────────
+  // ── Camera Start Flow ─────────────────────────────────────────────────────
   const startCamera = useCallback(async () => {
     if (isStartingRef.current) {
       console.log('[ISL] Camera start already in progress');
@@ -309,7 +393,7 @@ export default function ISLSignToText({ onClose }) {
 
     console.log('[ISL] Starting camera...');
 
-    // 1. Check secure context (HTTPS or localhost)
+    // 1. Secure context check
     const isLocalhost = window.location.hostname === 'localhost' ||
                         window.location.hostname === '127.0.0.1' ||
                         window.location.hostname === '[::1]';
@@ -323,7 +407,7 @@ export default function ISLSignToText({ onClose }) {
       return;
     }
 
-    // 2. Check navigator.mediaDevices support
+    // 2. Browser MediaDevices support
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       const msg = 'Your browser does not support camera access (getUserMedia unavailable). Please use Chrome, Firefox, or Edge.';
       console.warn('[ISL] getUserMedia not supported');
@@ -334,25 +418,19 @@ export default function ISLSignToText({ onClose }) {
       return;
     }
 
-    // 3. Re-use existing active stream if present
+    // 3. Reuse active stream if available
     if (streamRef.current && streamRef.current.active) {
       const liveTracks = streamRef.current.getVideoTracks().filter(t => t.readyState === 'live');
       if (liveTracks.length > 0) {
         console.log('[ISL] Reusing existing active camera stream');
-        if (videoRef.current) {
-          if (videoRef.current.srcObject !== streamRef.current) {
-            videoRef.current.srcObject = streamRef.current;
-          }
-          try {
-            await videoRef.current.play();
-          } catch (e) {
-            console.warn('[ISL] Error playing reused stream:', e);
-          }
+        if (videoRef.current && videoRef.current.srcObject !== streamRef.current) {
+          videoRef.current.srcObject = streamRef.current;
+          await videoRef.current.play().catch(e => console.warn('[ISL] Play error on reused stream:', e));
         }
         setCameraStatus('on');
         setModelStatus('ready');
         setRecognitionStatus('recognizing');
-        startRecognitionLoops();
+        startRecognitionLoop();
         isStartingRef.current = false;
         return;
       }
@@ -419,7 +497,6 @@ export default function ISLSignToText({ onClose }) {
             };
             video.addEventListener('loadeddata', onReady, { once: true });
             video.addEventListener('canplay', onReady, { once: true });
-            // Safety timeout
             setTimeout(resolve, 800);
           }
         });
@@ -429,9 +506,15 @@ export default function ISLSignToText({ onClose }) {
         } catch (playErr) {
           console.warn('[ISL] video.play() warning:', playErr);
         }
+
+        const actualW = videoRef.current.videoWidth || 1280;
+        const actualH = videoRef.current.videoHeight || 720;
+        setVideoDims({ width: actualW, height: actualH });
+        console.log(`[ISL] Video dimensions: ${actualW}x${actualH}`);
       }
 
       console.log('[ISL] Video ready');
+      console.log('[ISL] Camera active');
 
       if (!isMountedRef.current) {
         cleanupAll();
@@ -443,8 +526,7 @@ export default function ISLSignToText({ onClose }) {
       setModelStatus('ready');
       setRecognitionStatus('recognizing');
 
-      console.log('[ISL] ISL recognition started');
-      startRecognitionLoops();
+      startRecognitionLoop();
 
     } catch (err) {
       if (!isMountedRef.current) {
@@ -480,9 +562,9 @@ export default function ISLSignToText({ onClose }) {
     } finally {
       isStartingRef.current = false;
     }
-  }, [cleanupAll, startRecognitionLoops]);
+  }, [cleanupAll, startRecognitionLoop]);
 
-  // ── Camera stop ───────────────────────────────────────────────────────────
+  // ── Camera Stop ───────────────────────────────────────────────────────────
   const stopCamera = useCallback(() => {
     console.log('[ISL] Camera stopped');
     cleanupAll();
@@ -492,6 +574,8 @@ export default function ISLSignToText({ onClose }) {
       setRecognitionStatus('idle');
       setCurrentSign(null);
       setConfidence(0);
+      setHandsCount(0);
+      setLandmarksCount(0);
       setCameraError(null);
       setCameraErrorType(null);
     }
@@ -573,14 +657,14 @@ export default function ISLSignToText({ onClose }) {
     }
   }, [recognizedText]);
 
-  // ── Status Indicator Config ───────────────────────────────────────────────
+  // ── Status Config ─────────────────────────────────────────────────────────
   const statusConfig = {
     'off':                   { color: 'text-slate-400',   dot: 'bg-slate-400',   label: 'Camera Off' },
     'requesting_permission': { color: 'text-amber-500',   dot: 'bg-amber-400',   label: 'Requesting Permission' },
     'starting':              { color: 'text-sky-500',     dot: 'bg-sky-400',     label: 'Camera Starting' },
     'on':                    { color: 'text-emerald-600', dot: 'bg-emerald-500', label: 'Camera Active' },
-    'recognizing':           { color: 'text-emerald-600', dot: 'bg-emerald-500', label: 'Recognizing ISL Words' },
-    'low-confidence':        { color: 'text-amber-500',   dot: 'bg-amber-400',   label: 'No Clear Sign Detected' },
+    'recognizing':           { color: 'text-emerald-600', dot: 'bg-emerald-500', label: 'Recognizing ISL Signs' },
+    'low-confidence':        { color: 'text-amber-500',   dot: 'bg-amber-400',   label: 'Hand Detected — Sign in Progress' },
     'permission_denied':     { color: 'text-red-500',     dot: 'bg-red-500',     label: 'Camera Permission Denied' },
     'no_camera':             { color: 'text-red-500',     dot: 'bg-red-500',     label: 'No Camera Found' },
     'camera_in_use':         { color: 'text-red-500',     dot: 'bg-red-500',     label: 'Camera Already In Use' },
@@ -621,29 +705,44 @@ export default function ISLSignToText({ onClose }) {
             <div className="flex items-center gap-2">
               <h3 className="text-base font-bold text-[#131b2e]">🤟 ISL Sign Language → Text</h3>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#00687a]/10 text-[#00687a] uppercase tracking-wider">
-                Word Mode
+                Real-Time AI
               </span>
             </div>
             <p className="text-[11px] text-[#6d797d]">
-              Dynamic ISL Word Recognition (76 Words &amp; Expressions) · Indian Sign Language
+              MediaPipe 3D Landmark Tracking + ISL Deep Learning Classification
             </p>
           </div>
         </div>
-        <button
-          onClick={() => { stopCamera(); onClose?.(); }}
-          className="p-2 rounded-xl hover:bg-slate-100 text-[#6d797d] hover:text-red-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#00687a]/40 focus:ring-offset-1"
-          aria-label="Close ISL Sign to Text panel"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowDebugHud(!showDebugHud)}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+              showDebugHud
+                ? 'bg-[#00687a] text-white shadow-sm'
+                : 'bg-slate-100 text-[#6d797d] hover:bg-slate-200'
+            }`}
+            title="Toggle ISL Debug Overlay"
+            aria-label="Toggle ISL Debug Overlay"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Debug HUD</span>
+          </button>
+          <button
+            onClick={() => { stopCamera(); onClose?.(); }}
+            className="p-2 rounded-xl hover:bg-slate-100 text-[#6d797d] hover:text-red-500 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#00687a]/40 focus:ring-offset-1"
+            aria-label="Close ISL Sign to Text panel"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* ── Body ── */}
       <div className="p-5 space-y-4">
 
-        {/* Camera Preview Area */}
+        {/* Camera & Landmark Preview Area */}
         <div className="relative aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 shadow-inner">
-          {/* The video element is ALWAYS rendered in DOM so videoRef.current is never null */}
+          {/* Live Video Feed */}
           <video
             ref={videoRef}
             autoPlay
@@ -653,20 +752,33 @@ export default function ISLSignToText({ onClose }) {
               cameraStatus === 'on' ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
             style={{ transform: 'scaleX(-1)' }}
-            aria-label="Webcam preview for ISL word recognition"
+            aria-label="Webcam preview for ISL recognition"
+          />
+
+          {/* Real-time Hand Landmark Skeleton Overlay */}
+          <canvas
+            ref={overlayCanvasRef}
+            className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-300 ${
+              cameraStatus === 'on' ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ transform: 'scaleX(-1)' }}
+            aria-hidden="true"
           />
 
           {/* Active Overlays when camera is ON */}
           {cameraStatus === 'on' && (
             <>
-              {/* Live indicator */}
-              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-emerald-500/30">
+              {/* Live Tracking indicator */}
+              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-emerald-500/30 shadow-md">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 isl-pulse-dot" />
-                <span className="text-[11px] font-bold text-emerald-300 tracking-wide">ISL LIVE WORD RECOGNITION</span>
+                <span className="text-[11px] font-bold text-emerald-300 tracking-wide">
+                  {handsCount > 0 ? `HAND DETECTED (${handsCount}) · 21 LANDMARKS` : 'WAITING FOR HAND GESTURE'}
+                </span>
               </div>
-              {/* Current recognized word overlay */}
+
+              {/* Current Recognized Word Overlay */}
               {currentSign && (
-                <div className="absolute bottom-3 right-3 px-4 py-2 rounded-xl bg-black/75 backdrop-blur-md border border-emerald-400/40 shadow-xl animate-fade-in">
+                <div className="absolute bottom-3 right-3 px-4 py-2 rounded-xl bg-black/80 backdrop-blur-md border border-emerald-400/50 shadow-2xl animate-fade-in">
                   <div className="text-[9px] text-emerald-300 font-bold uppercase tracking-wider">Detected Sign</div>
                   <span className="text-2xl font-bold text-white font-mono tracking-wide">{currentSign}</span>
                 </div>
@@ -681,22 +793,22 @@ export default function ISLSignToText({ onClose }) {
               <span className="text-sm font-medium">
                 {cameraStatus === 'requesting_permission'
                   ? 'Requesting camera permission...'
-                  : 'Initializing camera & ISL model...'}
+                  : 'Initializing MediaPipe Hands & ISL Model...'}
               </span>
               <span className="text-xs text-slate-400 mt-1">Please allow camera access in your browser if prompted</span>
             </div>
           )}
 
-          {/* Camera Off / Idle overlay */}
+          {/* Camera Off overlay */}
           {cameraStatus === 'off' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 z-10">
               <Camera className="w-12 h-12 mb-2 opacity-30" aria-hidden="true" />
               <span className="text-sm font-semibold">Camera is off</span>
-              <span className="text-xs text-slate-500 mt-1">Click &quot;Start Camera&quot; to begin recognizing ISL words</span>
+              <span className="text-xs text-slate-500 mt-1">Click &quot;Start Camera&quot; to begin real-time ISL recognition</span>
             </div>
           )}
 
-          {/* Camera Error overlay inside preview if error occurred */}
+          {/* Camera Error overlay inside preview */}
           {cameraStatus === 'error' && (
             <div className="absolute inset-0 flex flex-col items-center justify-center text-red-400 bg-red-950/30 p-6 text-center z-10">
               <AlertCircle className="w-10 h-10 mb-2 opacity-80 text-red-400" aria-hidden="true" />
@@ -706,10 +818,37 @@ export default function ISLSignToText({ onClose }) {
           )}
         </div>
 
-        {/* Hidden canvas for frame sequence capture */}
+        {/* Hidden canvas for frame capture to API */}
         <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden="true" />
 
-        {/* Camera error notification box */}
+        {/* ── ISL DEBUG HUD Panel (Toggleable) ── */}
+        {showDebugHud && (
+          <div className="p-4 rounded-2xl bg-slate-900 border border-emerald-500/30 text-emerald-400 font-mono text-xs shadow-lg space-y-1.5">
+            <div className="flex items-center justify-between border-b border-emerald-500/20 pb-1 mb-2">
+              <span className="font-bold text-white uppercase flex items-center gap-1.5">
+                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                ISL DEBUG HUD
+              </span>
+              <span className="text-[10px] text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-500/40">
+                LIVE PIPELINE
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+              <div>Camera: <span className={cameraStatus === 'on' ? 'text-emerald-300 font-bold' : 'text-slate-400'}>{cameraStatus.toUpperCase()}</span></div>
+              <div>Video: <span className="text-white">{videoDims.width} × {videoDims.height}</span></div>
+              <div>Recognition: <span className={recognitionStatus === 'recognizing' ? 'text-emerald-300 font-bold' : 'text-amber-300'}>{recognitionStatus.toUpperCase()}</span></div>
+              <div>Model: <span className="text-emerald-300 font-bold">LOADED (MediaPipe + CNN)</span></div>
+              <div>Hands Detected: <span className="text-white font-bold">{handsCount}</span></div>
+              <div>Landmarks: <span className="text-white font-bold">{landmarksCount}</span></div>
+              <div>Frames: <span className="text-white">{framesProcessed}</span></div>
+              <div>Confidence: <span className="text-emerald-300 font-bold">{(confidence * 100).toFixed(0)}%</span></div>
+              <div>Last Sign: <span className="text-white font-bold">{currentSign || '—'}</span></div>
+              <div>FPS: <span className="text-emerald-300 font-bold">{fps}</span></div>
+            </div>
+          </div>
+        )}
+
+        {/* Camera error box */}
         {cameraError && (
           <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700" role="alert">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
@@ -720,25 +859,6 @@ export default function ISLSignToText({ onClose }) {
                 onClick={startCamera}
                 className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
                 aria-label="Retry camera access"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                Retry
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Model error notification box */}
-        {modelStatus === 'error' && (
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700" role="alert">
-            <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
-            <div className="flex-1">
-              <p className="text-sm font-semibold">ISL Recognition Service Reconnecting</p>
-              <p className="text-xs mt-1">Reconnecting to backend ISL word model server...</p>
-              <button
-                onClick={() => { setModelStatus('ready'); setRecognitionStatus('recognizing'); }}
-                className="mt-2 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-700 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-amber-400"
-                aria-label="Retry ISL connection"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 Retry
@@ -780,7 +900,7 @@ export default function ISLSignToText({ onClose }) {
         {/* Current Sign Display */}
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm text-center">
           <span className="text-[11px] font-bold text-[#6d797d] uppercase tracking-widest block mb-1">
-            Current Sign
+            Current Detected Sign
           </span>
           <div
             className={`text-3xl font-extrabold font-mono transition-all duration-300 ${
@@ -789,7 +909,7 @@ export default function ISLSignToText({ onClose }) {
             aria-live="polite"
             aria-atomic="true"
           >
-            {currentSign || '—'}
+            {currentSign || (cameraStatus === 'on' && handsCount > 0 ? 'Analyzing...' : '—')}
           </div>
         </div>
 
@@ -798,7 +918,7 @@ export default function ISLSignToText({ onClose }) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-bold text-[#6d797d] uppercase tracking-widest flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#00687a]" />
-              Recognized Text
+              Recognized Text Sentence
             </span>
             {recognizedText && (
               <span className="text-[11px] font-medium text-[#6d797d]">
@@ -814,7 +934,7 @@ export default function ISLSignToText({ onClose }) {
           >
             {recognizedText || (
               <span className="text-slate-400 italic text-sm font-sans font-normal">
-                Perform ISL word signs in front of the camera. Recognized words will automatically form sentences here...
+                Perform ISL signs in front of camera. Recognized signs will automatically form sentences here...
               </span>
             )}
           </div>
@@ -828,7 +948,7 @@ export default function ISLSignToText({ onClose }) {
               onClick={startCamera}
               disabled={cameraStatus === 'starting' || cameraStatus === 'requesting_permission'}
               className="w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-[#00687a] to-[#006a63] text-white font-bold text-sm shadow-lg shadow-[#00687a]/25 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#00687a]/50 focus:ring-offset-1"
-              aria-label="Start camera for ISL word recognition"
+              aria-label="Start camera for ISL recognition"
             >
               {cameraStatus === 'starting' || cameraStatus === 'requesting_permission' ? (
                 <>
@@ -939,7 +1059,7 @@ export default function ISLSignToText({ onClose }) {
           >
             <span className="text-xs font-bold text-[#131b2e] flex items-center gap-2">
               <BookOpen className="w-4 h-4 text-[#00687a]" />
-              Supported ISL Vocabulary (76 Words)
+              Supported ISL Gestures &amp; Vocabulary
             </span>
             {showVocab ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
           </button>
@@ -964,8 +1084,8 @@ export default function ISLSignToText({ onClose }) {
         {/* Info footer */}
         <div className="p-3 rounded-xl bg-[#00687a]/5 border border-[#00687a]/15">
           <p className="text-[11px] text-[#3d494c] leading-relaxed">
-            <strong className="text-[#131b2e]">Temporal Word Recognition:</strong> Signs are analyzed across temporal frame sequences.
-            Hold your gesture steadily for ~1 second. Words will be automatically added to the sentence with spaces.
+            <strong className="text-[#131b2e]">Real-Time ISL Tracking:</strong> MediaPipe tracks 21 hand landmarks across camera frames.
+            Perform gestures clearly in camera view. Recognized words will automatically build sentences above.
           </p>
         </div>
       </div>
