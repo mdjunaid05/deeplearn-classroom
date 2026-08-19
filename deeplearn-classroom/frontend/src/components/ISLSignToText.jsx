@@ -11,6 +11,7 @@
  *   - Automatic Sentence Builder (words concatenated with spaces)
  *   - TTS Voice Synthesis (Indian English pronunciation)
  *   - Full camera and memory lifecycle management
+ *   - Robust MediaStream management, permission error handling, HTTPS check
  *
  * Model: ISL Words CNN + LSTM (76 word classes, 8×128×128×3 input).
  */
@@ -28,7 +29,7 @@ const FRAME_SAMPLE_INTERVAL_MS = 180;   // Capture 1 frame every 180ms
 const SEQUENCE_LENGTH          = 8;     // Model expects 8 temporal frames
 const PREDICTION_INTERVAL_MS   = 1500;  // Send sequence every 1.5 seconds
 const PREDICTION_BUFFER_SIZE   = 5;     // Rolling buffer of last N predictions
-const MIN_MATCHES_REQUIRED     = 3;     // Accept word when ≥ 3 of buffer match
+const MIN_MATCHES_REQUIRED     = 3;     // Accept word when >= 3 of buffer match
 const CONFIDENCE_THRESHOLD     = 0.60;  // Minimum confidence to consider valid
 const NEUTRAL_GAP_COUNT        = 2;     // # of low-confidence frames to mark neutral
 
@@ -57,27 +58,30 @@ const ISL_VOCABULARY_CATEGORIES = {
 };
 
 export default function ISLSignToText({ onClose }) {
-  // Camera state
-  const [cameraStatus, setCameraStatus]   = useState('off');   // off | starting | on | error
-  const [cameraError, setCameraError]     = useState(null);
-  const videoRef    = useRef(null);
-  const canvasRef   = useRef(null);
-  const streamRef   = useRef(null);
+  // Camera state: 'off' | 'requesting_permission' | 'starting' | 'on' | 'error'
+  const [cameraStatus, setCameraStatus]       = useState('off');
+  const [cameraError, setCameraError]         = useState(null);
+  const [cameraErrorType, setCameraErrorType] = useState(null);
 
-  // Model / prediction state
-  const [modelStatus, setModelStatus]     = useState('idle');   // idle | loading | ready | error
-  const [currentSign, setCurrentSign]     = useState(null);
-  const [confidence, setConfidence]       = useState(0);
-  const [recognizedText, setRecognizedText] = useState('');
+  const videoRef  = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+
+  // Model / prediction state: 'idle' | 'loading' | 'ready' | 'error'
+  const [modelStatus, setModelStatus]         = useState('idle');
+  const [currentSign, setCurrentSign]         = useState(null);
+  const [confidence, setConfidence]           = useState(0);
+  const [recognizedText, setRecognizedText]   = useState('');
   const [recognitionStatus, setRecognitionStatus] = useState('idle');
-  // idle | recognizing | low-confidence
+  // 'idle' | 'recognizing' | 'low-confidence'
 
   // UI state
   const [copyFeedback, setCopyFeedback]   = useState(false);
   const [speakFeedback, setSpeakFeedback] = useState(null); // null | 'speaking' | 'empty'
   const [showVocab, setShowVocab]         = useState(false);
 
-  // Internal refs for sequence capture & temporal smoothing
+  // Internal refs for concurrency, sequence capture & temporal smoothing
+  const isStartingRef         = useRef(false);
   const isProcessingRef       = useRef(false);
   const frameBufferRef        = useRef([]);  // rolling 8-frame base64 buffer
   const predictionBufferRef   = useRef([]);  // rolling buffer of recent predictions
@@ -87,17 +91,7 @@ export default function ISLSignToText({ onClose }) {
   const predictTimerRef       = useRef(null);
   const isMountedRef          = useRef(true);
 
-  // ── Cleanup on unmount ────────────────────────────────────────────────────
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-      cleanupAll();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** Full cleanup: stop camera, clear intervals, reset inference state */
+  /** Full cleanup: stop camera tracks, clear intervals, reset inference state */
   const cleanupAll = useCallback(() => {
     if (frameSampleTimerRef.current) {
       clearInterval(frameSampleTimerRef.current);
@@ -110,99 +104,46 @@ export default function ISLSignToText({ onClose }) {
     }
 
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach(track => {
+        try {
+          track.stop();
+        } catch (e) {
+          console.warn('[ISL] Error stopping track:', e);
+        }
+      });
       streamRef.current = null;
     }
 
     if (videoRef.current) {
+      try {
+        videoRef.current.pause();
+      } catch (e) {
+        // ignore pause error on detached element
+      }
       videoRef.current.srcObject = null;
     }
 
     isProcessingRef.current = false;
+    isStartingRef.current = false;
     frameBufferRef.current = [];
     predictionBufferRef.current = [];
     neutralCountRef.current = 0;
   }, []);
 
-  // ── Camera start ──────────────────────────────────────────────────────────
-  const startCamera = useCallback(async () => {
-    setCameraError(null);
-    setCameraStatus('starting');
-
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setCameraError(
-        'Your browser does not support camera access. Please use Chrome, Firefox, or Edge.'
-      );
-      setCameraStatus('error');
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
-        audio: false,
-      });
-
-      if (!isMountedRef.current) {
-        stream.getTracks().forEach(t => t.stop());
-        return;
-      }
-
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-
-      setCameraStatus('on');
-      setModelStatus('ready');
-      setRecognitionStatus('recognizing');
-
-      // 1. Frame Sampling Loop (every 180ms, maintains rolling 8-frame buffer)
-      if (frameSampleTimerRef.current) clearInterval(frameSampleTimerRef.current);
-      frameSampleTimerRef.current = setInterval(() => {
-        captureSingleFrame();
-      }, FRAME_SAMPLE_INTERVAL_MS);
-
-      // 2. Word Prediction Loop (every 1.5s, sends 8-frame sequence to backend)
-      if (predictTimerRef.current) clearInterval(predictTimerRef.current);
-      predictTimerRef.current = setInterval(() => {
-        sendSequenceForPrediction();
-      }, PREDICTION_INTERVAL_MS);
-
-    } catch (err) {
-      if (!isMountedRef.current) return;
-
-      let message = 'Unable to access camera. Please check camera permissions and retry.';
-      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-        message = 'Camera permission was denied. Please allow camera access in your browser settings.';
-      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-        message = 'No camera found on this device. Please connect a webcam and retry.';
-      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-        message = 'Camera is in use by another app. Please close other camera apps and retry.';
-      }
-
-      setCameraError(message);
-      setCameraStatus('error');
-    }
-  }, []);
-
-  // ── Camera stop ───────────────────────────────────────────────────────────
-  const stopCamera = useCallback(() => {
-    cleanupAll();
-
-    if (isMountedRef.current) {
-      setCameraStatus('off');
-      setRecognitionStatus('idle');
-      setCurrentSign(null);
-      setConfidence(0);
-    }
+  // ── Cleanup on unmount ────────────────────────────────────────────────────
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      cleanupAll();
+    };
   }, [cleanupAll]);
 
   // ── Frame capture into rolling sequence buffer ───────────────────────────
   const captureSingleFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
-    if (video.readyState < 2) return;
+    if (video.readyState < 2 || video.paused || video.ended) return;
 
     try {
       const canvas = canvasRef.current;
@@ -210,14 +151,10 @@ export default function ISLSignToText({ onClose }) {
       canvas.width = 128;
       canvas.height = 128;
 
-      // Draw mirrored video frame to canvas
-      ctx.save();
-      ctx.translate(128, 0);
-      ctx.scale(-1, 1);
+      // Draw camera frame directly to 128x128 canvas
       ctx.drawImage(video, 0, 0, 128, 128);
-      ctx.restore();
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
 
       // Add to sequence buffer (keep last SEQUENCE_LENGTH frames)
       frameBufferRef.current.push(dataUrl);
@@ -225,55 +162,7 @@ export default function ISLSignToText({ onClose }) {
         frameBufferRef.current.shift();
       }
     } catch {
-      // Skip frame on canvas error
-    }
-  }, []);
-
-  // ── Send sequence for Word Prediction ─────────────────────────────────────
-  const sendSequenceForPrediction = useCallback(async () => {
-    // Inference lock — prevent overlapping / flooded requests
-    if (isProcessingRef.current) return;
-    if (frameBufferRef.current.length < 3) return; // need at least a few frames
-    if (!streamRef.current) return;
-
-    isProcessingRef.current = true;
-
-    try {
-      const framesToSend = [...frameBufferRef.current];
-
-      const res = await fetch(`${API_BASE}/api/isl/word-predict`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ frames: framesToSend }),
-      });
-
-      if (!isMountedRef.current) return;
-
-      if (!res.ok) {
-        setModelStatus('error');
-        setRecognitionStatus('idle');
-        return;
-      }
-
-      const result = await res.json();
-      if (!result || typeof result !== 'object') return;
-
-      const prediction = result.prediction;
-      const conf = result.confidence;
-      const lang = result.language;
-
-      if (lang !== 'ISL' || !prediction || typeof conf !== 'number') {
-        return;
-      }
-
-      processWordPrediction(prediction, conf);
-
-    } catch (err) {
-      if (isMountedRef.current) {
-        console.warn('[ISL Word Predict] Request failed:', err.message);
-      }
-    } finally {
-      isProcessingRef.current = false;
+      // Skip frame on canvas capture error
     }
   }, []);
 
@@ -338,6 +227,275 @@ export default function ISLSignToText({ onClose }) {
       });
     }
   }, []);
+
+  // ── Send sequence for Word Prediction ─────────────────────────────────────
+  const sendSequenceForPrediction = useCallback(async () => {
+    // Inference lock — prevent overlapping / flooded requests
+    if (isProcessingRef.current) return;
+    if (frameBufferRef.current.length < 3) return; // need at least a few frames
+    if (!streamRef.current || !streamRef.current.active) return;
+
+    isProcessingRef.current = true;
+
+    try {
+      const framesToSend = [...frameBufferRef.current];
+
+      const res = await fetch(`${API_BASE}/api/isl/word-predict`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frames: framesToSend }),
+      });
+
+      if (!isMountedRef.current) return;
+
+      if (!res.ok) {
+        setModelStatus('error');
+        setRecognitionStatus('idle');
+        return;
+      }
+
+      const result = await res.json();
+      if (!result || typeof result !== 'object') return;
+
+      const prediction = result.prediction;
+      const conf = result.confidence;
+      const lang = result.language;
+
+      if (lang !== 'ISL' || !prediction || typeof conf !== 'number') {
+        return;
+      }
+
+      if (conf >= CONFIDENCE_THRESHOLD && prediction !== 'Sign not recognized') {
+        console.log(`[ISL] Recognition result: ${prediction} (${(conf * 100).toFixed(1)}%)`);
+      }
+
+      processWordPrediction(prediction, conf);
+
+    } catch (err) {
+      if (isMountedRef.current) {
+        console.warn('[ISL] Prediction request failed:', err.message);
+      }
+    } finally {
+      isProcessingRef.current = false;
+    }
+  }, [processWordPrediction]);
+
+  // ── Recognition interval helper ───────────────────────────────────────────
+  const startRecognitionLoops = useCallback(() => {
+    if (frameSampleTimerRef.current) clearInterval(frameSampleTimerRef.current);
+    if (predictTimerRef.current) clearInterval(predictTimerRef.current);
+
+    // 1. Frame Sampling Loop (every 180ms, maintains rolling 8-frame buffer)
+    frameSampleTimerRef.current = setInterval(() => {
+      captureSingleFrame();
+    }, FRAME_SAMPLE_INTERVAL_MS);
+
+    // 2. Word Prediction Loop (every 1.5s, sends 8-frame sequence to backend)
+    predictTimerRef.current = setInterval(() => {
+      sendSequenceForPrediction();
+    }, PREDICTION_INTERVAL_MS);
+  }, [captureSingleFrame, sendSequenceForPrediction]);
+
+  // ── Camera start ──────────────────────────────────────────────────────────
+  const startCamera = useCallback(async () => {
+    if (isStartingRef.current) {
+      console.log('[ISL] Camera start already in progress');
+      return;
+    }
+
+    isStartingRef.current = true;
+    setCameraError(null);
+    setCameraErrorType(null);
+
+    console.log('[ISL] Starting camera...');
+
+    // 1. Check secure context (HTTPS or localhost)
+    const isLocalhost = window.location.hostname === 'localhost' ||
+                        window.location.hostname === '127.0.0.1' ||
+                        window.location.hostname === '[::1]';
+    if (!window.isSecureContext && !isLocalhost) {
+      const msg = 'Camera access requires a secure connection (HTTPS). Please access this application via HTTPS.';
+      console.warn('[ISL] Insecure context:', window.location.protocol);
+      setCameraError(msg);
+      setCameraErrorType('insecure_context');
+      setCameraStatus('error');
+      isStartingRef.current = false;
+      return;
+    }
+
+    // 2. Check navigator.mediaDevices support
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const msg = 'Your browser does not support camera access (getUserMedia unavailable). Please use Chrome, Firefox, or Edge.';
+      console.warn('[ISL] getUserMedia not supported');
+      setCameraError(msg);
+      setCameraErrorType('unsupported');
+      setCameraStatus('error');
+      isStartingRef.current = false;
+      return;
+    }
+
+    // 3. Re-use existing active stream if present
+    if (streamRef.current && streamRef.current.active) {
+      const liveTracks = streamRef.current.getVideoTracks().filter(t => t.readyState === 'live');
+      if (liveTracks.length > 0) {
+        console.log('[ISL] Reusing existing active camera stream');
+        if (videoRef.current) {
+          if (videoRef.current.srcObject !== streamRef.current) {
+            videoRef.current.srcObject = streamRef.current;
+          }
+          try {
+            await videoRef.current.play();
+          } catch (e) {
+            console.warn('[ISL] Error playing reused stream:', e);
+          }
+        }
+        setCameraStatus('on');
+        setModelStatus('ready');
+        setRecognitionStatus('recognizing');
+        startRecognitionLoops();
+        isStartingRef.current = false;
+        return;
+      }
+    }
+
+    setCameraStatus('requesting_permission');
+
+    try {
+      let stream = null;
+      const preferredConstraints = {
+        video: {
+          facingMode: 'user',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+        audio: false,
+      };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(preferredConstraints);
+      } catch (err) {
+        if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+          console.warn('[ISL] OverconstrainedError with 720p ideal, retrying with facingMode user');
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false,
+          });
+        } else {
+          throw err;
+        }
+      }
+
+      console.log('[ISL] Camera permission granted');
+      console.log('[ISL] Camera stream created');
+
+      if (!isMountedRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        isStartingRef.current = false;
+        return;
+      }
+
+      streamRef.current = stream;
+      setCameraStatus('starting');
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        console.log('[ISL] Video stream attached');
+
+        // Wait for video readiness before starting inference
+        await new Promise((resolve) => {
+          const video = videoRef.current;
+          if (!video) {
+            resolve();
+            return;
+          }
+
+          if (video.readyState >= 2) {
+            resolve();
+          } else {
+            const onReady = () => {
+              video.removeEventListener('loadeddata', onReady);
+              video.removeEventListener('canplay', onReady);
+              resolve();
+            };
+            video.addEventListener('loadeddata', onReady, { once: true });
+            video.addEventListener('canplay', onReady, { once: true });
+            // Safety timeout
+            setTimeout(resolve, 800);
+          }
+        });
+
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn('[ISL] video.play() warning:', playErr);
+        }
+      }
+
+      console.log('[ISL] Video ready');
+
+      if (!isMountedRef.current) {
+        cleanupAll();
+        isStartingRef.current = false;
+        return;
+      }
+
+      setCameraStatus('on');
+      setModelStatus('ready');
+      setRecognitionStatus('recognizing');
+
+      console.log('[ISL] ISL recognition started');
+      startRecognitionLoops();
+
+    } catch (err) {
+      if (!isMountedRef.current) {
+        isStartingRef.current = false;
+        return;
+      }
+
+      console.error('[ISL] Camera initialization error:', err);
+      let message = 'Unable to access camera. Please check camera permissions and retry.';
+      let errType = 'error';
+
+      if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+        message = 'Camera permission denied. Please allow camera access in your browser settings and try again.';
+        errType = 'permission_denied';
+      } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+        message = 'No camera was detected on this device. Please connect a webcam and try again.';
+        errType = 'no_camera';
+      } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+        message = 'The camera is being used by another application. Close other applications using the camera and try again.';
+        errType = 'camera_in_use';
+      } else if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+        message = 'Camera does not meet requested resolution parameters. Please retry with a standard webcam.';
+        errType = 'error';
+      } else if (err.name === 'SecurityError') {
+        message = 'Camera access blocked due to browser security restrictions or insecure context. Please ensure HTTPS is used.';
+        errType = 'insecure_context';
+      }
+
+      setCameraError(message);
+      setCameraErrorType(errType);
+      setCameraStatus('error');
+      setRecognitionStatus('idle');
+    } finally {
+      isStartingRef.current = false;
+    }
+  }, [cleanupAll, startRecognitionLoops]);
+
+  // ── Camera stop ───────────────────────────────────────────────────────────
+  const stopCamera = useCallback(() => {
+    console.log('[ISL] Camera stopped');
+    cleanupAll();
+
+    if (isMountedRef.current) {
+      setCameraStatus('off');
+      setRecognitionStatus('idle');
+      setCurrentSign(null);
+      setConfidence(0);
+      setCameraError(null);
+      setCameraErrorType(null);
+    }
+  }, [cleanupAll]);
 
   // ── Sentence Controls ─────────────────────────────────────────────────────
   const handleClear = useCallback(() => {
@@ -415,13 +573,37 @@ export default function ISLSignToText({ onClose }) {
     }
   }, [recognizedText]);
 
-  // ── Status Indicator Styling ──────────────────────────────────────────────
+  // ── Status Indicator Config ───────────────────────────────────────────────
   const statusConfig = {
-    'idle':           { color: 'text-slate-400',   dot: 'bg-slate-400',   label: 'Camera Off' },
-    'recognizing':    { color: 'text-emerald-600', dot: 'bg-emerald-500', label: 'Recognizing ISL Words' },
-    'low-confidence': { color: 'text-amber-500',   dot: 'bg-amber-400',   label: 'No Clear Sign Detected' },
+    'off':                   { color: 'text-slate-400',   dot: 'bg-slate-400',   label: 'Camera Off' },
+    'requesting_permission': { color: 'text-amber-500',   dot: 'bg-amber-400',   label: 'Requesting Permission' },
+    'starting':              { color: 'text-sky-500',     dot: 'bg-sky-400',     label: 'Camera Starting' },
+    'on':                    { color: 'text-emerald-600', dot: 'bg-emerald-500', label: 'Camera Active' },
+    'recognizing':           { color: 'text-emerald-600', dot: 'bg-emerald-500', label: 'Recognizing ISL Words' },
+    'low-confidence':        { color: 'text-amber-500',   dot: 'bg-amber-400',   label: 'No Clear Sign Detected' },
+    'permission_denied':     { color: 'text-red-500',     dot: 'bg-red-500',     label: 'Camera Permission Denied' },
+    'no_camera':             { color: 'text-red-500',     dot: 'bg-red-500',     label: 'No Camera Found' },
+    'camera_in_use':         { color: 'text-red-500',     dot: 'bg-red-500',     label: 'Camera Already In Use' },
+    'unsupported':           { color: 'text-red-500',     dot: 'bg-red-500',     label: 'Browser Camera API Unsupported' },
+    'insecure_context':      { color: 'text-red-500',     dot: 'bg-red-500',     label: 'HTTPS Required for Camera' },
+    'error':                 { color: 'text-red-500',     dot: 'bg-red-500',     label: 'Recognition / Camera Error' },
   };
-  const status = statusConfig[recognitionStatus] || statusConfig['idle'];
+
+  let currentStatusKey = 'off';
+  if (cameraStatus === 'on') {
+    if (recognitionStatus === 'recognizing') currentStatusKey = 'recognizing';
+    else if (recognitionStatus === 'low-confidence') currentStatusKey = 'low-confidence';
+    else currentStatusKey = 'on';
+  } else if (cameraStatus === 'starting') {
+    currentStatusKey = 'starting';
+  } else if (cameraStatus === 'requesting_permission') {
+    currentStatusKey = 'requesting_permission';
+  } else if (cameraStatus === 'error') {
+    currentStatusKey = cameraErrorType || 'error';
+  } else {
+    currentStatusKey = 'off';
+  }
+  const status = statusConfig[currentStatusKey] || statusConfig['off'];
 
   return (
     <div
@@ -459,19 +641,24 @@ export default function ISLSignToText({ onClose }) {
       {/* ── Body ── */}
       <div className="p-5 space-y-4">
 
-        {/* Camera Preview */}
+        {/* Camera Preview Area */}
         <div className="relative aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-slate-200 shadow-inner">
-          {cameraStatus === 'on' ? (
+          {/* The video element is ALWAYS rendered in DOM so videoRef.current is never null */}
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+              cameraStatus === 'on' ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+            style={{ transform: 'scaleX(-1)' }}
+            aria-label="Webcam preview for ISL word recognition"
+          />
+
+          {/* Active Overlays when camera is ON */}
+          {cameraStatus === 'on' && (
             <>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="absolute inset-0 w-full h-full object-cover"
-                style={{ transform: 'scaleX(-1)' }}
-                aria-label="Webcam preview for ISL word recognition"
-              />
               {/* Live indicator */}
               <div className="absolute top-3 left-3 flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-emerald-500/30">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 isl-pulse-dot" />
@@ -479,22 +666,42 @@ export default function ISLSignToText({ onClose }) {
               </div>
               {/* Current recognized word overlay */}
               {currentSign && (
-                <div className="absolute bottom-3 right-3 px-4 py-2 rounded-xl bg-black/75 backdrop-blur-md border border-emerald-400/40 shadow-xl">
+                <div className="absolute bottom-3 right-3 px-4 py-2 rounded-xl bg-black/75 backdrop-blur-md border border-emerald-400/40 shadow-xl animate-fade-in">
                   <div className="text-[9px] text-emerald-300 font-bold uppercase tracking-wider">Detected Sign</div>
                   <span className="text-2xl font-bold text-white font-mono tracking-wide">{currentSign}</span>
                 </div>
               )}
             </>
-          ) : cameraStatus === 'starting' ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-white/70">
+          )}
+
+          {/* Loading / Starting / Requesting permission overlay */}
+          {(cameraStatus === 'starting' || cameraStatus === 'requesting_permission') && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-white/90 bg-slate-950/85 backdrop-blur-sm z-10">
               <Loader2 className="w-9 h-9 animate-spin mb-2 text-[#00687a]" />
-              <span className="text-sm font-medium">Initializing camera &amp; ISL model...</span>
+              <span className="text-sm font-medium">
+                {cameraStatus === 'requesting_permission'
+                  ? 'Requesting camera permission...'
+                  : 'Initializing camera & ISL model...'}
+              </span>
+              <span className="text-xs text-slate-400 mt-1">Please allow camera access in your browser if prompted</span>
             </div>
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+          )}
+
+          {/* Camera Off / Idle overlay */}
+          {cameraStatus === 'off' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 z-10">
               <Camera className="w-12 h-12 mb-2 opacity-30" aria-hidden="true" />
               <span className="text-sm font-semibold">Camera is off</span>
               <span className="text-xs text-slate-500 mt-1">Click &quot;Start Camera&quot; to begin recognizing ISL words</span>
+            </div>
+          )}
+
+          {/* Camera Error overlay inside preview if error occurred */}
+          {cameraStatus === 'error' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-red-400 bg-red-950/30 p-6 text-center z-10">
+              <AlertCircle className="w-10 h-10 mb-2 opacity-80 text-red-400" aria-hidden="true" />
+              <span className="text-sm font-semibold text-white">Camera Unavailable</span>
+              <span className="text-xs text-slate-300 mt-1 max-w-sm">{cameraError || 'Unable to connect to camera.'}</span>
             </div>
           )}
         </div>
@@ -502,7 +709,7 @@ export default function ISLSignToText({ onClose }) {
         {/* Hidden canvas for frame sequence capture */}
         <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden="true" />
 
-        {/* Camera error */}
+        {/* Camera error notification box */}
         {cameraError && (
           <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200 text-red-700" role="alert">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
@@ -521,7 +728,7 @@ export default function ISLSignToText({ onClose }) {
           </div>
         )}
 
-        {/* Model error */}
+        {/* Model error notification box */}
         {modelStatus === 'error' && (
           <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-700" role="alert">
             <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden="true" />
@@ -540,17 +747,17 @@ export default function ISLSignToText({ onClose }) {
           </div>
         )}
 
-        {/* Status + Confidence */}
+        {/* Status + Confidence Bar */}
         <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200">
           <div className="flex items-center gap-2.5">
             <span
               className={`w-3 h-3 rounded-full ${status.dot} ${
-                recognitionStatus === 'recognizing' ? 'isl-pulse-dot' : ''
+                recognitionStatus === 'recognizing' && cameraStatus === 'on' ? 'isl-pulse-dot' : ''
               }`}
               aria-hidden="true"
             />
             <span className={`text-xs font-bold ${status.color}`} aria-live="polite">
-              {cameraStatus === 'on' ? status.label : 'Camera Off'}
+              {status.label}
             </span>
           </div>
           {cameraStatus === 'on' && confidence > 0 && (
@@ -617,22 +824,33 @@ export default function ISLSignToText({ onClose }) {
         <div>
           {cameraStatus !== 'on' ? (
             <button
+              id="start-camera-btn"
               onClick={startCamera}
-              disabled={cameraStatus === 'starting'}
+              disabled={cameraStatus === 'starting' || cameraStatus === 'requesting_permission'}
               className="w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-[#00687a] to-[#006a63] text-white font-bold text-sm shadow-lg shadow-[#00687a]/25 hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-[#00687a]/50 focus:ring-offset-1"
               aria-label="Start camera for ISL word recognition"
             >
-              <Camera className="w-4 h-4" />
-              {cameraStatus === 'starting' ? 'Starting Camera...' : 'Start Camera'}
+              {cameraStatus === 'starting' || cameraStatus === 'requesting_permission' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Starting Camera...</span>
+                </>
+              ) : (
+                <>
+                  <Camera className="w-4 h-4" />
+                  <span>Start Camera</span>
+                </>
+              )}
             </button>
           ) : (
             <button
+              id="stop-camera-btn"
               onClick={stopCamera}
               className="w-full flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl bg-red-500/10 text-red-600 border border-red-200 font-bold text-sm hover:bg-red-500/20 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-1"
               aria-label="Stop camera"
             >
               <CameraOff className="w-4 h-4" />
-              Stop Camera
+              <span>Stop Camera</span>
             </button>
           )}
         </div>

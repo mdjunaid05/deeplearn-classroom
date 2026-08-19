@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Camera, CheckCircle } from 'lucide-react';
+import { Camera, CheckCircle, AlertCircle } from 'lucide-react';
 import { API_BASE } from '../utils/api';
 
 // ISL word labels from the actual Kaggle dataset (76 words)
@@ -21,14 +21,70 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
   const [confidence, setConfidence] = useState(0);
   const [history, setHistory] = useState([]);
   const [modelStatus, setModelStatus] = useState('idle'); // idle | loading | ready | error
+  const [cameraError, setCameraError] = useState(null);
+
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const streamRef = useRef(null);
   const frameBufferRef = useRef([]);
   const isProcessingRef = useRef(false);
+  const isMountedRef = useRef(true);
+
+  const stopCamera = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => {
+        try { t.stop(); } catch (e) {}
+      });
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      try { videoRef.current.pause(); } catch (e) {}
+      videoRef.current.srcObject = null;
+    }
+    frameBufferRef.current = [];
+    isProcessingRef.current = false;
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Camera access is not supported by this browser.');
+      setModelStatus('error');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        audio: false,
+      });
+
+      if (!isMountedRef.current) {
+        stream.getTracks().forEach(t => t.stop());
+        return;
+      }
+
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (e) {
+          console.warn('[SignPanel] Play error:', e);
+        }
+      }
+      setModelStatus('ready');
+    } catch (err) {
+      if (!isMountedRef.current) return;
+      console.warn('[SignPanel] Camera access failed:', err);
+      setCameraError('Unable to access camera.');
+      setModelStatus('error');
+    }
+  }, []);
 
   // Start/stop webcam
   useEffect(() => {
+    isMountedRef.current = true;
     if (isDetecting) {
       startCamera();
     } else {
@@ -36,38 +92,17 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
       setCurrentSign(null);
       setConfidence(0);
     }
-    return () => stopCamera();
-  }, [isDetecting]);
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 240, facingMode: 'user' }
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setModelStatus('ready');
-    } catch {
-      setModelStatus('error');
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-    frameBufferRef.current = [];
-    isProcessingRef.current = false;
-  };
+    return () => {
+      isMountedRef.current = false;
+      stopCamera();
+    };
+  }, [isDetecting, startCamera, stopCamera]);
 
   // Sample frame into buffer
   const sampleFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isDetecting) return;
     const video = videoRef.current;
-    if (video.readyState < 2) return;
+    if (video.readyState < 2 || video.paused || video.ended) return;
 
     try {
       const canvas = canvasRef.current;
@@ -89,6 +124,7 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
   // Capture frame sequence and send to ISL Word prediction API
   const captureAndPredict = useCallback(async () => {
     if (isProcessingRef.current || !isDetecting || frameBufferRef.current.length < 3) return;
+    if (!streamRef.current || !streamRef.current.active) return;
     isProcessingRef.current = true;
 
     try {
@@ -99,7 +135,7 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
         body: JSON.stringify({ frames: framesToSend }),
       });
 
-      if (res.ok) {
+      if (res.ok && isMountedRef.current) {
         const result = await res.json();
         const prediction = result.prediction || 'Sign not recognized';
         const conf = result.confidence || 0;
@@ -137,21 +173,28 @@ export default function SignRecognitionPanel({ isDetecting, onSignRecognized }) 
     <div className="flex flex-col gap-4">
       {/* Webcam Feed */}
       <div className="relative aspect-video bg-surface-800 rounded-xl border border-white/10 overflow-hidden flex items-center justify-center shadow-lg hover:shadow-xl hover:border-cyan-400 transition-all duration-300">
-        {isDetecting ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${
+            isDetecting && !cameraError ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+          style={{ transform: 'scaleX(-1)' }}
+        />
+        {isDetecting && !cameraError ? (
           <>
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ transform: 'scaleX(-1)' }}
-            />
-            <div className="absolute inset-0 border-2 border-emerald-500/50 rounded-xl" />
+            <div className="absolute inset-0 border-2 border-emerald-500/50 rounded-xl pointer-events-none" />
             <div className="absolute top-2 left-2 bg-emerald-500/20 backdrop-blur px-2.5 py-1 rounded text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
               ISL WORD RECOGNITION
             </div>
           </>
+        ) : cameraError ? (
+          <div className="text-center p-4 text-red-400 flex flex-col items-center">
+            <AlertCircle className="w-8 h-8 mb-1" />
+            <span className="text-xs">{cameraError}</span>
+          </div>
         ) : (
           <Camera className="w-8 h-8 text-[#6d797d]" aria-hidden="true" />
         )}
