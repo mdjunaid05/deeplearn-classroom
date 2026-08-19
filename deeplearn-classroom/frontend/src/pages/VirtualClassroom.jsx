@@ -358,16 +358,21 @@ export default function VirtualClassroom() {
       setLoadingVideos(true);
       setVideosError(null);
       const uid = user?.user_id || user?.id || user?.teacher_id || user?.student_id;
-      const userIdParam = user?.role === 'teacher' 
-        ? (uid ? `teacher_id=${uid}` : '') 
-        : (uid ? `student_id=${uid}` : '');
+      const queryParams = new URLSearchParams();
+      queryParams.set('course_id', '1');
+      if (user?.role === 'student' && uid) {
+        queryParams.set('student_id', uid);
+      }
       
       // Add timeout to prevent infinite loading
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
-      const fetchUrl = userIdParam ? `${API_BASE}/videos?${userIdParam}` : `${API_BASE}/videos`;
-      const res = await fetch(fetchUrl, { signal: controller.signal });
+      const fetchUrl = `${API_BASE}/videos?${queryParams.toString()}`;
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      const res = await fetch(fetchUrl, { headers, signal: controller.signal });
       clearTimeout(timeoutId);
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
@@ -848,9 +853,15 @@ export default function VirtualClassroom() {
                       setVideoError(null);
                       try {
                         const uid = user?.user_id || user?.id || user?.teacher_id || user?.student_id;
-                        const userIdParam = user?.role === 'teacher' ? (uid ? `teacher_id=${uid}` : '') : (uid ? `student_id=${uid}` : '');
-                        const fetchUrl = userIdParam ? `${API_BASE}/videos?${userIdParam}` : `${API_BASE}/videos`;
-                        const res = await fetch(fetchUrl);
+                        const queryParams = new URLSearchParams();
+                        queryParams.set('course_id', '1');
+                        if (user?.role === 'student' && uid) {
+                          queryParams.set('student_id', uid);
+                        }
+                        const fetchUrl = `${API_BASE}/videos?${queryParams.toString()}`;
+                        const headers = {};
+                        if (token) headers['Authorization'] = `Bearer ${token}`;
+                        const res = await fetch(fetchUrl, { headers });
                         if (res.ok) {
                           const data = await res.json();
                           const freshList = data.videos || [];

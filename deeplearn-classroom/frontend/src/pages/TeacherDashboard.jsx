@@ -322,7 +322,10 @@ export default function TeacherDashboard() {
       const teacherId = getTeacherId();
       const headers = {};
       if (token) headers['Authorization'] = `Bearer ${token}`;
-      const url = teacherId ? `${API_BASE}/videos?teacher_id=${teacherId}` : `${API_BASE}/videos`;
+      const queryParams = new URLSearchParams();
+      queryParams.set('manage', 'true');
+      if (teacherId) queryParams.set('teacher_id', teacherId);
+      const url = `${API_BASE}/videos?${queryParams.toString()}`;
       const res = await fetch(url, { headers });
       if (res.ok) {
         const json = await res.json();

@@ -517,12 +517,23 @@ def _resolve_teacher_ids(teacher_id_param=None, current_user=None):
 @video_bp.route("/videos", methods=["GET"])
 def get_videos():
     """
-    Return all videos from the database.
-    If student_id is provided, filters for published videos in classes the student is enrolled in.
-    If teacher_id is provided or teacher is authenticated, filters for videos owned by that teacher.
+    Return videos from the database.
+    
+    1. Management Mode (manage=true or scope=manage):
+       - If teacher_id or teacher auth: returns videos uploaded/owned by that teacher.
+       - If admin: returns all videos.
+    2. Student Mode (student_id provided):
+       - Returns published course videos for the student's enrolled courses (or course_id).
+       - Attaches student-specific quiz lock progression.
+    3. Classroom / General Catalog Mode (default, course_id, or scope=classroom):
+       - Returns all published lesson videos for the course/classroom.
+       - is_locked is False for all videos (teachers and general viewers have full access).
     """
     student_id = request.args.get("student_id", type=int)
     teacher_id_param = request.args.get("teacher_id")
+    course_id = request.args.get("course_id", type=int)
+    scope = (request.args.get("scope") or "").lower()
+    manage = (request.args.get("manage") or "").lower() in ("true", "1", "yes") or scope == "manage"
     
     teacher_id = None
     if teacher_id_param and str(teacher_id_param).isdigit():
@@ -531,38 +542,14 @@ def get_videos():
     from routes.auth import get_current_user
     current_user = get_current_user()
 
-    print(f"[VIDEO_LIST_REQUEST] student_id={student_id} teacher_id={teacher_id} auth_user={current_user.get('email') if current_user else None}", flush=True)
-
     from database.db import get_db_connection
     conn = get_db_connection()
     cursor = conn.cursor()
+    db_query_used = ""
 
     try:
-        enrolled_courses = []
-        if student_id:
-            cursor.execute("SELECT DISTINCT course_id FROM student_progress WHERE student_id = ?", (student_id,))
-            enrolled_courses = [r[0] for r in cursor.fetchall()]
-            if not enrolled_courses:
-                # Fallback to course_id 1
-                enrolled_courses = [1]
-                print(f"[STUDENT_ENROLLMENT_FOUND] student_id={student_id} course_id=1 (fallback)", flush=True)
-            else:
-                print(f"[STUDENT_ENROLLMENT_FOUND] student_id={student_id} enrolled_courses={enrolled_courses}", flush=True)
-
-            placeholders = ",".join("?" for _ in enrolled_courses)
-            query = f"""
-                SELECT v.*, t.name as uploader
-                FROM videos v
-                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
-                WHERE v.course_id IN ({placeholders})
-                  AND (v.visibility = 'Published' OR v.visibility IS NULL)
-                  AND (v.hidden = 0 OR v.hidden IS NULL)
-                  AND (v.deleted = 0 OR v.deleted IS NULL)
-                  AND (v.archived = 0 OR v.archived IS NULL)
-                ORDER BY v.uploaded_at DESC
-            """
-            cursor.execute(query, tuple(enrolled_courses))
-        elif teacher_id is not None or (current_user and current_user.get("role") in ("teacher", "admin")):
+        if manage:
+            # ── 1. MANAGEMENT MODE (Teacher Dashboard Video Library) ──
             if current_user and current_user.get("role") == "admin" and not teacher_id:
                 query = """
                     SELECT v.*, t.name as uploader
@@ -574,6 +561,7 @@ def get_videos():
                     ORDER BY v.uploaded_at DESC
                 """
                 cursor.execute(query)
+                db_query_used = query
             else:
                 matched_teacher_ids = _resolve_teacher_ids(teacher_id, current_user)
                 if not matched_teacher_ids and teacher_id:
@@ -592,6 +580,7 @@ def get_videos():
                         ORDER BY v.uploaded_at DESC
                     """
                     cursor.execute(query, tuple(matched_teacher_ids))
+                    db_query_used = f"{query} [params={matched_teacher_ids}]"
                 else:
                     query = """
                         SELECT v.*, t.name as uploader
@@ -600,21 +589,74 @@ def get_videos():
                         WHERE 1=0
                     """
                     cursor.execute(query)
-        else:
-            query = """
+                    db_query_used = query
+        elif student_id:
+            # ── 2. STUDENT MODE (Enrolled courses with quiz lock progress) ──
+            cursor.execute("SELECT DISTINCT course_id FROM student_progress WHERE student_id = ?", (student_id,))
+            enrolled_courses = [r[0] for r in cursor.fetchall()]
+            if course_id and course_id not in enrolled_courses:
+                enrolled_courses.append(course_id)
+            if not enrolled_courses:
+                enrolled_courses = [1]
+
+            placeholders = ",".join("?" for _ in enrolled_courses)
+            query = f"""
                 SELECT v.*, t.name as uploader
                 FROM videos v
                 LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
-                WHERE (v.visibility = 'Published' OR v.visibility IS NULL)
+                WHERE (v.course_id IN ({placeholders}) OR v.course_id IS NULL)
+                  AND (v.visibility = 'Published' OR v.visibility IS NULL)
                   AND (v.hidden = 0 OR v.hidden IS NULL)
                   AND (v.deleted = 0 OR v.deleted IS NULL)
                   AND (v.archived = 0 OR v.archived IS NULL)
                 ORDER BY v.uploaded_at DESC
             """
-            cursor.execute(query)
+            cursor.execute(query, tuple(enrolled_courses))
+            db_query_used = f"{query} [params={enrolled_courses}]"
+        else:
+            # ── 3. CLASSROOM / GENERAL CATALOG MODE (Full course catalog for teachers & students) ──
+            target_course = course_id or 1
+            query = """
+                SELECT v.*, t.name as uploader
+                FROM videos v
+                LEFT JOIN teachers t ON v.teacher_id = t.teacher_id
+                WHERE (v.course_id = ? OR v.course_id IS NULL)
+                  AND (v.visibility = 'Published' OR v.visibility IS NULL)
+                  AND (v.hidden = 0 OR v.hidden IS NULL)
+                  AND (v.deleted = 0 OR v.deleted IS NULL)
+                  AND (v.archived = 0 OR v.archived IS NULL)
+                ORDER BY v.uploaded_at DESC
+            """
+            cursor.execute(query, (target_course,))
+            db_query_used = f"{query} [params={target_course}]"
 
         columns = [desc[0] for desc in cursor.description]
         rows = cursor.fetchall()
+
+        # Structured debug logging
+        user_role = current_user.get("role") if current_user else ("student" if student_id else ("teacher" if teacher_id else "anonymous"))
+        user_id_log = current_user.get("user_id") if current_user else (student_id or teacher_id or "none")
+        ret_video_ids = [r[columns.index("video_id")] for r in rows if "video_id" in columns]
+        
+        if user_role in ("teacher", "admin"):
+            print(f"""[TEACHER VIDEO DEBUG]
+authenticated user id: {user_id_log}
+authenticated user role: {user_role}
+teacher id: {teacher_id or (current_user.get('teacher_id') if current_user else 'none')}
+request URL: {request.url}
+query parameters: {dict(request.args)}
+database query: {db_query_used.strip()}
+number of records returned: {len(rows)}
+video IDs returned: {ret_video_ids}""", flush=True)
+        else:
+            print(f"""[STUDENT VIDEO DEBUG]
+authenticated user id: {user_id_log}
+authenticated user role: {user_role}
+request URL: {request.url}
+query parameters: {dict(request.args)}
+database query: {db_query_used.strip()}
+number of records returned: {len(rows)}
+video IDs returned: {ret_video_ids}""", flush=True)
 
         base_app_url = _get_app_base_url()
         videos_list = []
