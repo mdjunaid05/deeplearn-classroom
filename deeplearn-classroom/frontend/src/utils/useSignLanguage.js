@@ -12,6 +12,7 @@
  *  - Supports both live (Web Speech) and saved (Whisper) captions
  *  - Builds a per-word sign queue and advances at configurable WPM
  *  - Exposes signQueue for the panel and currentSign for the avatar
+ *  - Exposes currentSignIndex so the queue strip can highlight the active sign
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -61,16 +62,18 @@ function buildSignQueue(savedCaptions) {
  *
  * @returns {{
  *   currentSign: { word, gesture, label } | null,
+ *   currentSignIndex: number,
  *   signQueue:   Array<{ word, gesture }>,
  *   isProcessing: boolean,
  *   signCount:   number,
  * }}
  */
 export function useSignLanguage(videoRef, savedCaptions = [], isEnabled = true, playbackRate = 1) {
-  const [currentSign,  setCurrentSign]  = useState(null);
-  const [signQueue,    setSignQueue]    = useState([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [signCount,    setSignCount]    = useState(0);
+  const [currentSign,      setCurrentSign]      = useState(null);
+  const [currentSignIndex, setCurrentSignIndex]  = useState(-1);
+  const [signQueue,        setSignQueue]         = useState([]);
+  const [isProcessing,     setIsProcessing]      = useState(false);
+  const [signCount,        setSignCount]         = useState(0);
 
   // Internal refs (avoid stale closure issues in event handlers)
   const queueRef       = useRef([]);
@@ -99,10 +102,11 @@ export function useSignLanguage(videoRef, savedCaptions = [], isEnabled = true, 
   useEffect(() => {
     if (!isEnabled) {
       setCurrentSign(null);
+      setCurrentSignIndex(-1);
       return;
     }
 
-    let lastSign = null;
+    let lastIdx = -1;
 
     const tick = () => {
       const video = videoRef.current;
@@ -114,16 +118,18 @@ export function useSignLanguage(videoRef, savedCaptions = [], isEnabled = true, 
       const t = video.currentTime;
       const q = queueRef.current;
 
-      // Find sign active at current video time
-      const active = q.find(s => t >= s.startTime && t < s.endTime) || null;
+      // Find sign active at current video time (with index)
+      const idx = q.findIndex(s => t >= s.startTime && t < s.endTime);
 
-      if (active !== lastSign) {
-        lastSign = active;
-        if (active) {
+      if (idx !== lastIdx) {
+        lastIdx = idx;
+        if (idx >= 0) {
+          const active = q[idx];
           setCurrentSign({ word: active.word, gesture: active.gesture });
+          setCurrentSignIndex(idx);
           setSignCount(c => c + 1);
         } else {
-          // Between signs — keep last sign for 200 ms then clear
+          // Between signs — keep last sign displayed
           setCurrentSign(prev => prev);
         }
       }
@@ -146,15 +152,18 @@ export function useSignLanguage(videoRef, savedCaptions = [], isEnabled = true, 
     const signs = translateToISL(word);
     if (signs.length > 0) {
       setCurrentSign({ word: signs[0].word, gesture: signs[0].gesture });
+      setCurrentSignIndex(0);
       setSignCount(c => c + 1);
     }
   }, [isEnabled]);
 
   return {
     currentSign,
+    currentSignIndex,
     signQueue,
     isProcessing,
     signCount,
     updateFromLiveWord,
   };
 }
+

@@ -1,131 +1,89 @@
+import React from 'react';
+
 /**
- * CaptionOverlay.jsx  [FIXED v3]
+ * parseTimeToSeconds helper
+ * Accepts numeric seconds or "MM:SS" / "HH:MM:SS" string formats.
+ */
+const parseTimeToSeconds = (val) => {
+  if (typeof val === 'number') return val;
+  if (!val || typeof val !== 'string') return 0;
+  const parts = val.split(':').map(Number);
+  if (parts.some(isNaN)) return 0;
+  if (parts.length === 2) return parts[0] * 60 + parts[1];
+  if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+  return Number(val) || 0;
+};
+
+/**
+ * CaptionOverlay.jsx
  * ------------------
- * Renders live closed-captions below the video.
+ * The PRIMARY visible caption overlay rendered directly on top of the video.
  *
- * FIXES APPLIED:
- *  - key prop is correctly placed on the <p> JSX element (not inside body).
- *  - Always renders a container when isActive = true so user sees feedback.
- *  - usingSimulation prop drives contextual empty-state messages.
- *  - Smooth auto-scroll to the latest caption line.
+ * Requirements fulfilled:
+ *  - Calculates and renders EXACTLY ONE active caption segment at any moment.
+ *  - Matches currentTime: currentTime >= start && currentTime <= end.
+ *  - Never renders historical segments or stacked duplicate lines over the video.
+ *  - Controlled by isEnabled prop (toggling off returns null).
+ *  - High contrast, dark translucent background with backdrop blur, readable drop shadow.
+ *  - Accessible with aria-live="polite" and role="status".
+ *  - Supports customizable captionSize ('small' | 'normal' | 'large') and fullscreen offset.
  *
  * Props:
- *   transcript      - Array<{ text: string, timestamp: number }>
- *   currentCaption  - string  (live/interim recognition text)
- *   isActive        - boolean (true while video is playing)
- *   usingSimulation - boolean (true when Tier 2 simulation is running)
+ *   captions       - Array<{ start, end, text }>
+ *   currentTime    - number (current video playback time in seconds)
+ *   currentCaption - string (optional pre-synchronized current caption text)
+ *   isEnabled      - boolean (captions toggle state, default true)
+ *   captionSize    - 'small' | 'normal' | 'large' (default 'normal')
+ *   isFullscreen   - boolean (adjusts bottom margin above fullscreen controls)
  */
-
-import React, { useEffect, useRef } from 'react';
-
 export default function CaptionOverlay({
-  transcript      = [],
-  currentCaption  = '',
-  isActive        = false,
-  usingSimulation = false,
-  captionSize     = 'normal',
+  captions = [],
+  currentTime = 0,
+  currentCaption = '',
+  isEnabled = true,
+  captionSize = 'normal',
+  isFullscreen = false,
 }) {
-  const containerRef = useRef(null);
+  // If captions are toggled OFF, render nothing
+  if (!isEnabled) return null;
 
-  // Auto-scroll the caption container to the bottom
-  useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+  // Determine the single active caption text
+  let activeText = '';
+
+  if (currentCaption && typeof currentCaption === 'string') {
+    activeText = currentCaption;
+  } else if (Array.isArray(captions) && captions.length > 0) {
+    const active = captions.find(c => {
+      const start = parseTimeToSeconds(c.start ?? c.start_time ?? 0);
+      const end = parseTimeToSeconds(c.end ?? c.end_time ?? 0);
+      return currentTime >= start && currentTime <= end;
+    });
+    if (active && active.text) {
+      activeText = active.text;
     }
-  }, [transcript.length, currentCaption]);
+  }
 
-  // Do not render when the video is paused and there is nothing to show
-  if (!isActive && transcript.length === 0) return null;
+  // If no caption is active at this exact moment, render nothing
+  if (!activeText || !activeText.trim()) return null;
 
-  // Show only the last 4 historical segments, excluding the current active one if it is shown live
-  const recentHistory = (isActive && currentCaption && transcript.length > 0 && transcript[transcript.length - 1].text === currentCaption)
-    ? transcript.slice(0, -1).slice(-4)
-    : transcript.slice(-4);
-  
-  // Size mapping
+  // Font size mapping for accessibility & readability
   const sizeClass = {
-    small: 'text-xs',
-    normal: 'text-sm',
-    large: 'text-lg',
-  }[captionSize] || 'text-sm';
-  
-  const currentSizeClass = {
-    small: 'text-sm',
-    normal: 'text-base',
-    large: 'text-xl',
-  }[captionSize] || 'text-base';
+    small: 'text-xs sm:text-sm',
+    normal: 'text-sm sm:text-base',
+    large: 'text-lg sm:text-xl',
+  }[captionSize] || 'text-sm sm:text-base';
 
   return (
     <div
-      className="w-full px-4 py-2"
+      className={`absolute left-0 right-0 ${isFullscreen ? 'bottom-20' : 'bottom-12'} z-15 pointer-events-none px-4 flex justify-center transition-all duration-150`}
       aria-live="polite"
-      aria-label="Video captions"
-      role="region"
+      aria-atomic="true"
+      role="status"
     >
-      <div
-        ref={containerRef}
-        className="rounded-xl border border-white/10 overflow-hidden"
-        style={{
-          background: 'rgba(0, 0, 0, 0.80)',
-          backdropFilter: 'blur(12px)',
-          minHeight: 48,
-          maxHeight: 140,
-          overflowY: 'auto',
-          scrollbarWidth: 'none',
-        }}
-      >
-        <div className="p-3 space-y-1.5">
-
-          {/* Historical transcript - last 4 segments, older ones faded */}
-          {recentHistory.map((item, idx) => {
-            const isLatest = idx === recentHistory.length - 1;
-            return (
-              <p
-                key={`cap-${item.timestamp}-${idx}`}
-                className={`${sizeClass} leading-snug transition-colors duration-500`}
-                style={{
-                  color: isLatest ? '#f1f5f9' : '#94a3b8',
-                  fontWeight: isLatest ? 500 : 400,
-                }}
-              >
-                {item.text}
-              </p>
-            );
-          })}
-
-          {/* Live current caption - highlighted with purple left border */}
-          {isActive && currentCaption && (
-            <p
-              className={`${currentSizeClass} font-semibold leading-snug`}
-              style={{
-                color: '#ffffff',
-                textShadow: '0 0 14px rgba(139, 92, 246, 0.7)',
-                borderLeft: '3px solid #8b5cf6',
-                paddingLeft: 10,
-              }}
-            >
-              {currentCaption}
-            </p>
-          )}
-
-          {/* Empty state - shown while active but no caption has arrived yet */}
-          {isActive && !currentCaption && transcript.length === 0 && (
-            <p className="text-xs text-[#6d797d] italic animate-pulse">
-              {usingSimulation
-                ? 'Generating captions\u2026'
-                : 'Listening for speech\u2026 (captions appear here)'}
-            </p>
-          )}
-
-          {/* Paused state - last caption shown dimly */}
-          {!isActive && transcript.length > 0 && (
-            <p className="text-xs text-[#3d494c] italic text-center">
-              Captions paused
-            </p>
-          )}
-
-          {/* Scroll anchor removed */}
-        </div>
+      <div className="max-w-3xl px-4 py-2 rounded-xl bg-black/85 backdrop-blur-md border border-white/10 text-center shadow-2xl">
+        <p className={`${sizeClass} text-white font-medium leading-snug drop-shadow-md select-none`}>
+          {activeText.trim()}
+        </p>
       </div>
     </div>
   );

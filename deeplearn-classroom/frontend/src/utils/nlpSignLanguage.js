@@ -4,20 +4,45 @@
  * NLP module to convert English text into ISL-like grammar sequences.
  * Handles sentence splitting, stop-word removal, and keyword recognition.
  *
- * Extended with 150+ sign mappings across academic, educational and general vocabulary.
+ * Extended with 180+ sign mappings across academic, educational and general vocabulary.
+ *
+ * IMPORTANT: Only pure grammatical articles / prepositions that have NO ISL
+ * sign equivalent live in STOP_WORDS. Pronouns, be-verbs, negators and
+ * conjunctions that DO have ISL gestures are mapped in ISL_KEYWORD_MAP so
+ * they produce signs instead of being silently dropped.
  */
 
+// Reduced stop-word set — ONLY words with no direct ISL sign equivalent.
+// Pronouns (I, you, we…), be-verbs (is, am, are…), negation (not) and
+// common connectors (to, and, or, but) are kept OUT of this set so they
+// flow through to ISL_KEYWORD_MAP and produce real signs.
 const STOP_WORDS = new Set([
-  'a', 'an', 'the', 'is', 'are', 'am', 'be', 'to', 'in', 'on', 'at',
-  'it', 'of', 'and', 'or', 'but', 'if', 'as', 'by', 'for', 'with',
-  'this', 'that', 'these', 'those', 'was', 'were', 'has', 'have', 'had',
-  'will', 'would', 'could', 'should', 'may', 'might', 'shall', 'can',
-  'do', 'does', 'did', 'its', 'his', 'her', 'our', 'their', 'we', 'they',
-  'i', 'you', 'he', 'she', 'us', 'them', 'my', 'your',
+  'a', 'an', 'the', 'be', 'in', 'on', 'at', 'of', 'by', 'for', 'with',
+  'as', 'if', 'this', 'that', 'these', 'those',
 ]);
 
 // Comprehensive keyword → gesture category mapping
 export const ISL_KEYWORD_MAP = {
+  // ── Pronouns / self-reference (ISL uses directional pointing) ──────────
+  i: 'point',        me: 'point',       my: 'point',        mine: 'point',
+  you: 'point',      your: 'point',     yours: 'point',
+  he: 'point',       him: 'point',      his: 'point',
+  she: 'point',      her: 'point',      hers: 'point',
+  it: 'point',       its: 'point',
+  we: 'action',      us: 'action',      our: 'action',      ours: 'action',
+  they: 'point',     them: 'point',     their: 'point',     theirs: 'point',
+
+  // ── Be-verbs / auxiliaries (ISL uses contextual explanation gesture) ────
+  is: 'explain',     are: 'explain',    am: 'explain',      was: 'explain',
+  were: 'explain',   has: 'explain',    have: 'explain',    had: 'explain',
+  will: 'action',    would: 'action',   could: 'action',    should: 'alert',
+  may: 'action',     might: 'action',   shall: 'action',    can: 'action',
+  do: 'action',      does: 'action',    did: 'action',
+
+  // ── Connectors / prepositions with ISL signs ───────────────────────────
+  to: 'action',      and: 'count',      or: 'question',     but: 'no',
+  not: 'no',
+
   // ── Greetings / social ─────────────────────────────────────────────────
   hello: 'wave',     hi: 'wave',        welcome: 'wave',    goodbye: 'wave',
   bye: 'wave',       greet: 'wave',     morning: 'wave',    evening: 'wave',
@@ -29,7 +54,7 @@ export const ISL_KEYWORD_MAP = {
   excellent: 'yes',  well: 'yes',       done: 'yes',        complete: 'yes',
 
   // ── Negation ───────────────────────────────────────────────────────────
-  no: 'no',          wrong: 'no',       not: 'no',          never: 'no',
+  no: 'no',          wrong: 'no',       never: 'no',
   bad: 'no',         false: 'no',       incorrect: 'no',    fail: 'no',
   error: 'no',       stop: 'no',        avoid: 'no',        reject: 'no',
 
@@ -66,9 +91,9 @@ export const ISL_KEYWORD_MAP = {
   calculate: 'math', compute: 'math',   solve: 'math',      equation: 'math',
   formula: 'math',   algorithm: 'math', function: 'math',   matrix: 'math',
   vector: 'math',    variable: 'math',  value: 'math',      data: 'math',
-  model: 'math',     train: 'math',     predict: 'math',    classify: 'math',
+  model: 'math',     train: 'math',     predict: 'math',
   network: 'math',   layer: 'math',     node: 'math',       weight: 'math',
-  
+
   // Academic & STEM vocabulary extensions
   photosynthesis: 'math', gravity: 'math', chemistry: 'math', physics: 'math',
   biology: 'math', calculus: 'math', electricity: 'math', evolution: 'math',
@@ -78,16 +103,34 @@ export const ISL_KEYWORD_MAP = {
   lecture: 'explain', homework: 'explain', experiment: 'explain', cell: 'math',
   organism: 'math', ecosystem: 'math', genetics: 'math', robot: 'math', AI: 'math',
 
+  // ── Time / temporal ────────────────────────────────────────────────────
+  today: 'action',   yesterday: 'action', tomorrow: 'action', now: 'alert',
+  before: 'action',  after: 'action',     then: 'action',    later: 'action',
+  ago: 'action',     soon: 'action',
+
   // ── Movement / action ──────────────────────────────────────────────────
-  move: 'action',    go: 'action',      run: 'action',      start: 'action',
+  move: 'action',    go: 'action',      going: 'action',    went: 'action',
+  come: 'action',    run: 'action',     walk: 'action',     start: 'action',
   begin: 'action',   open: 'action',    close: 'action',    apply: 'action',
   use: 'action',     set: 'action',     put: 'action',      take: 'action',
   give: 'action',    send: 'action',    receive: 'action',  connect: 'action',
+  eat: 'action',     drink: 'action',   sleep: 'action',    sit: 'action',
+  stand: 'action',   read: 'action',    write: 'action',    play: 'action',
+  work: 'action',    talk: 'action',    speak: 'action',    say: 'action',
+  tell: 'action',    ask: 'question',   answer: 'explain',  need: 'alert',
+  want: 'alert',     like: 'yes',       love: 'yes',
+
+  // ── Places / common nouns ──────────────────────────────────────────────
+  school: 'explain', home: 'explain',   house: 'explain',   book: 'explain',
+  water: 'action',   food: 'action',    friend: 'wave',     family: 'wave',
+  mother: 'wave',    father: 'wave',    brother: 'wave',    sister: 'wave',
+  teacher: 'explain', student: 'think', child: 'point',     children: 'point',
+  man: 'point',      woman: 'point',    people: 'point',    person: 'point',
 
   // ── Important / urgent ─────────────────────────────────────────────────
   important: 'alert', key: 'alert',     critical: 'alert',  note: 'alert',
-  warning: 'alert',   remember: 'alert', must: 'alert',     always: 'alert',
-  never: 'alert',     careful: 'alert',  significant: 'alert',
+  warning: 'alert',   must: 'alert',    always: 'alert',
+  careful: 'alert',   significant: 'alert',
 };
 
 /**

@@ -24,6 +24,7 @@ import { useVideoTranscript }     from '../utils/useVideoTranscript';
 import { useQuizGenerator }       from '../utils/useQuizGenerator';
 import { useSignLanguage }        from '../utils/useSignLanguage';
 import CaptionOverlay             from '../components/CaptionOverlay';
+import TranscriptPanel            from '../components/TranscriptPanel';
 import VisualAlertBanner          from '../components/VisualAlertBanner';
 import SignAvatarOverlay          from '../components/SignAvatarOverlay';
 import ISLSignToText              from '../components/ISLSignToText';
@@ -104,11 +105,11 @@ export default function VirtualClassroom() {
   const [videosError, setVideosError] = useState(null);
   const [recordingsError, setRecordingsError] = useState(null);
 
-  // Synchronize HTML5 video text tracks whenever captionsEnabled or vttSrc changes
+  // Synchronize HTML5 video text tracks mode to 'hidden' (accessibility active, native visual drawing suppressed)
   useEffect(() => {
     if (videoRef.current && videoRef.current.textTracks) {
       for (let i = 0; i < videoRef.current.textTracks.length; i++) {
-        videoRef.current.textTracks[i].mode = captionsEnabled ? 'showing' : 'hidden';
+        videoRef.current.textTracks[i].mode = captionsEnabled ? 'hidden' : 'disabled';
       }
     }
   }, [captionsEnabled, vttSrc]);
@@ -259,7 +260,7 @@ export default function VirtualClassroom() {
   // savedCaptions: loaded from IndexedDB (set by VideoUpload after processing)
   // These are displayed immediately before the live speech hook produces any results.
   const [savedCaptions, setSavedCaptions] = useState([]);
-  const { transcript, currentCaption, isListening, usingSimulation } = useVideoTranscript(videoRef, savedCaptions);
+  const { transcript, currentCaption, currentTime, isListening, usingSimulation } = useVideoTranscript(videoRef, savedCaptions);
 
   // ── Quiz ──────────────────────────────────────────────────────────────────
   const { quizQuestions, generateQuiz } = useQuizGenerator();
@@ -740,6 +741,7 @@ export default function VirtualClassroom() {
   // ── Sign Language Interpretation via AI hook ─────────────────────────────
   const {
     currentSign,
+    currentSignIndex,
     signQueue,
     isProcessing: signProcessing,
     signCount,
@@ -859,7 +861,6 @@ export default function VirtualClassroom() {
               <video
                 ref={videoRef}
                 src={isVideoLoaded ? videoSrc : ''}
-                crossOrigin="anonymous"
                 className="w-full h-full object-contain bg-slate-950"
                 controls
                 onPlay={() => { 
@@ -905,11 +906,11 @@ export default function VirtualClassroom() {
                     src={vttSrc}
                     srcLang="en"
                     label="English"
-                    default
                     onLoad={(e) => {
                       console.log('[CAPTION_TRACK_LOADED] src=' + vttSrc);
                       if (e.target && e.target.track) {
-                        e.target.track.mode = captionsEnabled ? 'showing' : 'hidden';
+                        // Suppress browser native visual cue drawing; custom CaptionOverlay is the primary visible renderer
+                        e.target.track.mode = captionsEnabled ? 'hidden' : 'disabled';
                       }
                     }}
                   />
@@ -986,16 +987,15 @@ export default function VirtualClassroom() {
 
               {/* ISL Interpreter moved to dedicated side column for visibility */}
 
-              {/* Closed Captions In-Player Overlay — rendered on video in both normal and fullscreen */}
-              {captionsEnabled && currentCaption && (
-                <div className={`absolute left-0 right-0 ${isFullscreen ? 'bottom-20' : 'bottom-12'} z-15 pointer-events-none px-4 flex justify-center transition-all duration-150`}>
-                  <div className="max-w-3xl px-4 py-2 rounded-xl bg-black/85 backdrop-blur-md border border-white/10 text-center shadow-2xl">
-                    <p className={`${captionSize === 'large' ? 'text-lg sm:text-xl' : captionSize === 'small' ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'} text-white font-medium leading-snug drop-shadow-md`}>
-                      {currentCaption}
-                    </p>
-                  </div>
-                </div>
-              )}
+              {/* Primary Single Visible Caption Overlay on Video */}
+              <CaptionOverlay
+                captions={savedCaptions}
+                currentTime={currentTime}
+                currentCaption={currentCaption}
+                isEnabled={captionsEnabled}
+                captionSize={captionSize}
+                isFullscreen={isFullscreen}
+              />
 
               {/* Custom fullscreen toggle button */}
               <button
@@ -1008,22 +1008,13 @@ export default function VirtualClassroom() {
               </button>
             </div>
 
-            {/* ── Captions — below video in normal mode ── */}
-            {captionsEnabled && !isFullscreen && (
-              <div className="w-full p-6 rounded-2xl dark-glass-high">
-                <CaptionOverlay
-                  transcript={transcript}
-                  currentCaption={currentCaption}
-                  isActive={isPlaying}
-                  usingSimulation={usingSimulation}
-                  captionSize={captionSize}
-                />
-                {!isPlaying && transcript.length === 0 && (
-                  <p className="text-xs text-[#6d797d] italic text-center py-2">
-                    Captions will appear here when the video plays.
-                  </p>
-                )}
-              </div>
+            {/* ── Lesson Transcript Panel below video in normal mode ── */}
+            {!isFullscreen && (
+              <TranscriptPanel
+                transcript={transcript}
+                currentCaption={currentCaption}
+                isActive={isPlaying}
+              />
             )}
 
             {/* ── Accessibility Controls ── */}
@@ -1279,6 +1270,7 @@ export default function VirtualClassroom() {
               <div className="sticky top-20" style={{ maxHeight: 'calc(100vh - 100px)' }}>
                 <SignAvatarOverlay
                   currentSign={currentSign}
+                  currentSignIndex={currentSignIndex}
                   isActive={isPlaying}
                   signQueue={signQueue}
                   isProcessing={signProcessing}

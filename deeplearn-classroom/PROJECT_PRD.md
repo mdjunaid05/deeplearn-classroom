@@ -33,7 +33,7 @@ DeepLearn Classroom solves these challenges by combining:
 - **School Administrators:** Manage institutional enrollment, track attendance rates, and analyze longitudinal accessibility compliance.
 
 ### What Makes It Different
-- **Indian Sign Language (ISL) Standard Focus:** Unlike Western ASL tools, DeepLearn Classroom uses ISL vocabulary based on the ISLRTC standards, supporting both two-handed manual fingerspelling (A–Z) and 76 core ISL word signs.
+- **Indian Sign Language (ISL) Standard Focus:** Unlike Western ASL tools, DeepLearn Classroom uses ISL vocabulary based on the ISLRTC standards, supporting both two-handed manual fingerspelling (A–Z) and 285 ISL keyword-to-gesture mappings across 12 gesture categories.
 - **Direct-to-Cloudflare R2 Video Architecture:** Teachers upload videos directly from the browser to Cloudflare R2 via presigned URLs, bypassing backend memory and disk limits on serverless/container hosts.
 - **Triple-Engine Database Fallback:** Automatic runtime failover between Supabase PostgreSQL (production with connection pooling), MySQL, and local WAL-mode SQLite.
 - **Dual-Track Visual Learning:** Students can watch original teacher lectures side-by-side or overlaid with AI sign-language avatars, live synchronized VTT/SRT captions, and real-time visual alert banners.
@@ -95,7 +95,7 @@ Based on the actual source code (`backend/routes/auth.py`, `backend/database/sch
 | **Direct R2 Video Upload** | `IMPLEMENTED` | Presigned PUT URLs for direct browser-to-Cloudflare-R2 upload, multipart fallback, SHA verification, and startup R2 sync. | `backend/routes/video_processing.py`<br>`backend/utils/storage.py`<br>`frontend/src/pages/VideoUpload.jsx` |
 | **Video Processing Pipeline** | `IMPLEMENTED` | Background worker thread generating audio extractions (FFmpeg), speech-to-text (Whisper/SpeechRecognition), OpenCV frame avatar burning, and H.264 transcode. | `backend/utils/video_pipeline.py`<br>`backend/utils/speech_to_text.py`<br>`backend/utils/avatar_renderer.py` |
 | **Caption Generation** | `IMPLEMENTED` | Audio transcription parsed into timestamped segments, exported to VTT/SRT/JSON, uploaded to R2, and served via `<track>` elements. | `backend/utils/speech_to_text.py`<br>`backend/utils/video_pipeline.py`<br>`frontend/src/utils/useVideoTranscript.js` |
-| **ISL Interpreter (Avatar Overlay)** | `IMPLEMENTED` | Dual implementation: (1) Server-side OpenCV stick-figure avatar burned onto video frames; (2) Client-side animated SVG avatar (`SignAvatarOverlay.jsx`) synced to caption timestamps with 150+ ISL word/finger gestures. | `backend/utils/avatar_renderer.py`<br>`backend/utils/sign_injector.py`<br>`frontend/src/components/SignAvatarOverlay.jsx`<br>`frontend/src/utils/nlpSignLanguage.js` |
+| **ISL Interpreter (Avatar Overlay)** | `IMPLEMENTED` | Dual implementation: (1) Server-side OpenCV stick-figure avatar burned onto video frames; (2) Client-side animated SVG avatar (`SignAvatarOverlay.jsx`) synced to caption timestamps with 285 ISL keyword mappings, 26 fingerspelling poses, and 12 gesture categories. Full sign sequence queue with auto-scrolling highlight. | `backend/utils/avatar_renderer.py`<br>`backend/utils/sign_injector.py`<br>`frontend/src/components/SignAvatarOverlay.jsx`<br>`frontend/src/utils/nlpSignLanguage.js`<br>`frontend/src/utils/useSignLanguage.js` |
 | **ISL Sign → Text Recognition** | `IMPLEMENTED` | Real-time webcam frame processing via MediaPipe Hands (21 3D landmarks), kinematics geometry analysis, CNN alphabet prediction, consensus filtering, and Web Speech TTS. | `frontend/src/components/ISLSignToText.jsx`<br>`backend/routes/accessibility.py`<br>`backend/utils/mediapipe_hands.py`<br>`backend/models/model_loader.py` |
 | **Quiz & Scoring System** | `IMPLEMENTED` | Pre-lecture or transcript-generated multiple-choice quizzes, automatic score calculation, weak area diagnosis, response logging, and pass threshold validation. | `backend/routes/quiz_analytics.py`<br>`frontend/src/utils/useQuizGenerator.js`<br>`frontend/src/pages/VirtualClassroom.jsx` |
 | **Student Progress & Sequential Unlocking** | `IMPLEMENTED` | Students must achieve >= 35% on lesson quizzes to unlock the next chronological lesson. Progress percentages computed from `student_progress` records. | `backend/routes/quiz_analytics.py`<br>`frontend/src/pages/VirtualClassroom.jsx`<br>`frontend/src/pages/TeacherDashboard.jsx` |
@@ -212,7 +212,8 @@ frontend/src/
 │   ├── ProtectedRoute.jsx      # Guard requiring active authentication
 │   ├── TeacherRoute.jsx        # Guard requiring role === 'teacher'
 │   ├── StudentRoute.jsx        # Guard requiring role === 'student'
-│   ├── CaptionOverlay.jsx      # Floating high-contrast caption bar below video player
+│   ├── CaptionOverlay.jsx      # Primary visible single in-video caption overlay
+│   ├── TranscriptPanel.jsx     # Dedicated lesson transcript reading panel below video player
 │   ├── SignAvatarOverlay.jsx   # Animated SVG/CSS ISL avatar interpreter
 │   ├── ISLSignToText.jsx       # Real-time camera hand tracker & sign-to-text builder
 │   ├── SignRecognitionPanel.jsx# Camera feed with frame sampling for ISL word API
@@ -223,8 +224,8 @@ frontend/src/
 └── utils/
     ├── api.js                  # Dynamic API base URL resolver (Vite proxy vs direct URL)
     ├── db.js                   # IndexedDB helper for offline video and caption caching
-    ├── nlpSignLanguage.js      # Text-to-ISL grammar parser with 150+ keyword mappings
-    ├── useVideoTranscript.js   # Web Speech API real-time speech recognition hook
+    ├── nlpSignLanguage.js      # Text-to-ISL grammar parser with 285 keyword mappings across 12 gesture categories
+    ├── useVideoTranscript.js   # Video playback time-synced transcript and active caption hook
     ├── useQuizGenerator.js     # Heuristic multiple-choice quiz generator from text
     ├── useParticipants.js      # Live session participant polling and heartbeat management
     └── useSignLanguage.js      # Sign language gesture sequence coordination hook
@@ -248,11 +249,17 @@ frontend/src/
 
 #### 3. `CaptionOverlay.jsx`
 - **File:** `frontend/src/components/CaptionOverlay.jsx`
-- **Purpose:** Renders high-contrast, accessible captions with customizable font sizing and playback speed.
-- **Inputs:** `captions` (array of `{start, end, text}`), `currentTime` (number), `captionSize` ('small'|'normal'|'large').
-- **Outputs:** High-contrast floating caption box with ARIA live region support.
+- **Purpose:** Primary canonical visible caption overlay rendered directly on the video canvas. Computes and renders exactly one active caption matching `currentTime >= start && currentTime <= end`. Completely suppresses duplicate rendering or segment stacking.
+- **Inputs:** `captions` (array of `{start, end, text}`), `currentTime` (number), `currentCaption` (string), `isEnabled` (boolean), `captionSize` ('small'|'normal'|'large'), `isFullscreen` (boolean).
+- **Outputs:** Single high-contrast, dark-glass floating caption pill directly on the video with `aria-live="polite"` and `role="status"`. Returns `null` when disabled.
 
-#### 4. `AuthContext.jsx`
+#### 4. `TranscriptPanel.jsx`
+- **File:** `frontend/src/components/TranscriptPanel.jsx`
+- **Purpose:** Dedicated transcript reading panel rendered below the video. Clearly labeled "TRANSCRIPT", displaying timestamped transcript lines with smooth auto-scroll and subtle current-line highlighting, completely separate from in-video subtitles.
+- **Inputs:** `transcript` (array of `{text, timestamp}`), `currentCaption` (string), `isActive` (boolean).
+- **Outputs:** Clean, accessible transcript document reader card.
+
+#### 5. `AuthContext.jsx`
 - **File:** `frontend/src/contexts/AuthContext.jsx`
 - **Purpose:** Manages user authentication, token storage, and session validation across the frontend.
 - **Inputs:** Login/Register credentials.
@@ -663,16 +670,84 @@ captions/{id}/captions.vtt      captions/{id}/captions.srt      captions/{id}/tr
    ▼
 Database Persistence:
 video_captions table (start_time, end_time, text, sign_sequence)
-videos table (r2_captions_key, captions_url)
+videos table (caption_status, r2_captions_key, captions_url)
+   │
+   ▼
+API Delivery:
+GET /video-captions?video_id={id}&format=vtt (HTTP 200, text/vtt; charset=utf-8, inline, CORS: *)
    │
    ▼
 Frontend Delivery:
-HTML5 <track kind="captions" src="{vtt_url}" default> + Floating CaptionOverlay.jsx
+HTML5 <video> with <track kind="captions" src="{vtt_url}"> (mode='hidden' for accessibility)
+   │
+   ├───────────────────────────────┬───────────────────────────────┐
+   ▼                               ▼                               ▼
+Primary Caption Overlay:       Transcript Reading Panel:       Accessibility Controls:
+CaptionOverlay.jsx             TranscriptPanel.jsx             Caption Toggle + Status Badge
+- Exactly 1 active caption     - Timecoded transcript list     - ON: 1 in-video overlay
+- Synced to currentTime        - Smooth auto-scroll            - OFF: overlay removed
+- Centered on video canvas     - Reading document card         - Status: generating/available/failed
 ```
+
+### Caption Lifecycle State Machine
+```text
+[Video Uploaded]
+       │
+       ▼
+   'pending' ─────────► 'processing' ─────────► 'available'
+                              │
+                              ▼ (on failure)
+                           'failed' ──► [Retry Trigger] ──► 'processing'
+```
+1. **`pending`**: Video record created, awaiting transcription queue or audio extraction.
+2. **`processing`**: Background worker is extracting audio via FFmpeg and transcribing via Whisper/SpeechRecognition.
+3. **`available`**: WebVTT, SRT, and transcript JSON files are verified and stored in Cloudflare R2 (`captions/{video_id}/captions.vtt`). Segments are persisted into the `video_captions` database table, and `caption_status` is marked `'available'`.
+4. **`failed`**: Transcription failed (empty audio or unrecoverable error). The original video remains 100% playable. A `[Retry]` button is presented to the user which triggers `POST /videos/<id>/retry-captions`.
+
+### WebVTT Format Standards
+Generated WebVTT strictly follows the W3C WebVTT specification:
+```text
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:16.820
+I traveled all the way from the roots. I came from the air. Let's work together. Perfect.
+
+2
+00:00:16.820 --> 00:00:23.620
+Together we'll make food for the plant. Yay! I made delicious food for my plant. And now
+
+3
+00:00:23.620 --> 00:00:29.940
+I'll help humans and animals breathe. This amazing process is called photosynthesis.
+```
+
+### Storage and Delivery Specifications
+- **Cloudflare R2 Key Structure:** `captions/{videoId}/captions.vtt`, `captions/{videoId}/captions.srt`, and `captions/{videoId}/transcript.json`.
+- **Content-Type:** `text/vtt; charset=utf-8`.
+- **Content-Disposition:** `inline; filename=captions_{videoId}.vtt` (ensuring in-browser player streaming instead of triggering a file download).
+- **CORS Headers:** `Access-Control-Allow-Origin: *`, `Access-Control-Allow-Methods: GET, OPTIONS`, `Access-Control-Allow-Headers: Content-Type, Range`.
+- **Primary Visible Caption Renderer:**
+  - `CaptionOverlay.jsx` is the **PRIMARY** visible caption display system.
+  - Positioned on the video canvas (`bottom-12` in standard mode, `bottom-20` in fullscreen).
+  - Computes and displays **EXACTLY ONE** active caption segment matching the current playback time (`currentTime >= start && currentTime <= end`).
+  - Does NOT render historical segments or stacked duplicates over the video.
+- **Native HTML5 `<track>` Subtitle Suppression (Accessibility Preservation):**
+  - `<track kind="captions" src={vttSrc} srcLang="en" label="English" />` remains attached to `<video>`.
+  - `track.mode` is synchronized to `'hidden'` when captions are enabled (`'disabled'` when disabled).
+  - Mode `'hidden'` keeps text tracks active and cues parsed in memory for screen readers and programmatic accessibility APIs, while instructing the browser video engine NOT to draw a duplicate native visual cue layer on the video canvas.
+- **Below-Video Transcript Panel:**
+  - Handled by `TranscriptPanel.jsx` (distinct from in-video floating subtitles).
+  - Clearly identified with a "TRANSCRIPT" header, segment counter, and timestamped lines.
+- **Accessibility Controls Status Badge:**
+  - While generating: `⏳ Captions generating...`
+  - When available: `✓ Captions available`
+  - When failed: `⚠ Captions unavailable [Retry]`
 
 ### Fallback and Failure Handling
 - If a video contains no audio stream (e.g. screen recording without microphone), FFmpeg audio extraction catches `"does not contain any stream"` and generates a 1-second synthetic silent track via `anullsrc=r=16000:cl=mono`.
 - If both Whisper and SpeechRecognition fail to detect speech, a placeholder caption segment is stored: `"No speech detected in video."` (0.0s to 2.0s).
+- Video playback is never blocked if captions fail or are still generating.
 
 ---
 
@@ -694,13 +769,24 @@ DeepLearn Classroom provides two complementary ISL interpreter systems:
 
 #### 2. Client-Side Real-Time SVG Avatar (`frontend/src/components/SignAvatarOverlay.jsx`)
 - **Real-Time Glossing:** Captions and live speech transcripts are parsed in real time by `frontend/src/utils/nlpSignLanguage.js`.
+- **NLP Pipeline:** Text → tokenization → stop-word filtering (17 pure-grammar words only) → ISL keyword lookup (285 mappings) → fallback hash-based gesture for unknown words → complete sign sequence.
+- **Vocabulary:** 285 ISL keyword-to-gesture mappings covering: pronouns (23), be-verbs/auxiliaries (19), connectors (5), greetings (8), affirmation (16), negation (11), numbers (20), explanation (19), questions (8), cognition (16), attention (12), math/science/STEM (50), time (10), movement/action (39), places/nouns (20), urgency (9). Plus 26 two-handed ISLRTC alphabet fingerspelling poses (A–Z) and 10 number poses.
 - **Authentic Two-Handed ISL:** Articulates two-handed fingerspelling (A–Z) and specific ISL cultural signs:
   - `namaste` (Bilateral prayer hands at chest level)
   - `dhanyavaad` (Right hand from chin forward in gratitude)
   - `swagat` (Open palms cupped upward)
   - `shikshak` (Teacher sign: knowledge tap from temple outward)
   - `vidyarthi` (Student sign: book grasp into forehead)
-- **Overlay HUD:** Features category glow colors, bilingual English/Hindi gloss labels, and queue preview chips.
+- **Complete Sign Sequence:** The interpreter generates the full available sign sequence from caption text. No artificial limits on sign count. The `useSignLanguage` hook builds a time-aligned queue from all caption segments, assigns each sign a start/end time proportional to the caption segment duration, and tracks the active sign index via `requestAnimationFrame`.
+- **Sign Queue:** A horizontally scrollable queue strip shows all signs with three visual states:
+  - Past signs: greyed out (opacity 0.55)
+  - Current sign: highlighted with category color border, scaled 1.1×, with ▸ marker
+  - Upcoming signs: normal color, full opacity
+  The queue auto-scrolls to keep the current sign centered.
+- **Hand Visibility:** SVG hand shapes rendered at 96×52px with reduced glow (`drop-shadow 4px`) for clear finger articulation. Signing stage has min-height 260px with high-contrast white background.
+- **Playback Controls:** Speed selector supports 0.5×, 0.75×, 1×, 1.25×, 1.5×. Replay button replays current sign animation.
+- **Unknown Word Handling:** Words not in `ISL_KEYWORD_MAP` are assigned a deterministic gesture via hash-based fallback (cycling through `talk`, `explain`, `think`, `action`, `point`, `math`, `alert`). Single characters fall back to fingerspelling. The interpreter does not crash on unknown words.
+- **Overlay HUD:** Features category glow colors, bilingual English/Hindi gloss labels, and full queue strip with total sign count.
 
 ---
 
@@ -1168,7 +1254,10 @@ Every FFmpeg operation in DeepLearn Classroom is executed via Python subprocesse
 | Test Suite / Command | Execution Status | Results & Verified Behavior |
 |---|---|---|
 | **Python Syntax Compilation** (`py_compile`) | `PASS` | All 31 backend Python files compiled with 0 syntax errors. |
-| **Frontend Production Build** (`npm run build`) | `PASS` | Vite built 2,228 modules in 17.36s with zero errors (`dist/index.html` created). |
+| **Frontend Production Build** (`npm run build`) | `PASS` | Vite built 2,229 modules in 5.66s with zero errors (`dist/index.html` created). |
+| **Single Caption Overlay Verification** | `PASS` | Verified in browser that only one caption overlay renders on video, synchronized to time, with native track visual drawing suppressed via `mode = 'hidden'`. |
+| **Transcript Panel Verification** | `PASS` | Verified dedicated reading panel renders below video with timestamps, auto-scroll, and active-line focus. |
+| **Caption Toggle (ON/OFF) Verification** | `PASS` | Verified toggling off completely removes visible in-video caption; toggling on restores exactly one in-video caption. |
 | **Cloudflare R2 Integration** (`test_r2.py`) | Verified by Code | Verified boto3 client, bucket listing, presigned PUT/GET generation, and object deletion. |
 | **Model Evaluation Script** (`evaluate_models.py`) | Verified by Code | Computes accuracy, precision, recall, and F1 score for DNN/LSTM models. |
 | **Unit / Integration Tests** (`pytest`, `jest`) | `NOT IMPLEMENTED` | Automated unit test suites are not currently present in the repository. |
@@ -1209,6 +1298,9 @@ Every FFmpeg operation in DeepLearn Classroom is executed via Python subprocesse
 
 | Date | Change | Files Modified | Reason / Impact |
 |---|---|---|---|
+| **2026-09-04** | Fix Duplicate Captions — Single Primary Overlay & Dedicated Transcript Panel | `frontend/src/components/CaptionOverlay.jsx`, `frontend/src/components/TranscriptPanel.jsx`, `frontend/src/utils/useVideoTranscript.js`, `frontend/src/pages/VirtualClassroom.jsx` | Eliminated triple duplicate captions (native `<track>` showing + in-player React div + below-video floating box). Designated `CaptionOverlay.jsx` as the single canonical visible in-video caption renderer displaying exactly one synchronized segment matching current playback time. Synchronized HTML5 `<track>` mode to `'hidden'` to preserve accessibility and cue parsing while preventing browser native visual cue drawing. Created `TranscriptPanel.jsx` as a dedicated below-video document reading panel with auto-scroll and timecodes. |
+| **2026-09-04** | ISL Interpreter — Full Sign Sequence + Hand Visibility Fix | `frontend/src/utils/nlpSignLanguage.js`, `frontend/src/utils/useSignLanguage.js`, `frontend/src/components/SignAvatarOverlay.jsx`, `frontend/src/pages/VirtualClassroom.jsx` | Fixed 2–3 sign limit caused by: (1) aggressive stop-word filter removing ISL-representable pronouns/verbs — reduced stop words from 50 to 17, expanded keyword map to 285 entries; (2) queue `slice(0,8)` hard limit — replaced with full horizontally-scrollable queue with auto-scroll; (3) queue always highlighting index 0 — added `currentSignIndex` tracking. Fixed hand visibility: enlarged SVG from 72×40 to 96×52px, reduced glow, added min-height 260px signing stage. Added 0.75× and 1.25× speed options. |
+| **2026-09-04** | Complete Closed Captions Pipeline & Video Player Fix | `backend/routes/video_processing.py`, `backend/utils/storage.py`, `frontend/src/pages/VirtualClassroom.jsx` | Fixed WebVTT generation, inline Content-Disposition, CORS headers, R2 persistence, video_captions synchronization, HTML5 `<track>` loading, on-canvas subtitle overlay, and Accessibility Controls UX status badges. |
 | **2026-09-04** | Master Living PRD Creation | `PROJECT_PRD.md` | Created single source of truth documenting actual implementation based on comprehensive codebase audit. |
 | **2026-09-04** | Course Video Catalog & Role Isolation | `backend/routes/video_processing.py` | Allowed teachers to access full course catalog while maintaining management isolation. |
 | **2026-09-04** | Teacher Identity & Video Display Fix | `backend/routes/auth.py`, `backend/routes/video_processing.py` | Fixed teacher identity resolution to ensure uploaded videos display on Teacher Dashboard. |
@@ -1227,8 +1319,8 @@ Frontend:          IMPLEMENTED  (React 18, Vite, Tailwind CSS, Recharts, PeerJS)
 Backend:           IMPLEMENTED  (Flask REST API, Gunicorn, Blueprints, Threaded Workers)
 Database:          IMPLEMENTED  (Supabase PostgreSQL Primary, SQLite Fallback, 29 Tables)
 Video System:      IMPLEMENTED  (Cloudflare R2 Direct Upload, CDN, Processing Pipeline, FFmpeg)
-Captions:          IMPLEMENTED  (Whisper STT, VTT/SRT Generation, R2 Storage, Frontend Tracks)
-ISL Interpreter:   IMPLEMENTED  (OpenCV Stick Figure Overlay + Synced SVG Avatar)
+Captions:          IMPLEMENTED  (Whisper STT, VTT/SRT, R2 Storage, Single CaptionOverlay, Mode-Hidden Tracks)
+ISL Interpreter:   IMPLEMENTED  (OpenCV Stick Figure Overlay + Synced SVG Avatar, 285 Keywords, Full Sequence Queue)
 ISL Sign → Text:   IMPLEMENTED  (MediaPipe 21 3D Landmarks + Kinematics + CNN Classification)
 Quiz System:       IMPLEMENTED  (Dynamic Transcript Quizzes, Scoring, Weak Area Diagnosis)
 Student Progress:  IMPLEMENTED  (Sequential Lesson Unlocking at 35% Pass Mark)

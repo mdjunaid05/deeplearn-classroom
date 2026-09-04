@@ -11,7 +11,7 @@
  *  - Glassmorphic accessibility panel with queue strip and status indicators
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Hand, Zap, Loader2, RotateCcw } from 'lucide-react';
 import { getGestureLabel } from '../utils/nlpSignLanguage';
 
@@ -434,10 +434,10 @@ function ISLHandShape({ fingers, color, side }) {
   return (
     <svg
       viewBox="0 0 44 24"
-      width="72"
-      height="40"
+      width="96"
+      height="52"
       style={{
-        filter: `drop-shadow(0 0 8px ${color}) drop-shadow(0 0 20px ${color}55)`,
+        filter: `drop-shadow(0 0 4px ${color}88)`,
         transform: isLeft ? 'scaleX(-1)' : 'none',
         transition: 'all 0.35s cubic-bezier(0.34,1.56,0.64,1)',
       }}
@@ -646,11 +646,13 @@ function ISLAvatar({ pose, color, blink, isActive, animKey, animationSpeed = 1 }
 // ── Main ISL SignAvatarOverlay Component ─────────────────────────────────────
 export default function SignAvatarOverlay({
   currentSign,
+  currentSignIndex = -1,
   isActive,
   signQueue = [],
   isProcessing = false,
   signCount = 0,
 }) {
+  const queueScrollRef = useRef(null);
   const [blink,     setBlink]     = useState(false);
   const [animKey,   setAnimKey]   = useState(0);
   const [prevSign,  setPrevSign]  = useState(null);
@@ -730,7 +732,16 @@ export default function SignAvatarOverlay({
     return () => clearInterval(id);
   }, [isActive]);
 
-  const upcomingQueue = useMemo(() => signQueue.slice(0, 8), [signQueue]);
+  // Auto-scroll the queue strip to keep the current sign visible
+  useEffect(() => {
+    if (queueScrollRef.current && currentSignIndex >= 0) {
+      const container = queueScrollRef.current;
+      const activeEl = container.querySelector('[data-active-sign="true"]');
+      if (activeEl) {
+        activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [currentSignIndex]);
 
   return (
     <div
@@ -768,16 +779,16 @@ export default function SignAvatarOverlay({
 
       {/* ── Signing Stage (primary visual area) ────────────────────────── */}
       <div
-        className="isl-signing-stage relative flex justify-center items-start overflow-hidden"
-        style={{ padding: '12px 8px 4px' }}
+        className="isl-signing-stage relative flex justify-center items-center overflow-hidden"
+        style={{ padding: '16px 8px 8px', minHeight: 260 }}
       >
-        {/* Signing area background */}
+        {/* Signing area background — high contrast for hand visibility */}
         <div
           className="absolute rounded-2xl"
           style={{
             inset: 6,
-            background: 'linear-gradient(180deg, #ffffff, #f9fafb)',
-            border: '1px solid #f0f1f3',
+            background: 'linear-gradient(180deg, #ffffff, #f8f9fa)',
+            border: '1px solid #e8eaed',
           }}
         />
 
@@ -873,23 +884,34 @@ export default function SignAvatarOverlay({
             aria-label="Animation speed"
           >
             <option value={0.5}>0.5× Slow</option>
+            <option value={0.75}>0.75×</option>
             <option value={1}>1× Normal</option>
+            <option value={1.25}>1.25×</option>
             <option value={1.5}>1.5× Fast</option>
           </select>
         </div>
       </div>
 
-      {/* ── ISL Sign Queue Strip ───────────────────────────────────────── */}
+      {/* ── ISL Sign Queue Strip — full scrollable queue ─────────────── */}
       {signQueue.length > 0 && (
         <div
-          className="px-3 py-2 overflow-hidden"
-          style={{ borderTop: '1px solid #eef0f2', maxHeight: 76 }}
+          className="px-3 py-2"
+          style={{ borderTop: '1px solid #eef0f2' }}
         >
           <div className="text-[8px] uppercase tracking-widest mb-1.5 font-bold" style={{ color: '#9ca3af' }}>
-            ISL Queue ({signQueue.length})
+            ISL Queue — {signQueue.length} signs
           </div>
-          <div className="flex flex-wrap gap-1">
-            {upcomingQueue.map((s, i) => {
+          <div
+            ref={queueScrollRef}
+            className="flex gap-1 pb-1"
+            style={{
+              overflowX: 'auto',
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#cbd5e1 transparent',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {signQueue.map((s, i) => {
               const isChar = s.gesture.length === 1 && /[a-z]/.test(s.gesture);
               const isNum = s.gesture.startsWith('num_');
               const c = isChar
@@ -897,20 +919,24 @@ export default function SignAvatarOverlay({
                 : isNum
                 ? { primary: '#fbbf24' }
                 : ISL_GESTURE_COLORS[s.gesture] || ISL_GESTURE_COLORS.idle;
-              const isActive = i === 0;
+              const isCurrent = i === currentSignIndex;
+              const isPast = i < currentSignIndex;
               return (
                 <span
                   key={i}
-                  className="text-[9px] font-bold px-1.5 py-0.5 rounded-md transition-all duration-200"
+                  data-active-sign={isCurrent ? 'true' : undefined}
+                  className="text-[9px] font-bold px-2 py-1 rounded-md transition-all duration-200 whitespace-nowrap shrink-0"
                   style={{
-                    background: isActive ? `${c.primary}1A` : `${c.primary}08`,
-                    color: c.primary,
-                    border: isActive ? `2px solid ${c.primary}55` : `1px solid ${c.primary}18`,
-                    boxShadow: isActive ? `0 0 8px ${c.primary}22` : 'none',
-                    fontWeight: isActive ? 800 : 600,
+                    background: isCurrent ? `${c.primary}22` : isPast ? '#f3f4f6' : `${c.primary}08`,
+                    color: isCurrent ? c.primary : isPast ? '#9ca3af' : c.primary,
+                    border: isCurrent ? `2px solid ${c.primary}` : `1px solid ${isPast ? '#e5e7eb' : c.primary + '18'}`,
+                    boxShadow: isCurrent ? `0 0 10px ${c.primary}30` : 'none',
+                    fontWeight: isCurrent ? 800 : 600,
+                    transform: isCurrent ? 'scale(1.1)' : 'scale(1)',
+                    opacity: isPast ? 0.55 : 1,
                   }}
                 >
-                  {isActive && '\u25B8 '}{s.word}
+                  {isCurrent && '\u25B8 '}{s.word}
                 </span>
               );
             })}

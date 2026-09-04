@@ -122,5 +122,5 @@ export function useVideoTranscript(videoRef, savedCaptions = []) {
     };
   }, [videoRef, savedCaptions]);
 
-  return { transcript, currentCaption, isListening: false, usingSimulation: false };
+  return { transcript, currentCaption, currentTime, isListening: false, usingSimulation: false };
 }
