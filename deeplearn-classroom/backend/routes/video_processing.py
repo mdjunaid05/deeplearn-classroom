@@ -675,8 +675,34 @@ video IDs returned: {ret_video_ids}""", flush=True)
                 if not isinstance(video_dict["processed_at"], str):
                     video_dict["processed_at"] = video_dict["processed_at"].isoformat()
 
-            # Use the dedicated caption_status column if available, fallback to status check
-            video_dict["captions_status"] = video_dict.get("caption_status") or ("available" if video_dict.get("status") == "done" else "unavailable")
+            # Caption Status & Caption URLs
+            v_id = video_dict.get("video_id")
+            has_db_captions = False
+            if v_id:
+                try:
+                    cursor.execute("SELECT 1 FROM video_captions WHERE video_id = ? LIMIT 1", (v_id,))
+                    has_db_captions = cursor.fetchone() is not None
+                except Exception:
+                    pass
+
+            raw_cap_status = video_dict.get("caption_status")
+            if has_db_captions:
+                effective_caption_status = "available"
+            elif raw_cap_status in ("available", "processing", "pending", "failed"):
+                effective_caption_status = raw_cap_status
+            elif video_dict.get("status") == "done":
+                effective_caption_status = "available"
+            else:
+                effective_caption_status = "pending"
+
+            video_dict["caption_status"] = effective_caption_status
+            video_dict["captions_status"] = effective_caption_status
+            video_dict["captions status"] = effective_caption_status
+            video_dict["caption_url"] = f"/video-captions?video_id={v_id}&format=vtt" if v_id else None
+            video_dict["captions_url"] = f"/video-captions?video_id={v_id}" if v_id else None
+            video_dict["captionsUrl"] = video_dict["captions_url"]
+            video_dict["captionUrl"] = video_dict["caption_url"]
+            video_dict["r2_captions_key"] = video_dict.get("r2_captions_key") or (f"captions/{v_id}/captions.vtt" if v_id else None)
 
             # ── FRESH URL RESOLUTION ──────────────────────────────────────────
             # CRITICAL FIX: Presigned URLs stored in the DB expire after 7 days.
@@ -762,15 +788,7 @@ video IDs returned: {ret_video_ids}""", flush=True)
             for v in videos_list:
                 v["is_locked"] = False
 
-        print(f"[VIDEOS_FETCHED] count={len(videos_list)}", flush=True)
-        print(f"[VIDEO_LIST_RESPONSE] count={len(videos_list)}", flush=True)
-        print(f"[VIDEO_LIST_FETCHED] count={len(videos_list)}", flush=True)
-        print(f"[VIDEO_LIST_UPDATED] count={len(videos_list)}", flush=True)
-        print(f"[VIDEO_URL_RETURNED] count={len(videos_list)}", flush=True)
-        
-        for v in videos_list:
-            print(f"[CLASSROOM_ID] classroom_id={v['course_id']}", flush=True)
-            print(f"[COURSE_ID] course_id={v['course_id']}", flush=True)
+        print(f"[VIDEO_LIST_RESPONSE] count={len(videos_list)} mode={'manage' if manage else 'student' if student_id else 'catalog'} course_id={course_id or 1}", flush=True)
 
         if student_id and len(videos_list) == 0:
             err_log = {
@@ -1349,22 +1367,84 @@ def extract_captions():
 
     # Transcribe audio
     from utils.speech_to_text import transcribe_audio
+    from utils.storage import upload_file, _r2_enabled, read_r2_text
+    r2_cap_key = None
+    full_transcript = ""
+
     try:
         captions = transcribe_audio(input_path)
         if not captions:
             captions = [{"text": "No speech detected in video.", "start": 0.0, "end": 2.0}]
+
+        # Clean and sanitize caption segments
+        sanitized_caps = []
+        for idx, cap in enumerate(captions):
+            st = max(0.0, float(cap.get("start", 0.0)))
+            en = max(st + 0.5, float(cap.get("end", st + 2.0)))
+            txt = (cap.get("text") or "").strip()
+            if txt:
+                sanitized_caps.append({"start": round(st, 2), "end": round(en, 2), "text": txt})
+        if not sanitized_caps:
+            sanitized_caps = [{"start": 0.0, "end": 2.0, "text": "No speech detected in video."}]
+        captions = sanitized_caps
+
+        # Generate VTT and SRT strings
+        vtt_content = generate_vtt(captions)
+        srt_content = generate_srt(captions)
+        full_transcript = " ".join([cap["text"] for cap in captions])
+
+        # Upload VTT, SRT, and transcript JSON to R2 if configured
+        if video_id and _r2_enabled():
+            try:
+                vtt_tmp = os.path.join(UPLOAD_FOLDER, f"captions_{video_id}.vtt")
+                with open(vtt_tmp, "w", encoding="utf-8") as f:
+                    f.write(vtt_content)
+                r2_key_vtt = f"captions/{video_id}/captions.vtt"
+                upload_file(vtt_tmp, r2_key_vtt, content_type="text/vtt")
+                r2_cap_key = r2_key_vtt
+                try:
+                    os.remove(vtt_tmp)
+                except OSError:
+                    pass
+
+                srt_tmp = os.path.join(UPLOAD_FOLDER, f"captions_{video_id}.srt")
+                with open(srt_tmp, "w", encoding="utf-8") as f:
+                    f.write(srt_content)
+                upload_file(srt_tmp, f"captions/{video_id}/captions.srt", content_type="text/plain")
+                try:
+                    os.remove(srt_tmp)
+                except OSError:
+                    pass
+
+                transcript_tmp = os.path.join(UPLOAD_FOLDER, f"transcript_{video_id}.json")
+                with open(transcript_tmp, "w", encoding="utf-8") as f:
+                    json.dump(captions, f, indent=2)
+                upload_file(transcript_tmp, f"captions/{video_id}/transcript.json", content_type="application/json")
+                try:
+                    os.remove(transcript_tmp)
+                except OSError:
+                    pass
+
+                print(f"[CAPTION_UPLOADED_TO_R2] video_id={video_id} key={r2_cap_key}", flush=True)
+            except Exception as cap_upload_err:
+                print(f"[CAPTION_UPLOAD_FAILED] video_id={video_id} error={cap_upload_err}", flush=True)
 
         # Save transcript & captions to DB and mark status as done
         print("[DATABASE_SAVE_STARTED]", flush=True)
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            full_transcript = " ".join([cap["text"] for cap in captions])
+            captions_endpoint = f"/video-captions?video_id={video_id}"
             cursor.execute("""
                 UPDATE videos 
-                SET status = 'done', transcript = ?, processed_at = CURRENT_TIMESTAMP
+                SET status = 'done', 
+                    caption_status = 'available',
+                    captions_url = ?,
+                    r2_captions_key = ?,
+                    transcript = ?, 
+                    processed_at = CURRENT_TIMESTAMP
                 WHERE video_id = ?
-            """, (full_transcript, video_id))
+            """, (captions_endpoint, r2_cap_key, full_transcript, video_id))
 
             # Delete any old captions for this video_id
             cursor.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
@@ -1390,7 +1470,7 @@ def extract_captions():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("UPDATE videos SET status = 'error' WHERE video_id = ?", (video_id,))
+            cursor.execute("UPDATE videos SET caption_status = 'failed' WHERE video_id = ?", (video_id,))
             conn.commit()
         except Exception:
             pass
@@ -1406,52 +1486,58 @@ def extract_captions():
         "status": "done",
         "video_id": video_id,
         "filename": filename,
-        "captions": captions
+        "captions": captions,
+        "caption_status": "available",
+        "captions_url": f"/video-captions?video_id={video_id}",
+        "caption_url": f"/video-captions?video_id={video_id}&format=vtt",
+        "r2_captions_key": r2_cap_key or (f"captions/{video_id}/captions.vtt" if video_id else None)
     })
 
 
 # ── SRT/VTT Format Helpers ──────────────────────────────────────────────────
 
 def format_srt_time(seconds):
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
-    ms = int((seconds % 1) * 1000)
+    s_val = max(0.0, float(seconds or 0.0))
+    h = int(s_val // 3600)
+    m = int((s_val % 3600) // 60)
+    s = int(s_val % 60)
+    ms = int((s_val % 1) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
 
 def format_vtt_time(seconds):
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
-    ms = int((seconds % 1) * 1000)
+    s_val = max(0.0, float(seconds or 0.0))
+    h = int(s_val // 3600)
+    m = int((s_val % 3600) // 60)
+    s = int(s_val % 60)
+    ms = int((s_val % 1) * 1000)
     return f"{h:02d}:{m:02d}:{s:02d}.{ms:03d}"
 
 def generate_srt(captions):
     lines = []
     for idx, cap in enumerate(captions):
         lines.append(str(idx + 1))
-        start_str = format_srt_time(cap["start"])
-        end_str = format_srt_time(cap["end"])
+        start_str = format_srt_time(cap.get("start", 0.0))
+        end_str = format_srt_time(cap.get("end", 0.0))
         lines.append(f"{start_str} --> {end_str}")
-        lines.append(cap["text"])
+        lines.append((cap.get("text") or "").strip())
         lines.append("")
     return "\n".join(lines)
 
 def generate_vtt(captions):
     lines = ["WEBVTT", ""]
     for idx, cap in enumerate(captions):
-        start_str = format_vtt_time(cap["start"])
-        end_str = format_vtt_time(cap["end"])
+        start_str = format_vtt_time(cap.get("start", 0.0))
+        end_str = format_vtt_time(cap.get("end", 0.0))
         lines.append(f"{idx + 1}")
         lines.append(f"{start_str} --> {end_str}")
-        lines.append(cap["text"])
+        lines.append((cap.get("text") or "").strip())
         lines.append("")
     return "\n".join(lines)
 
 
-# ── GET /video-captions ───────────────────────────────────────────────────────
+# ── GET/OPTIONS /video-captions ──────────────────────────────────────────────
 
-@video_bp.route("/video-captions", methods=["GET"])
+@video_bp.route("/video-captions", methods=["GET", "OPTIONS"])
 def get_video_captions():
     """
     Get captions for a video by video_id, job_id, or filename.
@@ -1461,6 +1547,13 @@ def get_video_captions():
         filename - Name of original or processed file
         format   - 'json' (default), 'srt', or 'vtt'
     """
+    if request.method == "OPTIONS":
+        return "", 204, {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Range"
+        }
+
     video_id = request.args.get("video_id", type=int)
     job_id = request.args.get("job_id")
     filename = request.args.get("filename")
@@ -1496,7 +1589,7 @@ def get_video_captions():
         conn = get_db_connection()
         cursor = conn.cursor()
         try:
-            cursor.execute("SELECT video_id, status FROM videos WHERE video_id = ?", (video_id,))
+            cursor.execute("SELECT video_id, status, caption_status FROM videos WHERE video_id = ?", (video_id,))
             video_row = cursor.fetchone()
             if not video_row:
                 return jsonify({"error": "Video not found"}), 404
@@ -1514,6 +1607,33 @@ def get_video_captions():
                     "end": float(row[1]) if row[1] is not None else 0.0,
                     "text": row[2]
                 })
+
+            # Fallback: if database has 0 captions, check if transcript exists in R2
+            if not captions:
+                from utils.storage import read_r2_text, _r2_enabled
+                if _r2_enabled():
+                    r2_transcript_json = read_r2_text(f"captions/{video_id}/transcript.json")
+                    if r2_transcript_json:
+                        try:
+                            parsed = json.loads(r2_transcript_json)
+                            if isinstance(parsed, list):
+                                for item in parsed:
+                                    captions.append({
+                                        "start": float(item.get("start", 0.0)),
+                                        "end": float(item.get("end", 0.0)),
+                                        "text": item.get("text", "")
+                                    })
+                                    cursor.execute(
+                                        "INSERT INTO video_captions (video_id, start_time, end_time, text) VALUES (?, ?, ?, ?)",
+                                        (video_id, item.get("start", 0.0), item.get("end", 0.0), item.get("text", ""))
+                                    )
+                                cursor.execute(
+                                    "UPDATE videos SET caption_status = 'available', captions_url = ?, r2_captions_key = ? WHERE video_id = ?",
+                                    (f"/video-captions?video_id={video_id}", f"captions/{video_id}/captions.vtt", video_id)
+                                )
+                                conn.commit()
+                        except Exception:
+                            pass
         except Exception as e:
             return jsonify({"error": f"Database error: {str(e)}"}), 500
         finally:
@@ -1550,22 +1670,126 @@ def get_video_captions():
             })
     print(f"[CAPTION_FETCHED] video_id={video_id} job_id={job_id} format={fmt} count={len(captions)}")
             
+    cors_headers = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Range",
+        "Cache-Control": "public, max-age=3600"
+    }
+
     if fmt == "srt":
         srt_content = generate_srt(captions)
         name = f"captions_{video_id or job_id or filename}.srt"
-        return srt_content, 200, {
+        headers = {
             "Content-Type": "text/plain; charset=utf-8",
-            "Content-Disposition": f"attachment; filename={name}"
+            "Content-Disposition": f"inline; filename={name}",
+            **cors_headers
         }
+        return srt_content, 200, headers
     elif fmt == "vtt":
         vtt_content = generate_vtt(captions)
         name = f"captions_{video_id or job_id or filename}.vtt"
-        return vtt_content, 200, {
+        headers = {
             "Content-Type": "text/vtt; charset=utf-8",
-            "Content-Disposition": f"attachment; filename={name}"
+            "Content-Disposition": f"inline; filename={name}",
+            **cors_headers
         }
+        return vtt_content, 200, headers
     else:
-        return jsonify({"video_id": video_id, "job_id": job_id, "filename": filename, "captions": captions})
+        resp = jsonify({
+            "video_id": video_id, 
+            "job_id": job_id, 
+            "filename": filename, 
+            "captions": captions,
+            "caption_status": "available" if len(captions) > 0 else "unavailable",
+            "caption_url": f"/video-captions?video_id={video_id}&format=vtt" if video_id else None,
+            "captions_url": f"/video-captions?video_id={video_id}" if video_id else None,
+            "r2_captions_key": f"captions/{video_id}/captions.vtt" if video_id else None
+        })
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        return resp, 200
+
+
+# ── POST /videos/<int:video_id>/retry-captions ───────────────────────────────
+
+@video_bp.route("/videos/<int:video_id>/retry-captions", methods=["POST"])
+def retry_captions(video_id):
+    """
+    Retry caption extraction for a video.
+    """
+    from database.db import get_db_connection
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT video_id, filename, original_url, r2_url, r2_key FROM videos WHERE video_id = ?", (video_id,))
+    row = cursor.fetchone()
+    if not row:
+        conn.close()
+        return jsonify({"error": "Video not found"}), 404
+        
+    vid = dict(zip([d[0] for d in cursor.description], row))
+    cursor.execute("UPDATE videos SET caption_status = 'processing' WHERE video_id = ?", (video_id,))
+    conn.commit()
+    conn.close()
+    
+    def _run_retry():
+        from utils.speech_to_text import transcribe_audio
+        from utils.storage import download_from_r2, upload_file, _r2_enabled
+        filename = vid.get("filename") or f"video_{video_id}.mp4"
+        local_path = os.path.join(UPLOAD_FOLDER, filename)
+        try:
+            if not os.path.exists(local_path):
+                r2_key = vid.get("r2_key") or f"uploads/{filename}"
+                download_from_r2(r2_key, local_path)
+            
+            if not os.path.exists(local_path):
+                raise RuntimeError("Video file could not be retrieved")
+                
+            captions = transcribe_audio(local_path)
+            if not captions:
+                captions = [{"text": "No speech detected in video.", "start": 0.0, "end": 2.0}]
+                
+            vtt_content = generate_vtt(captions)
+            r2_cap_key = f"captions/{video_id}/captions.vtt"
+            if _r2_enabled():
+                vtt_tmp = os.path.join(UPLOAD_FOLDER, f"captions_{video_id}.vtt")
+                with open(vtt_tmp, "w", encoding="utf-8") as f:
+                    f.write(vtt_content)
+                upload_file(vtt_tmp, r2_cap_key, content_type="text/vtt")
+                try:
+                    os.remove(vtt_tmp)
+                except OSError:
+                    pass
+                    
+            c_conn = get_db_connection()
+            c_cur = c_conn.cursor()
+            full_transcript = " ".join([c["text"] for c in captions])
+            c_cur.execute("""
+                UPDATE videos 
+                SET caption_status = 'available',
+                    captions_url = ?,
+                    r2_captions_key = ?,
+                    transcript = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE video_id = ?
+            """, (f"/video-captions?video_id={video_id}", r2_cap_key, full_transcript, video_id))
+            c_cur.execute("DELETE FROM video_captions WHERE video_id = ?", (video_id,))
+            for cap in captions:
+                c_cur.execute("INSERT INTO video_captions (video_id, start_time, end_time, text) VALUES (?, ?, ?, ?)",
+                              (video_id, cap["start"], cap["end"], cap["text"]))
+            c_conn.commit()
+            c_conn.close()
+            print(f"[RETRY_CAPTIONS_SUCCESS] video_id={video_id} count={len(captions)}", flush=True)
+        except Exception as err:
+            print(f"[RETRY_CAPTIONS_FAILED] video_id={video_id} error={err}", flush=True)
+            f_conn = get_db_connection()
+            f_cur = f_conn.cursor()
+            f_cur.execute("UPDATE videos SET caption_status = 'failed' WHERE video_id = ?", (video_id,))
+            f_conn.commit()
+            f_conn.close()
+
+    import threading
+    threading.Thread(target=_run_retry, daemon=True).start()
+    return jsonify({"status": "processing", "video_id": video_id, "message": "Caption generation started"}), 200
 
 
 # ── DELETE /videos/<video_id> ─────────────────────────────────────────────────
@@ -1826,8 +2050,8 @@ def get_video(video_id):
     try:
         cursor.execute(
             "SELECT v.video_id, v.teacher_id, v.course_id, v.title, v.filename, v.r2_url, "
-            "v.original_url, v.processed_url, v.status, v.uploaded_at, v.processed_at, "
-            "v.original_video_id, v.video_type, v.captions_url, "
+            "v.original_url, v.processed_url, v.status, v.caption_status, v.r2_captions_key, v.r2_key, "
+            "v.uploaded_at, v.processed_at, v.original_video_id, v.video_type, v.captions_url, "
             "t.name as uploader "
             "FROM videos v LEFT JOIN teachers t ON v.teacher_id = t.teacher_id "
             "WHERE v.video_id = ?",
@@ -1841,6 +2065,19 @@ def get_video(video_id):
         video = dict(zip(cols, row))
         if video.get("uploaded_at") and not isinstance(video["uploaded_at"], str):
             video["uploaded_at"] = video["uploaded_at"].isoformat()
+
+        # Check for DB captions
+        cursor.execute("SELECT 1 FROM video_captions WHERE video_id = ? LIMIT 1", (video_id,))
+        has_caps = cursor.fetchone() is not None
+        effective_cap_status = "available" if has_caps else (video.get("caption_status") or ("available" if video.get("status") == "done" else "pending"))
+
+        video["caption_status"] = effective_cap_status
+        video["captions_status"] = effective_cap_status
+        video["captions status"] = effective_cap_status
+        video["caption_url"] = f"/video-captions?video_id={video_id}&format=vtt"
+        video["captions_url"] = f"/video-captions?video_id={video_id}"
+        video["captionUrl"] = video["caption_url"]
+        video["r2_captions_key"] = video.get("r2_captions_key") or f"captions/{video_id}/captions.vtt"
 
         auth_query = f"&teacher_id={teacher_id}" if teacher_id else (f"&student_id={student_id}" if student_id else "")
         for url_key in ["processed_url", "original_url"]:
@@ -1856,6 +2093,7 @@ def get_video(video_id):
         video["videoType"] = video.get("video_type") or "original"
         video["captionsUrl"] = video.get("captions_url")
         video["createdAt"] = video.get("uploaded_at")
+        video["videoUrl"] = video.get("r2_url") or video.get("processed_url") or video.get("original_url")
 
         if video.get("video_type") == "ISL":
             video["aiSigningVideoUrl"] = video.get("processed_url") or video.get("r2_url")

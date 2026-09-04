@@ -92,6 +92,7 @@ export default function VirtualClassroom() {
   const [captionSize, setCaptionSize] = useState('normal');
   const [playbackSpeed, setPlaybackSpeed] = useState(1.0);
   const [vttSrc, setVttSrc] = useState('');
+  const [captionStatus, setCaptionStatus] = useState('available'); // 'generating' | 'available' | 'unavailable' | 'failed'
   const [islSignToTextOpen, setIslSignToTextOpen] = useState(false);
 
   // ── Recordings & Videos ───────────────────────────────────────────────────
@@ -102,6 +103,15 @@ export default function VirtualClassroom() {
   const [loadingVideos, setLoadingVideos] = useState(true);
   const [videosError, setVideosError] = useState(null);
   const [recordingsError, setRecordingsError] = useState(null);
+
+  // Synchronize HTML5 video text tracks whenever captionsEnabled or vttSrc changes
+  useEffect(() => {
+    if (videoRef.current && videoRef.current.textTracks) {
+      for (let i = 0; i < videoRef.current.textTracks.length; i++) {
+        videoRef.current.textTracks[i].mode = captionsEnabled ? 'showing' : 'hidden';
+      }
+    }
+  }, [captionsEnabled, vttSrc]);
 
   // ── getPlayableVideoUrl ──────────────────────────────────────────────────
   const getPlayableVideoUrl = useCallback((video) => {
@@ -123,6 +133,39 @@ export default function VirtualClassroom() {
     }
     return null;
   }, []);
+
+  // ── handleRetryCaptions ──────────────────────────────────────────────────
+  const handleRetryCaptions = useCallback(async () => {
+    const vidId = selectedVideo?.video_id || selectedVideo?.videoId;
+    if (!vidId) return;
+    setCaptionStatus('generating');
+    try {
+      const res = await fetch(`${API_BASE}/videos/${vidId}/retry-captions`, { method: 'POST' });
+      if (res.ok) {
+        let attempts = 0;
+        const interval = setInterval(async () => {
+          attempts++;
+          try {
+            const check = await fetch(`${API_BASE}/video-captions?video_id=${vidId}&format=json`);
+            if (check.ok) {
+              const d = await check.json();
+              if (d.captions && d.captions.length > 0) {
+                setSavedCaptions(d.captions);
+                setCaptionStatus('available');
+                setVttSrc(`${API_BASE}/video-captions?video_id=${vidId}&format=vtt`);
+                clearInterval(interval);
+              }
+            }
+          } catch (e) {}
+          if (attempts >= 10) clearInterval(interval);
+        }, 3000);
+      } else {
+        setCaptionStatus('unavailable');
+      }
+    } catch (e) {
+      setCaptionStatus('unavailable');
+    }
+  }, [selectedVideo]);
 
   // ── playVideo ────────────────────────────────────────────────────────────
   const playVideo = useCallback((v) => {
@@ -164,13 +207,24 @@ export default function VirtualClassroom() {
     setShowResults(false);
     setAnswers({});
     setSavedCaptions([]);
+
+    const targetVidId = v.video_id || v.videoId;
+    const vttUrl = v.caption_url && v.caption_url.includes('format=vtt')
+      ? (v.caption_url.startsWith('http') ? v.caption_url : `${API_BASE}${v.caption_url}`)
+      : `${API_BASE}/video-captions?video_id=${targetVidId}&format=vtt`;
+
+    setVttSrc(vttUrl);
     if (v.caption_status === 'available' || v.status === 'done') {
-      setVttSrc(`${API_BASE}/video-captions?video_id=${v.video_id || v.videoId}&format=vtt`);
+      setCaptionStatus('available');
+    } else if (v.caption_status === 'processing' || v.caption_status === 'pending') {
+      setCaptionStatus('generating');
     } else {
-      setVttSrc('');
+      setCaptionStatus(v.caption_status || 'available');
     }
-    
-    fetch(`${API_BASE}/video-captions?video_id=${v.video_id || v.videoId}&format=json`)
+
+    console.log(`[CAPTION TRACK] setVttSrc=${vttUrl} status=${v.caption_status} r2_key=${v.r2_captions_key}`);
+
+    fetch(`${API_BASE}/video-captions?video_id=${targetVidId}&format=json`)
       .then(res => {
         if (res.ok) return res.json();
         throw new Error('No captions');
@@ -178,9 +232,17 @@ export default function VirtualClassroom() {
       .then(data => {
         if (data.captions && data.captions.length > 0) {
           setSavedCaptions(data.captions);
+          setCaptionStatus('available');
+        } else if (data.caption_status === 'processing' || data.caption_status === 'pending') {
+          setCaptionStatus('generating');
+        } else {
+          setCaptionStatus(data.caption_status === 'failed' ? 'failed' : 'unavailable');
         }
       })
-      .catch(() => console.log('No captions found for this video.'));
+      .catch(() => {
+        console.log('No captions found for this video.');
+        setCaptionStatus('unavailable');
+      });
 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [user, getPlayableVideoUrl]);
@@ -319,15 +381,27 @@ export default function VirtualClassroom() {
         if (window.uploadedDemoCaptions && window.uploadedDemoCaptions.length > 0) {
           console.log('[Classroom] Loaded captions from window:', window.uploadedDemoCaptions.length, 'segments');
           setSavedCaptions(window.uploadedDemoCaptions);
+          setCaptionStatus('available');
         } else if (videoId || jobId || filename) {
-          // Fetch captions from backend
-          const capUrl = `${API_BASE}/video-captions?${videoId ? `video_id=${videoId}` : jobId ? `job_id=${jobId}` : `filename=${filename}`}&format=json`;
+          // Set WebVTT track URL
+          const capParam = videoId ? `video_id=${videoId}` : jobId ? `job_id=${jobId}` : `filename=${encodeURIComponent(filename)}`;
+          const vttUrl = `${API_BASE}/video-captions?${capParam}&format=vtt`;
+          setVttSrc(vttUrl);
+          console.log('[Classroom] Initialized vttSrc for <track>:', vttUrl);
+
+          // Fetch captions JSON from backend
+          const capUrl = `${API_BASE}/video-captions?${capParam}&format=json`;
           const capRes = await fetch(capUrl);
           if (capRes.ok) {
             const capData = await capRes.json();
-            if (capData.captions) {
+            if (capData.captions && capData.captions.length > 0) {
               console.log('[Classroom] Loaded captions from backend:', capData.captions.length, 'segments');
               setSavedCaptions(capData.captions);
+              setCaptionStatus('available');
+            } else if (capData.caption_status === 'processing' || capData.caption_status === 'pending') {
+              setCaptionStatus('generating');
+            } else {
+              setCaptionStatus(capData.caption_status === 'failed' ? 'failed' : 'unavailable');
             }
           }
         } else {
@@ -335,6 +409,7 @@ export default function VirtualClassroom() {
           if (caps && caps.length > 0) {
             console.log('[Classroom] Loaded captions from IndexedDB:', caps.length, 'segments');
             setSavedCaptions(caps);
+            setCaptionStatus('available');
           }
         }
       } catch (err) {
@@ -784,6 +859,7 @@ export default function VirtualClassroom() {
               <video
                 ref={videoRef}
                 src={isVideoLoaded ? videoSrc : ''}
+                crossOrigin="anonymous"
                 className="w-full h-full object-contain bg-slate-950"
                 controls
                 onPlay={() => { 
@@ -824,11 +900,18 @@ export default function VirtualClassroom() {
               >
                 {vttSrc && captionsEnabled && (
                   <track
+                    key={vttSrc}
                     kind="captions"
                     src={vttSrc}
                     srcLang="en"
                     label="English"
                     default
+                    onLoad={(e) => {
+                      console.log('[CAPTION_TRACK_LOADED] src=' + vttSrc);
+                      if (e.target && e.target.track) {
+                        e.target.track.mode = captionsEnabled ? 'showing' : 'hidden';
+                      }
+                    }}
                   />
                 )}
               </video>
@@ -903,16 +986,14 @@ export default function VirtualClassroom() {
 
               {/* ISL Interpreter moved to dedicated side column for visibility */}
 
-              {/* Caption overlay — only visible in fullscreen */}
-              {captionsEnabled && isFullscreen && (
-                <div className="absolute left-0 right-0 bottom-16 z-10 pointer-events-none px-4">
-                  <CaptionOverlay
-                    transcript={transcript}
-                    currentCaption={currentCaption}
-                    isActive={isPlaying}
-                    usingSimulation={usingSimulation}
-                    captionSize={isFullscreen ? 'large' : captionSize}
-                  />
+              {/* Closed Captions In-Player Overlay — rendered on video in both normal and fullscreen */}
+              {captionsEnabled && currentCaption && (
+                <div className={`absolute left-0 right-0 ${isFullscreen ? 'bottom-20' : 'bottom-12'} z-15 pointer-events-none px-4 flex justify-center transition-all duration-150`}>
+                  <div className="max-w-3xl px-4 py-2 rounded-xl bg-black/85 backdrop-blur-md border border-white/10 text-center shadow-2xl">
+                    <p className={`${captionSize === 'large' ? 'text-lg sm:text-xl' : captionSize === 'small' ? 'text-xs sm:text-sm' : 'text-sm sm:text-base'} text-white font-medium leading-snug drop-shadow-md`}>
+                      {currentCaption}
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -953,13 +1034,41 @@ export default function VirtualClassroom() {
               </div>
               <div className="w-px h-6 bg-slate-200 mx-2"></div>
               
-              <button 
-                onClick={() => setCaptionsEnabled(!captionsEnabled)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${captionsEnabled ? 'bg-primary-500/10 text-primary-600 border border-[#00687a]/20' : 'bg-slate-100 text-[#6d797d] hover:bg-slate-200'}`}
-              >
-                {captionsEnabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                Captions
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => setCaptionsEnabled(!captionsEnabled)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-colors ${captionsEnabled ? 'bg-primary-500/10 text-primary-600 border border-[#00687a]/20' : 'bg-slate-100 text-[#6d797d] hover:bg-slate-200'}`}
+                >
+                  {captionsEnabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                  Captions
+                </button>
+
+                {/* Caption Status UX Indicator (PRD Section 10) */}
+                {captionsEnabled && captionStatus === 'generating' && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-500/15 text-amber-600 border border-amber-500/30 animate-pulse">
+                    ⏳ Captions generating...
+                  </span>
+                )}
+                {captionsEnabled && captionStatus === 'available' && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-600 border border-emerald-500/30">
+                    ✓ Captions available
+                  </span>
+                )}
+                {captionsEnabled && (captionStatus === 'unavailable' || captionStatus === 'failed') && (
+                  <div className="inline-flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-rose-500/15 text-rose-600 border border-rose-500/30">
+                      ⚠ Captions unavailable
+                    </span>
+                    <button
+                      onClick={handleRetryCaptions}
+                      className="px-2 py-1 rounded-lg text-xs font-semibold bg-[#00687a] hover:bg-[#005260] text-white transition-colors cursor-pointer shadow-xs"
+                      title="Retry caption generation"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                )}
+              </div>
               
               <button 
                 id="toggle-sign-language"

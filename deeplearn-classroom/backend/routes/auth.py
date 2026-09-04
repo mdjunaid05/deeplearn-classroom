@@ -359,11 +359,7 @@ def login():
     if not validate_email(email):
         return jsonify({"error": "Invalid email format"}), 400
 
-    # Ensure demo accounts exist
-    try:
-        _seed_demo_accounts()
-    except Exception:
-        pass  # Non-critical
+    # NOTE: Demo accounts are seeded at startup in app.py, not on every login
 
     # Look up user in database
     conn = get_db_connection()
@@ -377,7 +373,7 @@ def login():
         )
         row = cursor.fetchone()
 
-        # Fallback: Check without role constraint if user exists under email
+        # Fallback: Check if user exists under email with a different role
         if not row:
             cursor.execute(
                 "SELECT user_id, name, email, password_hash, role FROM users WHERE LOWER(email) = ?",
@@ -385,16 +381,12 @@ def login():
             )
             u_row = cursor.fetchone()
             if u_row:
-                u_id = u_row["user_id"] if hasattr(u_row, "keys") else u_row[0]
-                cursor.execute("UPDATE users SET role = ? WHERE user_id = ?", (role, u_id))
-                conn.commit()
-                row = (
-                    u_id,
-                    u_row["name"] if hasattr(u_row, "keys") else u_row[1],
-                    u_row["email"] if hasattr(u_row, "keys") else u_row[2],
-                    u_row["password_hash"] if hasattr(u_row, "keys") else u_row[3],
-                    role,
-                )
+                existing_role = u_row["role"] if hasattr(u_row, "keys") else u_row[4]
+                if existing_role and existing_role.lower() != role:
+                    conn.close()
+                    return jsonify({"error": f"This email is registered as a {existing_role}. Please select the correct role."}), 400
+                # Same role but case mismatch or other issue — use the found row
+                row = u_row
 
         # Fallback: check teachers or students table directly if not found in users
         if not row:

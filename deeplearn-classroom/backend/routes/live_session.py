@@ -55,9 +55,12 @@ def session_join():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        # Use REPLACE INTO for cross-database compatibility (both SQLite and MySQL support this)
+        # DELETE then INSERT for cross-database compatibility (SQLite, MySQL, PostgreSQL)
         cursor.execute("""
-            REPLACE INTO live_session_participants (session_id, user_id, name, role, is_muted, is_video_off, joined_at, last_seen)
+            DELETE FROM live_session_participants WHERE session_id = ? AND user_id = ?
+        """, (session_id, user_id))
+        cursor.execute("""
+            INSERT INTO live_session_participants (session_id, user_id, name, role, is_muted, is_video_off, joined_at, last_seen)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """, (session_id, user_id, name, role, is_muted, is_video_off, now, now))
         conn.commit()

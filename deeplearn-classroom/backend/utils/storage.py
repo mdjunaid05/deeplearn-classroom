@@ -328,6 +328,19 @@ def download_file(r2_key: str, local_path: str) -> bool:
         return False
 
 
+def read_r2_text(r2_key: str) -> str:
+    """Read a text/vtt/json object directly from R2 as a UTF-8 string."""
+    if not _r2_enabled():
+        return ""
+    try:
+        client = _get_client()
+        resp = client.get_object(Bucket=R2_BUCKET_NAME, Key=r2_key)
+        return resp["Body"].read().decode("utf-8")
+    except Exception as e:
+        _log_r2_error("R2_READ_TEXT_FAILED", e, key=r2_key)
+        return ""
+
+
 def delete_file(r2_key: str) -> None:
     """Delete an object from R2 (silent on failure)."""
     if not _r2_enabled():
@@ -620,18 +633,27 @@ def sync_r2_objects_to_db(conn, timeout_seconds: int = 10) -> int:
                       orig_id, f"/video-captions?video_id={orig_id + 1}"))
                 synced_count += 1
 
-            # Add default demo captions for synced video
-            demo_captions = [
-                (0.0, 5.0, f"Welcome to this lesson: {title_clean}."),
-                (5.0, 10.0, "This video lesson is powered by DeepLearn Smart Virtual Classroom."),
-                (10.0, 15.0, "Auto-generated captions and ISL translation enabled.")
-            ]
-            for start, end, text in demo_captions:
-                sign_seq = json.dumps(["hello", "welcome", "learn"])
-                cursor.execute(
-                    "INSERT INTO video_captions (video_id, start_time, end_time, text, sign_sequence) VALUES (?, ?, ?, ?, ?)",
-                    (orig_id, start, end, text, sign_seq)
-                )
+            # Check if real captions exist in R2 under captions/{orig_id}/transcript.json
+            cap_synced = False
+            transcript_raw = read_r2_text(f"captions/{orig_id}/transcript.json")
+            if transcript_raw:
+                try:
+                    loaded_caps = json.loads(transcript_raw)
+                    if isinstance(loaded_caps, list) and len(loaded_caps) > 0:
+                        for item in loaded_caps:
+                            cursor.execute(
+                                "INSERT INTO video_captions (video_id, start_time, end_time, text) VALUES (?, ?, ?, ?)",
+                                (orig_id, float(item.get("start", 0)), float(item.get("end", 0)), item.get("text", ""))
+                            )
+                        cursor.execute(
+                            "UPDATE videos SET caption_status = 'available', captions_url = ?, r2_captions_key = ? WHERE video_id = ?",
+                            (f"/video-captions?video_id={orig_id}", f"captions/{orig_id}/captions.vtt", orig_id)
+                        )
+                        cap_synced = True
+                except Exception:
+                    pass
+            if not cap_synced:
+                cursor.execute("UPDATE videos SET caption_status = 'pending' WHERE video_id = ?", (orig_id,))
 
         # ── Scan original/ (new hierarchical structure) ──
         response2 = client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix="original/")
